@@ -47,9 +47,24 @@ export const storageService = {
   // Initialization
   init: () => {
     if (typeof window === 'undefined') return;
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+    
+    // Smart initialization: Check if users exist and if they have required new fields
+    const existingUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+    let shouldInitUsers = !existingUsers;
+    
+    if (existingUsers) {
+      const users = JSON.parse(existingUsers);
+      // Migration check: Ensure the student mock user has a studentId
+      const student = users.find((u: any) => u.email === 'student@uspf.edu.ph');
+      if (student && !student.studentId) {
+        shouldInitUsers = true; // Force refresh to include new Student ID field
+      }
+    }
+
+    if (shouldInitUsers) {
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(MOCK_USERS));
     }
+
     if (!localStorage.getItem(STORAGE_KEYS.APPOINTMENTS)) {
       localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(MOCK_APPOINTMENTS));
     }

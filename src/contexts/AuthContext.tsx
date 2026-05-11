@@ -43,7 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     const users = storageService.getAll<any>(STORAGE_KEYS.USERS);
-    const foundUser = users.find(u => u.email === email && u.password === password);
+    const foundUser = users.find(u => 
+      u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
 
     if (foundUser) {
       const userToStore = {
@@ -62,7 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithId = async (studentId: string): Promise<boolean> => {
     const users = storageService.getAll<any>(STORAGE_KEYS.USERS);
-    const foundUser = users.find(u => u.studentId === studentId);
+    // Robust search: trim whitespace and ignore case
+    const searchId = studentId.trim();
+    const foundUser = users.find(u => u.studentId === searchId);
 
     if (foundUser) {
       const userToStore = {
