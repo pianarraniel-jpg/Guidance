@@ -30,7 +30,8 @@ import {
   CheckCircle2,
   Info,
   Target,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from 'lucide-react';
 import { format, isBefore, isWeekend, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -52,9 +53,7 @@ export default function BookAppointment() {
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.COUNSELOR);
   const [selectedCounselor, setSelectedCounselor] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [sessionType, setSessionType] = useState<'Physical' | 'Virtual'>('Physical');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [counselors, setCounselors] = useState<any[]>([]);
@@ -98,13 +97,13 @@ export default function BookAppointment() {
 
   const canProceedFromStep = useCallback((step: Step): boolean => {
     switch (step) {
-      case STEPS.COUNSELOR: return !!selectedCounselor && !!sessionType;
+      case STEPS.COUNSELOR: return !!selectedCounselor;
       case STEPS.DATE: return !!selectedDate;
       case STEPS.TIME: return !!selectedTime && isTimeAvailable(selectedTime);
       case STEPS.REASON: return !!reason.trim();
       default: return false;
     }
-  }, [selectedCounselor, sessionType, selectedDate, selectedTime, reason, isTimeAvailable]);
+  }, [selectedCounselor, selectedDate, selectedTime, reason, isTimeAvailable]);
 
   const goToNextStep = () => {
     if (canProceedFromStep(currentStep)) {
@@ -137,9 +136,9 @@ export default function BookAppointment() {
         counselorName: counselor?.name,
         date: format(selectedDate, 'yyyy-MM-dd'),
         time: selectedTime,
-        type: sessionType === 'Physical' ? 'Physical Session' : 'Virtual Session',
-        status: APPOINTMENT_STATUS.PENDING, // Default to Pending
-        location: sessionType === 'Physical' ? 'Guidance Office - Room 302' : 'Online - Zoom/Google Meet',
+        type: 'Physical Session',
+        status: APPOINTMENT_STATUS.PENDING,
+        location: 'Guidance Office - Room 302',
         reason: reason.trim(),
         createdAt: new Date().toISOString()
       };
@@ -190,17 +189,13 @@ export default function BookAppointment() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-3">
-                        <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Session Type</Label>
-                        <Select value={sessionType} onValueChange={(v: any) => setSessionType(v)}>
-                          <SelectTrigger className="h-14 rounded-2xl border-slate-100 bg-slate-50">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Physical">In-Person</SelectItem>
-                            <SelectItem value="Virtual">Virtual Session</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-primary" />
+                          <span className="text-xs font-black uppercase tracking-widest text-primary">Location</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-700">Guidance Office - Room 302</p>
+                        <p className="text-[10px] text-slate-400 font-medium italic">Standard physical consultation environment.</p>
                       </div>
                       <Button size="lg" disabled={!canProceedFromStep(STEPS.COUNSELOR)} onClick={goToNextStep} className="h-14 rounded-2xl mt-4 font-black">Next: Select Date</Button>
                     </div>
