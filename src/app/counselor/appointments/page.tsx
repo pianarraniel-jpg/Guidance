@@ -28,7 +28,11 @@ import {
   Clock,
   Trash2,
   CalendarClock,
-  Check
+  Check,
+  Eye,
+  User,
+  MapPin,
+  FileText
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
@@ -40,12 +44,20 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 
 export default function CounselorAppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const { toast } = useToast();
 
   const loadAppointments = () => {
@@ -66,6 +78,9 @@ export default function CounselorAppointmentsPage() {
       description: `Appointment is now ${newStatus}.`,
     });
     loadAppointments();
+    if (selectedApp?.id === id) {
+      setSelectedApp({ ...selectedApp, status: newStatus });
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -76,6 +91,7 @@ export default function CounselorAppointmentsPage() {
       description: "The record has been permanently removed.",
     });
     loadAppointments();
+    setIsDetailsOpen(false);
   };
 
   const filteredAppointments = appointments.filter(app => {
@@ -99,6 +115,11 @@ export default function CounselorAppointmentsPage() {
       default:
         return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
     }
+  };
+
+  const openDetails = (app: any) => {
+    setSelectedApp(app);
+    setIsDetailsOpen(true);
   };
 
   return (
@@ -185,7 +206,14 @@ export default function CounselorAppointmentsPage() {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 shadow-xl border-slate-100">
+                      <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-xl border-slate-100">
+                        <DropdownMenuItem 
+                          onClick={() => openDetails(app)}
+                          className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
+                        >
+                          <Eye className="h-4 w-4 text-slate-400" /> View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="my-1 bg-slate-50" />
                         <DropdownMenuItem 
                           onClick={() => handleUpdateStatus(app.id, APPOINTMENT_STATUS.CONFIRMED)}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
@@ -263,6 +291,83 @@ export default function CounselorAppointmentsPage() {
           </div>
         </Card>
       </div>
+
+      {/* Appointment Details Dialog */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-8 bg-slate-50 border-b relative">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 ring-4 ring-white shadow-md">
+                <AvatarImage src={`https://picsum.photos/seed/${selectedApp?.studentName}/128/128`} />
+                <AvatarFallback className="text-xl font-bold bg-primary text-white">{selectedApp?.studentName?.[0]}</AvatarFallback>
+              </Avatar>
+              <div>
+                <DialogTitle className="text-2xl font-black text-slate-900">{selectedApp?.studentName}</DialogTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge className="bg-primary/10 text-primary border-none font-bold text-[10px] uppercase">Ref: #{selectedApp?.id.slice(-6).toUpperCase()}</Badge>
+                  {getStatusBadge(selectedApp?.status)}
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-8 space-y-8">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <FileText className="h-3 w-3" /> Session Type
+                </p>
+                <p className="text-sm font-bold text-slate-700">{selectedApp?.type}</p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <MapPin className="h-3 w-3" /> Location
+                </p>
+                <p className="text-sm font-bold text-slate-700">{selectedApp?.location}</p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <Calendar className="h-3 w-3" /> Scheduled Date
+                </p>
+                <p className="text-sm font-bold text-slate-700">{selectedApp?.date}</p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <Clock className="h-3 w-3" /> Preferred Time
+                </p>
+                <p className="text-sm font-bold text-slate-700">{selectedApp?.time}</p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Target className="h-3 w-3 text-primary" /> Reason for Consultation
+              </p>
+              <p className="text-sm font-medium text-slate-600 leading-relaxed italic">
+                "{selectedApp?.reason || 'No specific reason provided.'}"
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              {selectedApp?.status === 'pending' && (
+                <Button 
+                  onClick={() => handleUpdateStatus(selectedApp.id, APPOINTMENT_STATUS.CONFIRMED)}
+                  className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black gap-2"
+                >
+                  <Check className="h-4 w-4" /> Accept Session
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => setIsDetailsOpen(false)}
+                className="flex-1 h-12 rounded-xl font-bold border-slate-200"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
