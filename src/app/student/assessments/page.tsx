@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -20,9 +21,6 @@ import {
   Smile,
   ChevronRight,
   Brain,
-  Home,
-  GraduationCap,
-  Heart,
   CheckCircle2,
   ClipboardList,
   MessageSquare,
@@ -31,7 +29,8 @@ import {
   Clock,
   Target,
   FileText,
-  User
+  User,
+  Star
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
 import { storageService } from '@/lib/storage-service';
@@ -39,6 +38,14 @@ import { STORAGE_KEYS } from '@/lib/constants';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Message = {
   role: 'user' | 'model';
@@ -66,6 +73,8 @@ export default function StudentAssessments() {
 
   // Assessment Tasks State
   const [tasks, setTasks] = useState<any[]>([]);
+  const [activeTask, setActiveTask] = useState<any>(null);
+  const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
 
   const loadTasks = () => {
     if (user) {
@@ -77,8 +86,11 @@ export default function StudentAssessments() {
 
   useEffect(() => {
     loadTasks();
-    window.addEventListener('storage', loadTasks);
-    return () => window.removeEventListener('storage', loadTasks);
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.ASSESSMENT_TASKS) loadTasks();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, [user]);
 
   useEffect(() => {
@@ -133,7 +145,8 @@ export default function StudentAssessments() {
           summary: result.assessmentSummary,
           stressLevel: Math.floor(Math.random() * (90 - 40 + 1)) + 40,
           focusAreas: focusAreas,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: 'AI_CHAT'
         });
 
         toast({
@@ -148,26 +161,58 @@ export default function StudentAssessments() {
     }
   };
 
-  const handleCompleteTask = (task: any) => {
-    // Simulate task completion
+  const handleOpenTask = (task: any) => {
+    setActiveTask(task);
+    setTaskAnswers({});
+  };
+
+  const handleSubmitTask = () => {
+    if (!activeTask || !user) return;
+
+    // Check if all questions are answered
+    const questions = activeTask.questions || ['Please describe your current stress level.'];
+    const unanswered = questions.some((_, i: number) => !taskAnswers[i]);
+    
+    if (unanswered) {
+      toast({
+        variant: "destructive",
+        title: "Incomplete Form",
+        description: "Please answer all clinical questions before submitting.",
+      });
+      return;
+    }
+
+    const submissionDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    
+    // Create the assessment record
     storageService.create(STORAGE_KEYS.ASSESSMENTS, {
-      studentId: user?.id,
-      studentName: user?.name,
-      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-      summary: `Completed Assigned Task: ${task.title}. Student reported: ${task.description}`,
-      stressLevel: 50,
-      focusAreas: ['Assigned Clinical Task'],
+      studentId: user.id,
+      studentName: user.name,
+      date: submissionDate,
+      summary: `Clinical Response to: ${activeTask.title}`,
+      answers: taskAnswers,
+      questions: questions,
+      stressLevel: 50, // Default until counselor rates
+      focusAreas: ['Clinical Assignment'],
       timestamp: Date.now(),
-      taskId: task.id
+      taskId: activeTask.id,
+      type: 'CLINICAL_FORM',
+      status: 'submitted'
     });
 
-    storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, task.id, { status: 'completed' });
-    loadTasks();
-    
+    // Update the task status
+    storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, activeTask.id, { 
+      status: 'submitted',
+      lastUpdate: Date.now()
+    });
+
     toast({
       title: "Task Submitted",
-      description: "Your counselor will review your response shortly.",
+      description: "Your answers have been sent to your counselor for analysis.",
     });
+
+    setActiveTask(null);
+    loadTasks();
   };
 
   const emotionReplies = [
@@ -304,14 +349,14 @@ export default function StudentAssessments() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tasks.map(task => (
                   <Card key={task.id} className="border-none shadow-lg shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col group">
-                    <div className={`h-2 w-full ${task.status === 'completed' ? 'bg-emerald-500' : 'bg-primary'}`} />
+                    <div className={`h-2 w-full ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-500' : 'bg-primary'}`} />
                     <CardHeader className="p-8 pb-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
                           <FileText className="h-5 w-5" />
                         </div>
-                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none ${task.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
-                          {task.status === 'completed' ? 'Completed' : 'Clinical Task'}
+                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
+                          {task.status === 'completed' ? 'Evaluated' : task.status === 'submitted' ? 'Awaiting Review' : 'New Assignment'}
                         </Badge>
                       </div>
                       <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors">{task.title}</CardTitle>
@@ -327,13 +372,26 @@ export default function StudentAssessments() {
                         <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                           <Clock className="h-3 w-3" /> Assigned: {task.date}
                         </div>
-                        {task.status !== 'completed' ? (
-                          <Button onClick={() => handleCompleteTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/10">
+                        {task.status === 'pending' ? (
+                          <Button onClick={() => handleOpenTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/10">
                             Complete Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
                           </Button>
-                        ) : (
+                        ) : task.status === 'submitted' ? (
                           <div className="flex items-center gap-2 text-emerald-600 font-black text-xs pt-2">
-                            <CheckCircle2 className="h-4 w-4" /> Assessment Submitted
+                            <CheckCircle2 className="h-4 w-4" /> Form Submitted
+                          </div>
+                        ) : (
+                          <div className="space-y-4 pt-4 border-t border-slate-50">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-lg font-black text-primary">{task.counselorRating}</span>
+                                <span className="text-[10px] font-bold text-slate-300">/10</span>
+                              </div>
+                            </div>
+                            <div className="p-3 rounded-lg bg-slate-50 text-[11px] font-medium text-slate-500 italic">
+                              "{task.counselorComments || 'Reviewed by counselor.'}"
+                            </div>
                           </div>
                         )}
                       </div>
@@ -350,6 +408,49 @@ export default function StudentAssessments() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Clinical Task Form Dialog */}
+          <Dialog open={!!activeTask} onOpenChange={(open) => !open && setActiveTask(null)}>
+            <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+              <DialogHeader className="p-8 bg-slate-50 border-b">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl font-black text-slate-900">{activeTask?.title}</DialogTitle>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Clinical Evaluation Form</p>
+                  </div>
+                </div>
+              </DialogHeader>
+              <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
+                <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100/50 text-xs font-medium text-blue-700 leading-relaxed italic">
+                  "{activeTask?.description}"
+                </div>
+
+                <div className="space-y-8">
+                  {(activeTask?.questions || ['Please describe your current state.']).map((q: string, i: number) => (
+                    <div key={i} className="space-y-3">
+                      <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
+                        <span className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px]">{i + 1}</span>
+                        {q}
+                      </Label>
+                      <Textarea 
+                        placeholder="Your clinical response..."
+                        className="min-h-[120px] rounded-2xl bg-slate-50 border-none p-4 text-sm font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
+                        value={taskAnswers[i] || ''}
+                        onChange={(e) => setTaskAnswers(prev => ({ ...prev, [i]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-8 pt-4 bg-white border-t flex gap-3">
+                <Button variant="outline" onClick={() => setActiveTask(null)} className="flex-1 h-14 rounded-2xl font-bold border-slate-200">Cancel</Button>
+                <Button onClick={handleSubmitTask} className="flex-1 h-14 rounded-2xl font-black bg-primary">Submit Analysis</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </main>
       </DashboardLayout>
     </ProtectedRoute>
