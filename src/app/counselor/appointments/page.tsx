@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -24,157 +24,123 @@ import {
   AlertCircle, 
   Calendar, 
   Smile, 
-  ChevronLeft, 
-  ChevronRight,
-  MoreVertical
+  Search,
+  MoreVertical,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
-
-const studentsData = [
-  {
-    name: 'Alex Martinez',
-    email: 'alex.m@example.edu',
-    id: '#USPF-8821',
-    course: 'Computer Science',
-    year: 'Senior',
-    lastSession: '2 days ago',
-    status: 'Critical',
-    statusColor: 'bg-red-50 text-red-600 border-red-100'
-  },
-  {
-    name: 'Sarah Williams',
-    email: 's.williams@example.edu',
-    id: '#USPF-4102',
-    course: 'Psychology',
-    year: 'Sophomore',
-    lastSession: 'Last week',
-    status: 'Moderate',
-    statusColor: 'bg-orange-50 text-orange-600 border-orange-100'
-  },
-  {
-    name: 'David Chen',
-    email: 'd.chen@example.edu',
-    id: '#USPF-9912',
-    course: 'Business Admin',
-    year: 'Freshman',
-    lastSession: 'Today',
-    status: 'Stable',
-    statusColor: 'bg-emerald-50 text-emerald-600 border-emerald-100'
-  },
-  {
-    name: 'Jordan Lee',
-    email: 'jordan.lee@example.edu',
-    id: '#USPF-2245',
-    course: 'Fine Arts',
-    year: 'Junior',
-    lastSession: '3 days ago',
-    status: 'Stable',
-    statusColor: 'bg-emerald-50 text-emerald-600 border-emerald-100'
-  },
-  {
-    name: 'Elena Kovach',
-    email: 'e.kovach@example.edu',
-    id: '#USPF-1108',
-    course: 'Engineering',
-    year: 'Senior',
-    lastSession: '1 month ago',
-    status: 'Critical',
-    statusColor: 'bg-red-50 text-red-600 border-red-100'
-  }
-];
+import { storageService } from '@/lib/storage-service';
+import { STORAGE_KEYS } from '@/lib/constants';
+import { Input } from '@/components/ui/input';
 
 export default function CounselorAppointmentsPage() {
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  useEffect(() => {
+    const data = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+    // Sort by date descending
+    data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAppointments(data);
+  }, []);
+
+  const filteredAppointments = appointments.filter(app => {
+    const matchesSearch = app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         app.type?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || app.status?.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+        return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase">Confirmed</Badge>;
+      case 'completed':
+        return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase">Completed</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto w-full pb-10">
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
+      <header className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Student Directory</h1>
-          <p className="text-slate-500 font-medium">Manage wellness check-ins and session schedules</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Appointment Queue</h1>
+          <p className="text-slate-500 font-medium">Monitoring university-wide student wellness check-ins.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[140px] h-10 bg-white border-none shadow-sm rounded-xl font-bold text-xs">
-              <SelectValue placeholder="All Courses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Courses</SelectItem>
-              <SelectItem value="cs">Computer Science</SelectItem>
-              <SelectItem value="psych">Psychology</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
+            <Input 
+              placeholder="Search student or type..." 
+              className="pl-10 h-10 w-[240px] bg-white border-none shadow-sm rounded-xl text-xs font-bold"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-          <Select defaultValue="all">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[140px] h-10 bg-white border-none shadow-sm rounded-xl font-bold text-xs">
-              <SelectValue placeholder="All Years" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Years</SelectItem>
-              <SelectItem value="freshman">Freshman</SelectItem>
-              <SelectItem value="senior">Senior</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[160px] h-10 bg-white border-none shadow-sm rounded-xl font-bold text-xs">
-              <SelectValue placeholder="Stress Category" />
+              <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-              <SelectItem value="moderate">Moderate</SelectItem>
-              <SelectItem value="stable">Stable</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </header>
 
       <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden mb-10">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-slate-50/50">
               <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pl-8">Student Name</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">ID</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Course</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Year</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Last Session</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Stress Status</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pl-8">Student</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Appointment Info</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Location</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Schedule</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Status</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pr-8 text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {studentsData.map((student, idx) => (
+              {filteredAppointments.map((app, idx) => (
                 <TableRow key={idx} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all cursor-pointer group">
                   <TableCell className="pl-8 py-5">
                     <div className="flex items-center gap-4">
-                      <Avatar className="h-10 w-10 ring-2 ring-white">
-                        <AvatarImage src={`https://picsum.photos/seed/${student.name}/64/64`} />
-                        <AvatarFallback className="bg-primary/5 text-primary font-bold">{student.name[0]}</AvatarFallback>
+                      <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
+                        <AvatarImage src={`https://picsum.photos/seed/${app.studentName}/64/64`} />
+                        <AvatarFallback className="bg-primary/5 text-primary font-bold">{app.studentName?.[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 text-sm">{student.name}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{student.email}</span>
+                        <span className="font-bold text-slate-900 text-sm">{app.studentName}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Ref: #{app.id.slice(-4).toUpperCase()}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-bold text-slate-500">{student.id}</span>
+                    <span className="text-xs font-bold text-slate-700">{app.type}</span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-bold text-slate-700">{student.course}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-bold text-slate-700">{student.year}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-bold text-slate-700">{student.lastSession}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`rounded-full px-3 py-1 font-black text-[9px] uppercase tracking-tight border-none ${student.statusColor}`}>
-                      <div className={`h-1.5 w-1.5 rounded-full mr-2 ${student.status === 'Critical' ? 'bg-red-500' : student.status === 'Moderate' ? 'bg-orange-500' : 'bg-emerald-500'}`} />
-                      {student.status}
+                    <Badge variant="outline" className="rounded-lg bg-slate-50 border-none font-bold text-[9px] uppercase px-2">
+                      {app.location}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-900">{app.date}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{app.time}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(app.status)}</TableCell>
                   <TableCell className="pr-8 text-right">
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 group-hover:text-primary transition-colors">
                       <MoreVertical className="h-4 w-4" />
@@ -182,62 +148,59 @@ export default function CounselorAppointmentsPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredAppointments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center text-slate-400 font-bold">No active appointments in queue.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
 
           <div className="p-6 border-t border-slate-50 flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400">Showing 5 of 1,240 students</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="h-8 rounded-lg font-bold text-[10px] text-slate-500 border-slate-100">Previous</Button>
-              <Button size="sm" className="h-8 rounded-lg font-bold text-[10px] bg-primary hover:bg-primary/90 text-white border-none shadow-sm">Next</Button>
-            </div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Queue Load: {filteredAppointments.length} sessions
+            </span>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl overflow-hidden p-6">
+        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl p-6">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500 shadow-sm">
-              <AlertCircle className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">High Priority</p>
-              <p className="text-2xl font-black text-slate-900">12</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl overflow-hidden p-6">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-sm">
+            <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary shadow-sm">
               <Calendar className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Sessions</p>
-              <p className="text-2xl font-black text-slate-900">34</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Scheduled</p>
+              <p className="text-2xl font-black text-slate-900">{appointments.length}</p>
             </div>
           </div>
         </Card>
-
-        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl overflow-hidden p-6">
+        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl p-6">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 shadow-sm">
-              <Smile className="h-6 w-6" />
+            <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm">
+              <Clock className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Average Sentiment</p>
-              <p className="text-2xl font-black text-slate-900">7.8</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Confirmed</p>
+              <p className="text-2xl font-black text-slate-900">{appointments.filter(a => a.status === 'confirmed').length}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="border-none shadow-lg shadow-slate-200/40 bg-white rounded-3xl p-6">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-sm">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Success Rate</p>
+              <p className="text-2xl font-black text-slate-900">
+                {appointments.length ? Math.round((appointments.filter(a => a.status === 'completed').length / appointments.length) * 100) : 0}%
+              </p>
             </div>
           </div>
         </Card>
       </div>
-
-      <footer className="mt-12 text-center">
-        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-          © 2024 GuidanceSync Supportive Wellness. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }
