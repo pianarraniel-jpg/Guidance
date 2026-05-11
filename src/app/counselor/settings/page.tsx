@@ -2,19 +2,19 @@
 
 import React from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import CounselorDashboardLayout from '@/components/layout/CounselorDashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, Shield, Key, Mail, Bell } from 'lucide-react';
+import { LogOut, Shield, Key, Mail } from 'lucide-react';
 
 export default function CounselorSettings() {
   const { user, logout } = useAuth();
 
   return (
     <ProtectedRoute allowedRoles={['counselor']}>
-      <DashboardLayout>
+      <CounselorDashboardLayout>
         <div className="p-8 max-w-4xl mx-auto w-full">
           <header className="mb-8">
             <h1 className="text-4xl font-bold font-headline text-slate-900 mb-2">Counselor Settings</h1>
@@ -55,7 +55,7 @@ export default function CounselorSettings() {
                   <div className="flex items-center gap-3">
                     <Key className="h-5 w-5 text-blue-600" />
                     <div>
-                      <p className="text-sm font-bold">Change Admin Password</p>
+                      <p className="text-sm font-bold">Change Portal Password</p>
                       <p className="text-xs text-muted-foreground">Update your secure access credentials</p>
                     </div>
                   </div>
@@ -72,12 +72,12 @@ export default function CounselorSettings() {
                 onClick={logout}
               >
                 <LogOut className="h-5 w-5 mr-3" />
-                Logout
+                Sign Out
               </Button>
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </CounselorDashboardLayout>
     </ProtectedRoute>
   );
 }

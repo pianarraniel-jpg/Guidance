@@ -1,11 +1,10 @@
-
 "use client";
 
 import React from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import CounselorDashboardLayout from '@/components/layout/CounselorDashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,7 +20,6 @@ import {
   Plus,
   Play
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function CounselorDashboard() {
   const { user } = useAuth();
@@ -74,7 +72,7 @@ export default function CounselorDashboard() {
 
   return (
     <ProtectedRoute allowedRoles={['counselor']}>
-      <DashboardLayout>
+      <CounselorDashboardLayout>
         <div className="p-8 max-w-7xl mx-auto w-full">
           {/* Header */}
           <header className="mb-10">
@@ -247,7 +245,7 @@ export default function CounselorDashboard() {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </CounselorDashboardLayout>
     </ProtectedRoute>
   );
 }
