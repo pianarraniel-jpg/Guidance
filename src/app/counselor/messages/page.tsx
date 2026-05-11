@@ -19,7 +19,9 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  Plus,
+  Calendar
 } from 'lucide-react';
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { useToast } from '@/hooks/use-toast';
@@ -86,8 +88,8 @@ export default function CounselorMessagesPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!inputValue.trim() || !user || !activeStudent) return;
 
     const newMessage: Omit<Message, 'id'> = {
@@ -102,6 +104,26 @@ export default function CounselorMessagesPage() {
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
     loadData(); // Local refresh
+  };
+
+  const handleSendBookingForm = () => {
+    if (!user || !activeStudent) return;
+    
+    const newMessage: Omit<Message, 'id'> = {
+      senderId: user.id,
+      receiverId: activeStudent.id,
+      senderRole: user.role,
+      text: '[BOOKING_REQUEST]',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: Date.now()
+    };
+
+    storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
+    loadData();
+    toast({
+      title: "Invitation Sent",
+      description: `A session booking request has been sent to ${activeStudent.name}.`,
+    });
   };
 
   const handleAISummarize = async () => {
@@ -247,13 +269,22 @@ export default function CounselorMessagesPage() {
                     className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2`}
                   >
                     <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
-                      <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
-                        msg.senderId === user?.id 
-                          ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
-                          : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
-                      }`}>
-                        {msg.text}
-                      </div>
+                      {msg.text === '[BOOKING_REQUEST]' ? (
+                        <div className="bg-slate-100 border border-slate-200 rounded-2xl p-6 flex flex-col items-center gap-3 w-64">
+                          <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
+                            <Calendar className="h-5 w-5 text-slate-500" />
+                          </div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Session Invitation Sent</p>
+                        </div>
+                      ) : (
+                        <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
+                          msg.senderId === user?.id 
+                            ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                            : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-2 px-1">
                         <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">{msg.time}</span>
                         {msg.senderId === user?.id && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
@@ -268,12 +299,21 @@ export default function CounselorMessagesPage() {
             <div className="p-8 border-t border-slate-50 bg-white">
               <div className="max-w-4xl mx-auto">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-4">
-                  <div className="flex-1 relative">
+                  <div className="flex-1 relative flex items-center gap-2">
+                    <Button 
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleSendBookingForm}
+                      className="h-14 w-14 rounded-2xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all shrink-0"
+                    >
+                      <Plus className="h-6 w-6" />
+                    </Button>
                     <Input 
                       placeholder="Type your clinical response..." 
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
-                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-14 text-sm font-medium"
+                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 text-sm font-medium w-full"
                     />
                   </div>
                   <Button 

@@ -9,16 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
   Send,
   Plus,
   Clock,
   AlertCircle,
   Search,
-  MessageSquare
+  MessageSquare,
+  Calendar,
+  ChevronRight
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
+import Link from 'next/link';
 
 type ChatMessage = {
   id: string;
@@ -182,13 +186,35 @@ export default function StudentMessages() {
                           </Avatar>
                         )}
                         <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                            msg.senderId === user?.id 
-                              ? 'bg-primary text-white rounded-tr-none' 
-                              : 'bg-white border text-[#334155] rounded-tl-none'
-                          }`}>
-                            {msg.text}
-                          </div>
+                          {msg.text === '[BOOKING_REQUEST]' ? (
+                            <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden max-w-sm">
+                              <div className="bg-primary p-5 text-white">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Calendar className="h-4 w-4" />
+                                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">Session Invitation</span>
+                                </div>
+                                <h4 className="text-lg font-black">Book Your Next Session</h4>
+                              </div>
+                              <CardContent className="p-6">
+                                <p className="text-xs text-slate-500 mb-6 leading-relaxed font-medium">
+                                  Your counselor has requested that you schedule a follow-up appointment to continue your wellness journey.
+                                </p>
+                                <Button asChild className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black text-xs shadow-lg shadow-primary/20">
+                                  <Link href="/student/book" className="flex items-center justify-center gap-2">
+                                    Complete Booking Form <ChevronRight className="h-4 w-4" />
+                                  </Link>
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          ) : (
+                            <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                              msg.senderId === user?.id 
+                                ? 'bg-primary text-white rounded-tr-none' 
+                                : 'bg-white border text-[#334155] rounded-tl-none'
+                            }`}>
+                              {msg.text}
+                            </div>
+                          )}
                           <span className="text-[10px] text-muted-foreground mt-2 font-medium">{msg.time}</span>
                         </div>
                       </div>
