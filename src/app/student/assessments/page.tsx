@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Send,
   ShieldCheck,
@@ -20,9 +22,13 @@ import {
   Brain,
   Home,
   GraduationCap,
-  Heart
+  Heart,
+  CheckCircle2
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
+import { storageService } from '@/lib/storage-service';
+import { STORAGE_KEYS } from '@/lib/constants';
+import Link from 'next/link';
 
 type Message = {
   role: 'user' | 'model';
@@ -32,6 +38,7 @@ type Message = {
 
 export default function StudentAssessments() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -39,11 +46,12 @@ export default function StudentAssessments() {
     {
       role: 'model',
       text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
-      time: '10:02 AM'
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -52,7 +60,7 @@ export default function StudentAssessments() {
   }, [messages]);
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() || isLoading || isComplete) return;
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newUserMessage: Message = { role: 'user', text, time: currentTime };
@@ -79,6 +87,25 @@ export default function StudentAssessments() {
       };
 
       setMessages(prev => [...prev, botResponse]);
+
+      if (result.assessmentComplete && result.assessmentSummary) {
+        setIsComplete(true);
+        // Save the assessment to storage
+        storageService.create(STORAGE_KEYS.ASSESSMENTS, {
+          studentId: user?.id,
+          studentName: user?.name,
+          date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          summary: result.assessmentSummary,
+          stressLevel: Math.floor(Math.random() * (90 - 40 + 1)) + 40, // Random stress level for demo
+          focusAreas: ['Academic', 'Personal'], // Mocked focus areas
+          timestamp: Date.now()
+        });
+
+        toast({
+          title: "Assessment Complete",
+          description: "Your wellness check-in has been synchronized with your counselor.",
+        });
+      }
     } catch (error) {
       console.error('Chat error:', error);
     } finally {
@@ -113,9 +140,11 @@ export default function StudentAssessments() {
               </div>
               <div className="text-right w-48">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-black text-primary uppercase tracking-wider">Step 2 of 4</span>
+                  <span className="text-[10px] font-black text-primary uppercase tracking-wider">
+                    {isComplete ? 'Complete' : 'Step 2 of 4'}
+                  </span>
                 </div>
-                <Progress value={50} className="h-2 bg-slate-200" />
+                <Progress value={isComplete ? 100 : 50} className="h-2 bg-slate-200" />
               </div>
             </div>
 
@@ -127,12 +156,12 @@ export default function StudentAssessments() {
                   <Avatar className="h-10 w-10 ring-2 ring-primary/10">
                     <AvatarFallback className="bg-primary text-white text-xs font-bold">🤖</AvatarFallback>
                   </Avatar>
-                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-white"></span>
+                  <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${isComplete ? 'bg-slate-300' : 'bg-emerald-500'}`}></span>
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-slate-900">Guidi</h4>
                   <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1">
-                    AI Wellness Companion
+                    {isComplete ? 'Session Concluded' : 'AI Wellness Companion'}
                   </p>
                 </div>
               </div>
@@ -163,77 +192,95 @@ export default function StudentAssessments() {
                       </div>
                     </div>
                   )}
+                  {isComplete && (
+                    <div className="flex flex-col items-center py-8 space-y-4">
+                      <div className="h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                         <CheckCircle2 className="h-10 w-10" />
+                      </div>
+                      <div className="text-center">
+                        <h4 className="font-black text-slate-900">Assessment Complete</h4>
+                        <p className="text-xs text-muted-foreground max-w-xs mx-auto mt-1">
+                          Guidi has gathered enough insights. You can now close this session or head back to your dashboard.
+                        </p>
+                      </div>
+                      <Button asChild variant="outline" className="rounded-xl font-bold">
+                        <Link href="/student/dashboard">Return to Dashboard</Link>
+                      </Button>
+                    </div>
+                  )}
                   <div ref={scrollRef} />
                 </div>
               </ScrollArea>
 
               {/* Chat Controls */}
-              <div className="p-6 border-t bg-white">
-                {/* Quick Replies Strip */}
-                <div className="space-y-4 mb-6">
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">How are you feeling?</p>
-                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                      {emotionReplies.map((qr) => (
-                        <Button
-                          key={qr.label}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSendMessage(qr.label)}
-                          className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
-                        >
-                          <qr.icon className={`h-3.5 w-3.5 mr-2 ${qr.color}`} />
-                          {qr.label}
-                        </Button>
-                      ))}
+              {!isComplete && (
+                <div className="p-6 border-t bg-white">
+                  {/* Quick Replies Strip */}
+                  <div className="space-y-4 mb-6">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">How are you feeling?</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {emotionReplies.map((qr) => (
+                          <Button
+                            key={qr.label}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendMessage(qr.label)}
+                            className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
+                          >
+                            <qr.icon className={`h-3.5 w-3.5 mr-2 ${qr.color}`} />
+                            {qr.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">What's on your mind?</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {concernReplies.map((qr) => (
+                          <Button
+                            key={qr.label}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendMessage(qr.label)}
+                            className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
+                          >
+                            <qr.icon className="h-3.5 w-3.5 mr-2 text-primary" />
+                            {qr.label}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">What's on your mind?</p>
-                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                      {concernReplies.map((qr) => (
-                        <Button
-                          key={qr.label}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSendMessage(qr.label)}
-                          className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
-                        >
-                          <qr.icon className="h-3.5 w-3.5 mr-2 text-primary" />
-                          {qr.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Message Input */}
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage(inputValue);
-                  }}
-                  className="relative flex items-center gap-3"
-                >
-                  <div className="flex-1 relative">
-                    <Input 
-                      placeholder="Type your response here..." 
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-5 pr-12 text-sm font-medium"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <Button 
-                    type="submit"
-                    disabled={!inputValue.trim() || isLoading}
-                    className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-transform active:scale-95"
+                  {/* Message Input */}
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendMessage(inputValue);
+                    }}
+                    className="relative flex items-center gap-3"
                   >
-                    <Send className="h-5 w-5" />
-                  </Button>
-                </form>
-              </div>
+                    <div className="flex-1 relative">
+                      <Input 
+                        placeholder="Type your response here..." 
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-5 pr-12 text-sm font-medium"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <Button 
+                      type="submit"
+                      disabled={!inputValue.trim() || isLoading}
+                      className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-transform active:scale-95"
+                    >
+                      <Send className="h-5 w-5" />
+                    </Button>
+                  </form>
+                </div>
+              )}
             </div>
 
             {/* Footer Footer */}
@@ -242,10 +289,12 @@ export default function StudentAssessments() {
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
                 University Wellness Encryption Active
               </div>
-              <button className="text-[11px] font-black text-slate-700 hover:text-primary transition-colors flex items-center gap-1 group">
-                SAVE & FINISH LATER
-                <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+              {!isComplete && (
+                <button className="text-[11px] font-black text-slate-700 hover:text-primary transition-colors flex items-center gap-1 group">
+                  SAVE & FINISH LATER
+                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              )}
             </div>
           </div>
         </main>
