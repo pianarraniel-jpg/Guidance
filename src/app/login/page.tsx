@@ -16,8 +16,10 @@ import {
   Eye, 
   EyeOff,
   CheckCircle2,
-  Scan
+  Scan,
+  Briefcase
 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -27,7 +29,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, loginWithId } = useAuth();
-  const router = useRouter();
 
   const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,9 +140,20 @@ export default function LoginPage() {
       {/* Right Panel: Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-16">
         <div className="w-full max-w-[440px]">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold font-headline mb-2">Welcome back</h1>
-            <p className="text-muted-foreground">Sign in to your student wellness account</p>
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold font-headline mb-2">Welcome back</h1>
+              <p className="text-muted-foreground text-sm">Sign in to your student wellness account</p>
+            </div>
+            <Link 
+              href="/login/counselor" 
+              className="flex flex-col items-center gap-1 group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                <Briefcase className="h-5 w-5" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-tighter text-slate-400 group-hover:text-primary">Staff</span>
+            </Link>
           </div>
 
           <Tabs defaultValue="standard" className="w-full mb-8">
