@@ -15,12 +15,12 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  MoreHorizontal, 
   ChevronRight,
   Plus,
-  Play
+  Play,
+  ClipboardList
 } from 'lucide-react';
-import { format, isToday, isThisWeek, parseISO } from 'date-fns';
+import { format, isThisWeek, parseISO } from 'date-fns';
 import Link from 'next/link';
 
 export default function CounselorDashboard() {
@@ -44,23 +44,18 @@ export default function CounselorDashboard() {
 
   const todaySessions = appointments.filter(a => a.date === format(new Date(), 'yyyy-MM-dd'));
   const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;
-  const weeklyStudents = new Set(appointments.filter(a => isThisWeek(parseISO(a.date))).map(a => a.studentId)).size;
+  const weeklyAssessments = assessments.filter(a => isThisWeek(a.timestamp)).length;
 
   const stats = [
     { label: "Today's Sessions", value: todaySessions.length.toString(), icon: Calendar, color: "text-emerald-600", bg: "bg-emerald-50", badge: "Today" },
     { label: "Pending Confirmations", value: pendingCount.toString(), icon: CheckCircle2, color: "text-amber-600", bg: "bg-amber-50", badge: "Action Req." },
-    { label: "Unread Messages", value: "3", icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50", badge: "New" },
-    { label: "Students This Week", value: weeklyStudents.toString(), icon: Users, color: "text-slate-600", bg: "bg-slate-50", badge: "Week" },
+    { label: "Weekly Assessments", value: assessments.length.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50", badge: "Total" },
+    { label: "Critical Cases", value: assessments.filter(a => a.stressLevel > 75).length.toString(), icon: AlertCircle, color: "text-red-600", bg: "bg-red-50", badge: "High Risk" },
   ];
 
-  const studentQueue = appointments
+  const incomingQueue = appointments
     .filter(a => a.status === APPOINTMENT_STATUS.PENDING)
-    .slice(0, 3)
-    .map(a => ({
-      name: a.studentName,
-      status: a.type,
-      risk: false
-    }));
+    .slice(0, 4);
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
@@ -141,36 +136,38 @@ export default function CounselorDashboard() {
           <Card className="border-0 shadow-lg shadow-slate-200/40 bg-white rounded-3xl overflow-hidden">
             <CardHeader className="p-6 pb-2 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-red-500" />
+                <AlertCircle className="h-4 w-4 text-amber-500" />
                 <CardTitle className="text-sm font-black">Incoming Queue</CardTitle>
               </div>
-              <Badge className="bg-primary text-white border-none font-black text-[9px] px-2 h-5">{pendingCount} Pending</Badge>
+              <Badge className="bg-primary text-white border-none font-black text-[9px] px-2 h-5">{pendingCount} New</Badge>
             </CardHeader>
             <CardContent className="p-4 pt-4 space-y-2">
-              {studentQueue.map((student, i) => (
+              {incomingQueue.map((student, i) => (
                 <Link key={i} href="/counselor/appointments" className="p-3 rounded-2xl border border-slate-50 hover:bg-slate-50 transition-colors flex items-center gap-3 cursor-pointer group">
                   <Avatar className="h-10 w-10 ring-2 ring-white">
-                    <AvatarImage src={`https://picsum.photos/seed/${student.name}/64/64`} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold">{student.name[0]}</AvatarFallback>
+                    <AvatarImage src={`https://picsum.photos/seed/${student.studentId}/64/64`} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold">{student.studentName?.[0]}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-slate-900 mb-0.5">{student.name}</p>
+                    <p className="text-sm font-black text-slate-900 mb-0.5">{student.studentName}</p>
                     <p className="text-[10px] font-medium truncate text-slate-400">
-                      {student.status}
+                      {student.type}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
                 </Link>
               ))}
-              {studentQueue.length === 0 && <p className="text-xs text-center text-slate-400 py-4 italic">No pending requests.</p>}
+              {incomingQueue.length === 0 && <p className="text-xs text-center text-slate-400 py-4 italic">No pending requests.</p>}
             </CardContent>
           </Card>
 
           <Card className="border-0 shadow-lg shadow-slate-200/40 bg-primary rounded-3xl p-6 text-white relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-black text-lg mb-2">New Assessment?</h3>
-              <p className="text-white/70 text-xs mb-6">Launch a manual wellness assessment for a walk-in student.</p>
-              <Button variant="secondary" className="w-full bg-white text-primary font-black rounded-xl">Launch Tool</Button>
+              <h3 className="font-black text-lg mb-2">Review Assessments</h3>
+              <p className="text-white/70 text-xs mb-6">Analyze {assessments.length} student wellness profiles to prepare for upcoming sessions.</p>
+              <Button asChild variant="secondary" className="w-full bg-white text-primary font-black rounded-xl">
+                <Link href="/counselor/assessments">Go to Assessments</Link>
+              </Button>
             </div>
             <Users className="absolute -bottom-4 -right-4 h-32 w-32 text-white/10 group-hover:scale-110 transition-transform" />
           </Card>

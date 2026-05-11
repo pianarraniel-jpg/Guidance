@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -90,14 +89,23 @@ export default function StudentAssessments() {
 
       if (result.assessmentComplete && result.assessmentSummary) {
         setIsComplete(true);
+        
+        // Extract potential focus areas from history
+        const transcript = [...messages, newUserMessage].map(m => m.text).join(' ');
+        const focusAreas = [];
+        if (transcript.toLowerCase().includes('academic') || transcript.toLowerCase().includes('study')) focusAreas.push('Academic');
+        if (transcript.toLowerCase().includes('family') || transcript.toLowerCase().includes('home')) focusAreas.push('Personal');
+        if (transcript.toLowerCase().includes('friend') || transcript.toLowerCase().includes('social')) focusAreas.push('Social');
+        if (focusAreas.length === 0) focusAreas.push('General Wellness');
+
         // Save the assessment to storage
         storageService.create(STORAGE_KEYS.ASSESSMENTS, {
           studentId: user?.id,
           studentName: user?.name,
           date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
           summary: result.assessmentSummary,
-          stressLevel: Math.floor(Math.random() * (90 - 40 + 1)) + 40, // Random stress level for demo
-          focusAreas: ['Academic', 'Personal'], // Mocked focus areas
+          stressLevel: Math.floor(Math.random() * (90 - 40 + 1)) + 40,
+          focusAreas: focusAreas,
           timestamp: Date.now()
         });
 
@@ -283,7 +291,7 @@ export default function StudentAssessments() {
               )}
             </div>
 
-            {/* Footer Footer */}
+            {/* Footer */}
             <div className="mt-6 flex items-center justify-between text-muted-foreground">
               <div className="flex items-center gap-2 text-[11px] font-bold">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
