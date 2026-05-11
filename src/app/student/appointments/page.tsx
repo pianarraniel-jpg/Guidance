@@ -4,169 +4,261 @@ import React, { useState } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { 
+  Search, 
+  Calendar, 
   Clock, 
-  MapPin, 
-  Video, 
-  Calendar as CalendarIcon
+  MoreHorizontal, 
+  Filter,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Timer
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Link from 'next/link';
 
-export default function StudentAppointments() {
-  const [activeTab, setActiveTab] = useState('upcoming');
+const appointmentsData = [
+  {
+    id: 'app-001',
+    date: '2024-06-15',
+    time: '10:00 AM',
+    counselor: 'Dr. Maria Santos',
+    type: 'Wellness Check-in',
+    status: 'Upcoming',
+    location: 'Room 302 / Physical',
+    priority: 'Normal'
+  },
+  {
+    id: 'app-002',
+    date: '2024-06-12',
+    time: '02:00 PM',
+    counselor: 'Mr. Marcus Jensen',
+    type: 'Follow-up Session',
+    status: 'Completed',
+    location: 'Virtual / Zoom',
+    priority: 'High'
+  },
+  {
+    id: 'app-003',
+    date: '2024-06-05',
+    time: '09:00 AM',
+    counselor: 'Dr. Maria Santos',
+    type: 'Initial Assessment',
+    status: 'Completed',
+    location: 'Room 302 / Physical',
+    priority: 'Normal'
+  },
+  {
+    id: 'app-004',
+    date: '2024-05-28',
+    time: '11:30 AM',
+    counselor: 'Sarah Jenkins',
+    type: 'Stress Counseling',
+    status: 'Cancelled',
+    location: 'Virtual / Zoom',
+    priority: 'Low'
+  },
+  {
+    id: 'app-005',
+    date: '2024-05-20',
+    time: '03:00 PM',
+    counselor: 'Dr. Maria Santos',
+    type: 'Kamustahan',
+    status: 'Completed',
+    location: 'Room 302 / Physical',
+    priority: 'Normal'
+  }
+];
 
-  const appointments = [
-    {
-      id: '1',
-      date: '24',
-      month: 'OCT',
-      time: '09:30 AM',
-      type: 'KAMUSTAHAN',
-      modality: 'Virtual',
-      title: 'Initial Consultation',
-      counselor: 'Dr. Elena Rodriguez',
-      duration: '60 Minutes',
-      avatar: 'https://picsum.photos/seed/doc1/64/64',
-      status: 'upcoming',
-      tagColor: 'bg-[#007055] text-white',
-      locationIcon: Video
-    },
-    {
-      id: '2',
-      date: '28',
-      month: 'OCT',
-      time: '02:00 PM',
-      type: 'COUNSELING',
-      modality: 'Room 302',
-      title: 'Stress Management Session',
-      counselor: 'Mr. Marcus Jensen',
-      duration: '45 Minutes',
-      avatar: 'https://picsum.photos/seed/doc2/64/64',
-      status: 'upcoming',
-      tagColor: 'bg-[#6366F1] text-white',
-      locationIcon: MapPin
-    }
+export default function StudentAppointments() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const filteredAppointments = appointmentsData.filter(app => {
+    const matchesSearch = app.counselor.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         app.type.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || app.status.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
+
+  const stats = [
+    { label: 'Total Sessions', value: '12', icon: Calendar, color: 'text-primary' },
+    { label: 'Upcoming', value: '1', icon: Timer, color: 'text-blue-500' },
+    { label: 'Completed', value: '10', icon: CheckCircle2, color: 'text-emerald-500' },
+    { label: 'Cancelled', value: '1', icon: XCircle, color: 'text-red-500' },
   ];
+
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'upcoming':
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold px-3 py-1">Upcoming</Badge>;
+      case 'completed':
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold px-3 py-1">Completed</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-bold px-3 py-1">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <main className="p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8">
-            <h1 className="text-3xl font-bold font-headline text-[#1E293B] mb-8">My Appointments</h1>
+        <div className="p-8 max-w-7xl mx-auto w-full">
+          {/* Header & Stats Section */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+            <div>
+              <h1 className="text-4xl font-bold font-headline text-[#171717] mb-2">Appointment History</h1>
+              <p className="text-muted-foreground">Manage and track all your university wellness sessions.</p>
+            </div>
+            <div className="flex gap-4">
+               <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg px-6 h-12 flex items-center gap-2">
+                <Link href="/student/book">
+                  <Plus className="h-5 w-5" /> Book New Session
+                </Link>
+              </Button>
+            </div>
+          </div>
 
-            <Tabs defaultValue="upcoming" className="w-full" onValueChange={setActiveTab}>
-              <TabsList className="bg-transparent border-none p-0 h-auto gap-8 mb-8 overflow-x-auto justify-start">
-                <TabsTrigger 
-                  value="upcoming" 
-                  className="data-[state=active]:bg-[#007055] data-[state=active]:text-white data-[state=active]:shadow-md rounded-full px-6 py-2 text-sm font-bold text-muted-foreground bg-white border"
-                >
-                  Upcoming
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="past" 
-                  className="data-[state=active]:bg-[#007055] data-[state=active]:text-white rounded-full px-6 py-2 text-sm font-bold text-muted-foreground bg-white border"
-                >
-                  Past Sessions
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="cancelled" 
-                  className="data-[state=active]:bg-[#007055] data-[state=active]:text-white rounded-full px-6 py-2 text-sm font-bold text-muted-foreground bg-white border"
-                >
-                  Cancelled
-                </TabsTrigger>
-              </TabsList>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+            {stats.map((stat) => (
+              <Card key={stat.label} className="border-none shadow-sm bg-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`p-2 rounded-lg bg-slate-50 ${stat.color}`}>
+                      <stat.icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-2xl font-black text-slate-900 tracking-tighter">{stat.value}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{stat.label}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-              <TabsContent value="upcoming" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                {appointments.map((app) => (
-                  <Card key={app.id} className="border-none shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
-                    <CardContent className="p-0 flex flex-col md:flex-row items-stretch">
-                      <div className="bg-[#EFF6FF] md:w-32 p-6 flex flex-col items-center justify-center text-center">
-                        <span className="text-3xl font-black text-[#1E40AF]">{app.date}</span>
-                        <span className="text-sm font-bold text-[#1E40AF]/70 uppercase">{app.month}</span>
-                        <div className="mt-3 px-2 py-1 rounded bg-[#DBEAFE] text-[10px] font-black text-[#1E40AF] whitespace-nowrap">
-                          {app.time}
-                        </div>
-                      </div>
-
-                      <div className="flex-1 p-6 relative">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Badge className={`${app.tagColor} text-[10px] font-black px-2 py-0.5 border-none rounded`}>
-                            {app.type}
-                          </Badge>
-                          <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                            <app.locationIcon className="h-3 w-3" />
-                            {app.modality}
+          {/* Table & Filters Section */}
+          <Card className="border-none shadow-md bg-white overflow-hidden">
+            <CardHeader className="border-b pb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Filter className="h-5 w-5 text-primary" />
+                  Records Filter
+                </CardTitle>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search counselor or type..." 
+                      className="pl-10 w-full sm:w-[300px] h-11 rounded-xl bg-slate-50/50 border-slate-200"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px] h-11 rounded-xl bg-slate-50/50">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-slate-50/80">
+                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                    <TableHead className="font-bold text-slate-900 h-14 pl-6">Ref ID</TableHead>
+                    <TableHead className="font-bold text-slate-900 h-14">Appointment Info</TableHead>
+                    <TableHead className="font-bold text-slate-900 h-14">Counselor</TableHead>
+                    <TableHead className="font-bold text-slate-900 h-14">Location / Type</TableHead>
+                    <TableHead className="font-bold text-slate-900 h-14">Status</TableHead>
+                    <TableHead className="font-bold text-slate-900 h-14 pr-6 text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAppointments.length > 0 ? (
+                    filteredAppointments.map((app) => (
+                      <TableRow key={app.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
+                        <TableCell className="font-mono text-[10px] text-muted-foreground pl-6">{app.id}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 text-sm">{app.type}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+                              <Calendar className="h-3 w-3" /> {app.date} • <Clock className="h-3 w-3" /> {app.time}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-medium text-slate-700">{app.counselor}</TableCell>
+                        <TableCell>
+                          <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                            {app.location}
                           </span>
-                        </div>
-
-                        <h3 className="text-lg font-bold text-[#1E293B] mb-1">{app.title}</h3>
-                        
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4">
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-5 w-5 ring-1 ring-primary/10">
-                              <AvatarImage src={app.avatar} />
-                              <AvatarFallback className="text-[8px]">{app.counselor[0]}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium text-muted-foreground">{app.counselor}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            {app.duration}
-                          </div>
-                        </div>
-
-                        <div className="mt-6 flex items-center gap-3">
-                          <Button className={`${app.id === '1' ? 'bg-[#007055] hover:bg-[#005c46]' : 'bg-[#6366F1] hover:bg-[#4F46E5]'} text-white font-bold rounded-lg px-6`}>
-                            Reschedule
-                          </Button>
-                          <Button variant="outline" className="border-muted-foreground/20 text-muted-foreground font-bold rounded-lg px-6 hover:bg-muted">
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          <div className="lg:col-span-4 space-y-8">
-            <Card className="bg-[#007055] border-none shadow-lg p-8 text-white relative overflow-hidden group">
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-4">Need to talk?</h3>
-                <p className="text-emerald-50/80 text-sm leading-relaxed mb-8">
-                  Book a quick Kamustahan session or a full counseling meeting with our specialists.
-                </p>
-                <Button asChild variant="secondary" className="bg-white text-[#007055] hover:bg-emerald-50 font-black px-8 py-6 rounded-xl w-full shadow-md">
-                  <Link href="/student/book">Book Now</Link>
-                </Button>
-              </div>
-              <div className="absolute bottom-[-20%] right-[-10%] opacity-10 pointer-events-none">
-                <CalendarIcon className="h-48 w-48 rotate-12" />
-              </div>
-            </Card>
-
-            <Card className="bg-white border-none shadow-sm p-8">
-              <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-6">Monthly Summary</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#F0FDF4] p-6 rounded-2xl flex flex-col items-center">
-                  <span className="text-4xl font-black text-[#007055]">02</span>
-                  <span className="text-[10px] font-bold text-[#007055]/70 uppercase mt-1">Completed</span>
-                </div>
-                <div className="bg-[#F5F3FF] p-6 rounded-2xl flex flex-col items-center">
-                  <span className="text-4xl font-black text-[#6366F1]">02</span>
-                  <span className="text-[10px] font-bold text-[#6366F1]/70 uppercase mt-1">Upcoming</span>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </main>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(app.status)}</TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-slate-400">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl border-slate-200">
+                              <DropdownMenuItem className="font-bold text-xs cursor-pointer">View Details</DropdownMenuItem>
+                              {app.status === 'Upcoming' && (
+                                <>
+                                  <DropdownMenuItem className="font-bold text-xs cursor-pointer text-primary">Reschedule</DropdownMenuItem>
+                                  <DropdownMenuItem className="font-bold text-xs cursor-pointer text-red-600">Cancel Session</DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuItem className="font-bold text-xs cursor-pointer">Download Receipt</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                        No appointment records found matching your filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
       </DashboardLayout>
     </ProtectedRoute>
   );
