@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -25,7 +24,6 @@ import {
   CalendarDays, 
   Clock, 
   User, 
-  MapPin, 
   ChevronRight, 
   ArrowLeft,
   CheckCircle2,
@@ -238,32 +236,8 @@ export default function BookAppointment() {
                           mode="single"
                           selected={selectedDate}
                           onSelect={setSelectedDate}
-                          className="w-full"
+                          className="rounded-md pointer-events-auto"
                           disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
-                          classNames={{
-                            months: "flex flex-col space-y-8",
-                            month: "space-y-8",
-                            caption: "flex justify-center pt-1 relative items-center mb-8",
-                            caption_label: "text-lg font-black text-slate-900",
-                            nav: "flex items-center gap-1",
-                            nav_button: cn(
-                              "h-10 w-10 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-slate-100 rounded-xl transition-all"
-                            ),
-                            nav_button_previous: "absolute left-1",
-                            nav_button_next: "absolute right-1",
-                            table: "w-full border-collapse",
-                            head_row: "flex justify-between w-full mb-4",
-                            head_cell: "text-slate-400 w-12 font-black text-[11px] uppercase tracking-widest text-center",
-                            row: "flex w-full mt-2 justify-between",
-                            cell: "h-12 w-12 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
-                            day: cn(
-                              "h-12 w-12 p-0 font-bold text-slate-600 hover:bg-primary/5 hover:text-primary rounded-2xl transition-all flex items-center justify-center"
-                            ),
-                            day_selected: "bg-primary text-white hover:bg-primary/90 hover:text-white shadow-lg shadow-primary/20",
-                            day_today: "bg-slate-100 text-slate-900",
-                            day_outside: "text-slate-200 opacity-30",
-                            day_disabled: "text-slate-200 opacity-20 cursor-not-allowed",
-                          }}
                         />
                       </div>
                     </div>
