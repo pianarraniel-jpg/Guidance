@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -122,6 +123,8 @@ export default function BookAppointment() {
     }
   };
 
+  const activeCounselor = counselors.find(c => c.id === selectedCounselor);
+
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
@@ -146,7 +149,7 @@ export default function BookAppointment() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Step-by-Step Content */}
             <div className="lg:col-span-8">
               {/* Step 1: Counselor & Type */}
@@ -224,16 +227,18 @@ export default function BookAppointment() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
                       <div className="space-y-4">
-                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 block">Select Date</Label>
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={setSelectedDate}
-                          className="rounded-3xl border border-slate-100 shadow-sm p-4 w-full max-w-sm mx-auto lg:mx-0"
-                          disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
-                        />
+                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4 block">Select Date</Label>
+                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 inline-block w-full">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={setSelectedDate}
+                            className="w-full"
+                            disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
+                          />
+                        </div>
                       </div>
                       <div className="space-y-6">
                         <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground block">Available Slots</Label>
@@ -332,9 +337,9 @@ export default function BookAppointment() {
               )}
             </div>
 
-            {/* Sidebar Summary */}
-            <div className="lg:col-span-4 space-y-6">
-              <Card className="border-none shadow-xl bg-white sticky top-24 overflow-hidden rounded-[2rem]">
+            {/* Sidebar Sticky Column */}
+            <div className="lg:col-span-4 space-y-6 sticky top-24">
+              <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem]">
                 <div className="bg-primary p-8 text-white relative">
                   <div className="relative z-10">
                     <h3 className="text-2xl font-black mb-1">Booking Summary</h3>
@@ -351,7 +356,7 @@ export default function BookAppointment() {
                       <div className="min-w-0">
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Counselor</p>
                         <p className="font-bold text-slate-900 truncate">
-                          {counselors.find(c => c.id === selectedCounselor)?.name || "Not selected"}
+                          {activeCounselor?.name || "Not selected"}
                         </p>
                       </div>
                     </div>
@@ -363,7 +368,7 @@ export default function BookAppointment() {
                       <div className="min-w-0">
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Date & Time</p>
                         <p className="font-bold text-slate-900 leading-snug">
-                          {selectedDate ? format(selectedDate, 'PPP') : "Not selected"}
+                          {selectedDate ? format(selectedDate, 'MMMM do, yyyy') : "Not selected"}
                           {selectedTime && <span className="block text-primary text-sm mt-1">{selectedTime}</span>}
                         </p>
                       </div>
@@ -394,7 +399,8 @@ export default function BookAppointment() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-slate-900 p-8 rounded-[2rem] text-white relative overflow-hidden group border-none">
+              {/* Need Help Card - Optimized Design */}
+              <Card className="bg-[#0F172A] p-8 rounded-[2rem] text-white relative overflow-hidden group border-none">
                 <div className="relative z-10">
                   <h4 className="font-bold text-lg mb-2">Need Help?</h4>
                   <p className="text-sm text-slate-400 leading-relaxed mb-6">
@@ -413,3 +419,4 @@ export default function BookAppointment() {
     </ProtectedRoute>
   );
 }
+
