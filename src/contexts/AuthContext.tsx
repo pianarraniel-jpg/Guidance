@@ -10,6 +10,7 @@ interface User {
   name: string;
   email: string;
   role: UserRole;
+  studentId?: string;
 }
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithId: (studentId: string) => Promise<boolean>;
   logout: () => void;
   isStudent: boolean;
   isCounselor: boolean;
@@ -49,6 +51,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: foundUser.name,
         email: foundUser.email,
         role: foundUser.role,
+        studentId: foundUser.studentId,
+      };
+      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
+      setUser(userToStore);
+      return true;
+    }
+    return false;
+  };
+
+  const loginWithId = async (studentId: string): Promise<boolean> => {
+    const users = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    const foundUser = users.find(u => u.studentId === studentId);
+
+    if (foundUser) {
+      const userToStore = {
+        id: foundUser.id,
+        name: foundUser.name,
+        email: foundUser.email,
+        role: foundUser.role,
+        studentId: foundUser.studentId,
       };
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
       setUser(userToStore);
@@ -68,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginWithId,
     logout,
     isStudent: user?.role === USER_ROLES.STUDENT,
     isCounselor: user?.role === USER_ROLES.COUNSELOR,

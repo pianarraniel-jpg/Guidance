@@ -3,6 +3,7 @@ import { USER_ROLES, APPOINTMENT_STATUS } from './constants';
 export const MOCK_USERS = [
   {
     id: 's1',
+    studentId: '2024-0001',
     name: 'Juan Dela Cruz',
     email: 'student@uspf.edu.ph',
     password: 'password123',

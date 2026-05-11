@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -16,22 +15,21 @@ import {
   Lock, 
   Eye, 
   EyeOff,
-  Search,
   CheckCircle2,
-  LockKeyhole
+  Scan
 } from 'lucide-react';
-import Image from 'next/image';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithId } = useAuth();
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
@@ -41,7 +39,26 @@ export default function LoginPage() {
       if (success) {
         window.location.href = '/'; 
       } else {
-        setError('Invalid credentials. Please use mock accounts.');
+        setError('Invalid credentials. Use student@uspf.edu.ph / password123');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleIdSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const success = await loginWithId(studentId);
+      if (success) {
+        window.location.href = '/';
+      } else {
+        setError('Student ID not found. Try: 2024-0001');
       }
     } catch (err) {
       setError('An unexpected error occurred.');
@@ -52,14 +69,15 @@ export default function LoginPage() {
 
   const handleQuickLogin = (role: string) => {
     const credentials = {
-      student: { email: 'student@uspf.edu.ph', pass: 'password123' },
-      counselor: { email: 'counselor@uspf.edu.ph', pass: 'password123' },
-      admin: { email: 'admin@uspf.edu.ph', pass: 'password123' },
+      student: { email: 'student@uspf.edu.ph', pass: 'password123', sid: '2024-0001' },
+      counselor: { email: 'counselor@uspf.edu.ph', pass: 'password123', sid: '' },
+      admin: { email: 'admin@uspf.edu.ph', pass: 'password123', sid: '' },
     }[role as keyof typeof credentials];
     
     if (credentials) {
       setEmail(credentials.email);
       setPassword(credentials.pass);
+      setStudentId(credentials.sid);
     }
   };
 
@@ -83,7 +101,7 @@ export default function LoginPage() {
               Your wellness journey starts with a conversation
             </h2>
             <p className="text-lg opacity-90 leading-relaxed mb-10">
-              At USPF, we believe that mental health is the cornerstone of academic success and personal growth. Our platform bridges the gap between students and professional support, ensuring you never have to walk your path alone.
+              At USPF, we believe that mental health is the cornerstone of academic success and personal growth. Our platform bridges the gap between students and professional support.
             </p>
 
             <div className="inline-flex items-center gap-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-5 py-3 shadow-xl">
@@ -112,7 +130,6 @@ export default function LoginPage() {
           </blockquote>
         </div>
 
-        {/* Decorative background element */}
         <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-white/20 blur-3xl" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-white/10 blur-3xl" />
@@ -138,7 +155,7 @@ export default function LoginPage() {
             </TabsList>
 
             <TabsContent value="standard">
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleStandardSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">University Email</Label>
                   <div className="relative group">
@@ -201,17 +218,43 @@ export default function LoginPage() {
             </TabsContent>
 
             <TabsContent value="id">
-              <div className="space-y-4 py-4 text-center">
-                <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
-                  <LockKeyhole className="h-6 w-6 text-muted-foreground" />
+              <form onSubmit={handleIdSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="studentId" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Student ID Number</Label>
+                  <div className="relative group">
+                    <Scan className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Input 
+                      id="studentId" 
+                      placeholder="e.g. 2024-0001" 
+                      className="pl-10 h-11 border-muted"
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-                <h3 className="font-bold">Student ID Login</h3>
-                <p className="text-sm text-muted-foreground">
-                  Login via Student ID barcode scanning is currently being rolled out in campus libraries.
+
+                <p className="text-[10px] text-muted-foreground italic">
+                  Note: For your first time logging in with your ID, you may be asked to verify your university email.
                 </p>
-                <Input placeholder="Enter Student ID manually" className="h-11" disabled />
-                <Button variant="outline" className="w-full h-11" disabled>Scan ID Card</Button>
-              </div>
+
+                {error && (
+                  <Alert variant="destructive" className="py-2 animate-in fade-in slide-in-from-top-1">
+                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold text-base transition-all active:scale-[0.98]" disabled={isSubmitting}>
+                  {isSubmitting ? "Checking ID..." : "Sign In with ID"}
+                </Button>
+
+                <div className="p-4 border border-dashed rounded-lg bg-muted/20 text-center">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Library Kiosk Mode</p>
+                  <Button variant="outline" className="w-full text-xs h-9 bg-white" disabled>
+                    Scan Physical ID Card
+                  </Button>
+                </div>
+              </form>
             </TabsContent>
           </Tabs>
 
@@ -231,22 +274,10 @@ export default function LoginPage() {
 
             <Button variant="outline" className="w-full h-11 border-muted hover:bg-muted/30 font-medium">
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26c.03-.31.05-.62.05-.93s-.02-.62-.05-.93z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26c.03-.31.05-.62.05-.93s-.02-.62-.05-.93z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
               Sign in with University Google Account
             </Button>
