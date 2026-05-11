@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "student-hero",
+      "description": "A student looking relaxed on campus",
+      "imageUrl": "https://picsum.photos/seed/student1/1200/600",
+      "imageHint": "student campus"
+    },
+    {
+      "id": "counselor-hero",
+      "description": "A friendly counselor in a professional office",
+      "imageUrl": "https://picsum.photos/seed/counselor1/1200/600",
+      "imageHint": "counselor office"
+    },
+    {
+      "id": "admin-hero",
+      "description": "Modern office analytics dashboard",
+      "imageUrl": "https://picsum.photos/seed/admin1/1200/600",
+      "imageHint": "analytics office"
+    }
+  ]
+}
