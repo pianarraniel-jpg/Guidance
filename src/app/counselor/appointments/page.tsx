@@ -21,33 +21,67 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
-  AlertCircle, 
+  Search, 
   Calendar, 
-  Smile, 
-  Search,
-  MoreVertical,
-  CheckCircle2,
-  Clock
+  MoreVertical, 
+  CheckCircle2, 
+  Clock,
+  Trash2,
+  CalendarClock,
+  Check
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { useToast } from '@/hooks/use-toast';
 
 export default function CounselorAppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const { toast } = useToast();
 
-  useEffect(() => {
+  const loadAppointments = () => {
     const data = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
     // Sort by date descending
     data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setAppointments(data);
+  };
+
+  useEffect(() => {
+    loadAppointments();
   }, []);
 
+  const handleUpdateStatus = (id: string, newStatus: string) => {
+    storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
+    toast({
+      title: "Status Updated",
+      description: `Appointment is now ${newStatus}.`,
+    });
+    loadAppointments();
+  };
+
+  const handleDelete = (id: string) => {
+    storageService.delete(STORAGE_KEYS.APPOINTMENTS, id);
+    toast({
+      variant: "destructive",
+      title: "Appointment Deleted",
+      description: "The record has been permanently removed.",
+    });
+    loadAppointments();
+  };
+
   const filteredAppointments = appointments.filter(app => {
-    const matchesSearch = app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         app.type?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      app.type?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status?.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
@@ -60,6 +94,8 @@ export default function CounselorAppointmentsPage() {
         return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase">Completed</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Cancelled</Badge>;
+      case 'pending':
+        return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase">Pending</Badge>;
       default:
         return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
     }
@@ -90,6 +126,7 @@ export default function CounselorAppointmentsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -112,8 +149,8 @@ export default function CounselorAppointmentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAppointments.map((app, idx) => (
-                <TableRow key={idx} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all cursor-pointer group">
+              {filteredAppointments.map((app) => (
+                <TableRow key={app.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all group">
                   <TableCell className="pl-8 py-5">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
@@ -142,9 +179,34 @@ export default function CounselorAppointmentsPage() {
                   </TableCell>
                   <TableCell>{getStatusBadge(app.status)}</TableCell>
                   <TableCell className="pr-8 text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 group-hover:text-primary transition-colors">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 group-hover:text-primary transition-colors">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 shadow-xl border-slate-100">
+                        <DropdownMenuItem 
+                          onClick={() => handleUpdateStatus(app.id, APPOINTMENT_STATUS.CONFIRMED)}
+                          className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                        >
+                          <Check className="h-4 w-4" /> Accept Session
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleUpdateStatus(app.id, 'pending')}
+                          className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          <CalendarClock className="h-4 w-4" /> Reschedule
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="my-1 bg-slate-50" />
+                        <DropdownMenuItem 
+                          onClick={() => handleDelete(app.id)}
+                          className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" /> Delete Record
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
