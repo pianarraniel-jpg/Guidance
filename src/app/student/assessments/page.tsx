@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Send,
@@ -28,7 +29,9 @@ import {
   Sparkles,
   ArrowRight,
   Clock,
-  Target
+  Target,
+  FileText,
+  User
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
 import { storageService } from '@/lib/storage-service';
