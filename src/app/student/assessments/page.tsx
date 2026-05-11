@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Send,
   ShieldCheck,
@@ -105,7 +104,7 @@ export default function StudentAssessments() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <main className="flex-1 p-4 md:p-8 bg-[#F8FAFC] min-h-screen">
-          <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-140px)]">
+          <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-140px)] w-full">
             {/* Header Section */}
             <div className="flex items-center justify-between mb-6">
               <div>
