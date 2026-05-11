@@ -23,4 +23,5 @@ export const STORAGE_KEYS = {
   MESSAGES: 'guidancesync_messages',
   SESSION_NOTES: 'guidancesync_session_notes',
   AVAILABILITY: 'guidancesync_availability',
+  ASSESSMENT_TASKS: 'guidancesync_assessment_tasks',
 } as const;

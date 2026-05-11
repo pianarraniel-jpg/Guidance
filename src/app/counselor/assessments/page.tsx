@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { 
   Calendar, 
   CheckCircle2, 
@@ -12,39 +13,143 @@ import {
   AlertCircle,
   TrendingUp,
   Clock,
-  Heart
+  Heart,
+  Plus,
+  ClipboardList,
+  Target,
+  FileText,
+  User
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function CounselorAssessmentsPage() {
+  const { user: counselor } = useAuth();
   const [assessments, setAssessments] = useState<any[]>([]);
   const [selectedAssessment, setSelectedAssessment] = useState<any>(null);
+  const [students, setStudents] = useState<any[]>([]);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const { toast } = useToast();
+
+  // Task Form State
+  const [targetStudent, setTargetStudent] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDesc, setTaskDesc] = useState('');
+
+  const loadData = () => {
+    const allAssessments = storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
+    allAssessments.sort((a, b) => b.timestamp - a.timestamp);
+    setAssessments(allAssessments);
+    
+    if (allAssessments.length > 0 && !selectedAssessment) {
+      setSelectedAssessment(allAssessments[0]);
+    }
+
+    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    setStudents(allUsers.filter(u => u.role === 'student'));
+  };
 
   useEffect(() => {
-    const loadData = () => {
-      const allAssessments = storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
-      allAssessments.sort((a, b) => b.timestamp - a.timestamp);
-      setAssessments(allAssessments);
-      
-      if (allAssessments.length > 0 && !selectedAssessment) {
-        setSelectedAssessment(allAssessments[0]);
-      }
-    };
     loadData();
     window.addEventListener('storage', loadData);
     return () => window.removeEventListener('storage', loadData);
   }, [selectedAssessment]);
 
+  const handleCreateTask = () => {
+    if (!targetStudent || !taskTitle || !taskDesc || !counselor) return;
+
+    const studentUser = students.find(s => s.id === targetStudent);
+
+    const newTask = {
+      counselorId: counselor.id,
+      counselorName: counselor.name,
+      studentId: targetStudent,
+      studentName: studentUser?.name,
+      title: taskTitle,
+      description: taskDesc,
+      status: 'pending',
+      timestamp: Date.now(),
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    };
+
+    storageService.create(STORAGE_KEYS.ASSESSMENT_TASKS, newTask);
+    
+    toast({
+      title: "Task Assigned",
+      description: `New assessment form sent to ${studentUser?.name}.`,
+    });
+
+    setIsTaskModalOpen(false);
+    setTargetStudent('');
+    setTaskTitle('');
+    setTaskDesc('');
+  };
+
   if (assessments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-slate-400 gap-4">
         <AlertCircle className="h-16 w-16 opacity-10" />
-        <div className="text-center">
+        <div className="text-center mb-6">
           <p className="text-xl font-black">No assessments in queue</p>
-          <p className="text-sm font-medium">Data will appear here once students complete their Weekly Kamustahan.</p>
+          <p className="text-sm font-medium">Assign a form to get started with clinical tracking.</p>
         </div>
+        <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="rounded-xl font-black gap-2 h-12 px-8">
+              <Plus className="h-5 w-5" /> Assign First Form
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-[2rem] p-8 border-none shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black">Create Assessment Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Select Student</Label>
+                <Select value={targetStudent} onValueChange={setTargetStudent}>
+                  <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50">
+                    <SelectValue placeholder="Target student..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
+                <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Mid-Term Anxiety Review" className="h-12 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Instructions</Label>
+                <Textarea value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="Provide context for the student..." className="min-h-[100px] rounded-xl" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleCreateTask} disabled={!targetStudent || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">Assign Clinical Task</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -52,14 +157,54 @@ export default function CounselorAssessmentsPage() {
   return (
     <div className="max-w-7xl mx-auto w-full pb-10">
       <header className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Session Preparation</h1>
-        <Badge variant="outline" className="bg-white text-primary border-primary/20 font-black px-4 py-1.5 rounded-xl">
-          {assessments.length} Active Records
-        </Badge>
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-1">Session Preparation</h1>
+          <p className="text-sm text-slate-500 font-medium">Analyze student wellness data and assign targeted forms.</p>
+        </div>
+        <div className="flex gap-3">
+          <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="rounded-xl font-bold border-primary/20 text-primary hover:bg-primary/5 gap-2 h-11">
+                <Plus className="h-4 w-4" /> Assign New Form
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-[2rem] p-8 border-none shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black">Create Assessment Task</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Select Student</Label>
+                  <Select value={targetStudent} onValueChange={setTargetStudent}>
+                    <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50">
+                      <SelectValue placeholder="Target student..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
+                  <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Mid-Term Anxiety Review" className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Instructions</Label>
+                  <Textarea value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="Provide context for the student..." className="min-h-[100px] rounded-xl" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCreateTask} disabled={!targetStudent || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">Assign Clinical Task</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Badge variant="outline" className="bg-white text-primary border-primary/20 font-black px-4 py-1.5 rounded-xl h-11 flex items-center">
+            {assessments.length} Active Records
+          </Badge>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left: Student Selector */}
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
              <CardHeader className="p-6 border-b border-slate-50">
@@ -123,7 +268,6 @@ export default function CounselorAssessmentsPage() {
           )}
         </div>
 
-        {/* Right Content Area */}
         <div className="lg:col-span-8 space-y-6">
           {selectedAssessment ? (
             <>
@@ -155,7 +299,7 @@ export default function CounselorAssessmentsPage() {
                     <div className="flex-1 space-y-4">
                       <div className="flex flex-wrap gap-2">
                         <p className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Focus Areas Identified</p>
-                        {selectedAssessment.focusAreas.map((area: string) => (
+                        {selectedAssessment.focusAreas?.map((area: string) => (
                           <Badge key={area} className="bg-orange-50 text-orange-700 border-none font-bold py-1.5 px-3 rounded-lg flex items-center gap-2">
                             <Brain className="h-3 w-3" />
                             {area}
@@ -203,8 +347,9 @@ export default function CounselorAssessmentsPage() {
               </Card>
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 italic font-bold">
-              Select a record to view details
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-20">
+              <ClipboardList className="h-16 w-16 opacity-10" />
+              <p className="italic font-bold">Select a clinical record to view detailed insights</p>
             </div>
           )}
         </div>

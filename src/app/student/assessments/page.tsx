@@ -22,12 +22,20 @@ import {
   Home,
   GraduationCap,
   Heart,
-  CheckCircle2
+  CheckCircle2,
+  ClipboardList,
+  MessageSquare,
+  Sparkles,
+  ArrowRight,
+  Clock,
+  Target
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
 import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 type Message = {
   role: 'user' | 'model';
@@ -41,6 +49,7 @@ export default function StudentAssessments() {
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
   
+  // Chatbot State
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
@@ -51,6 +60,23 @@ export default function StudentAssessments() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+
+  // Assessment Tasks State
+  const [tasks, setTasks] = useState<any[]>([]);
+
+  const loadTasks = () => {
+    if (user) {
+      const allTasks = storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
+      allTasks.sort((a, b) => b.timestamp - a.timestamp);
+      setTasks(allTasks);
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+    window.addEventListener('storage', loadTasks);
+    return () => window.removeEventListener('storage', loadTasks);
+  }, [user]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -90,15 +116,13 @@ export default function StudentAssessments() {
       if (result.assessmentComplete && result.assessmentSummary) {
         setIsComplete(true);
         
-        // Extract potential focus areas from history
         const transcript = [...messages, newUserMessage].map(m => m.text).join(' ');
         const focusAreas = [];
-        if (transcript.toLowerCase().includes('academic') || transcript.toLowerCase().includes('study')) focusAreas.push('Academic');
-        if (transcript.toLowerCase().includes('family') || transcript.toLowerCase().includes('home')) focusAreas.push('Personal');
-        if (transcript.toLowerCase().includes('friend') || transcript.toLowerCase().includes('social')) focusAreas.push('Social');
+        if (transcript.toLowerCase().includes('academic')) focusAreas.push('Academic');
+        if (transcript.toLowerCase().includes('family')) focusAreas.push('Personal');
+        if (transcript.toLowerCase().includes('social')) focusAreas.push('Social');
         if (focusAreas.length === 0) focusAreas.push('General Wellness');
 
-        // Save the assessment to storage
         storageService.create(STORAGE_KEYS.ASSESSMENTS, {
           studentId: user?.id,
           studentName: user?.name,
@@ -121,6 +145,28 @@ export default function StudentAssessments() {
     }
   };
 
+  const handleCompleteTask = (task: any) => {
+    // Simulate task completion
+    storageService.create(STORAGE_KEYS.ASSESSMENTS, {
+      studentId: user?.id,
+      studentName: user?.name,
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      summary: `Completed Assigned Task: ${task.title}. Student reported: ${task.description}`,
+      stressLevel: 50,
+      focusAreas: ['Assigned Clinical Task'],
+      timestamp: Date.now(),
+      taskId: task.id
+    });
+
+    storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, task.id, { status: 'completed' });
+    loadTasks();
+    
+    toast({
+      title: "Task Submitted",
+      description: "Your counselor will review your response shortly.",
+    });
+  };
+
   const emotionReplies = [
     { label: 'Stressed', icon: Zap, color: 'text-red-500' },
     { label: 'Anxious', icon: Activity, color: 'text-orange-500' },
@@ -128,183 +174,179 @@ export default function StudentAssessments() {
     { label: 'Good', icon: Smile, color: 'text-emerald-500' },
   ];
 
-  const concernReplies = [
-    { label: 'Academic Pressure', icon: GraduationCap },
-    { label: 'Family Problems', icon: Home },
-    { label: 'Personal Health', icon: Heart },
-    { label: 'Mental Fatigue', icon: Brain },
-  ];
-
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <main className="flex-1 p-4 md:p-8 bg-[#F8FAFC] min-h-screen">
-          <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-140px)] w-full">
-            {/* Header Section */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-1">Weekly Kamustahan</h2>
-                <p className="text-sm text-muted-foreground font-medium">Your progress is being synced with your records.</p>
-              </div>
-              <div className="text-right w-48">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-black text-primary uppercase tracking-wider">
-                    {isComplete ? 'Complete' : 'Step 2 of 4'}
-                  </span>
-                </div>
-                <Progress value={isComplete ? 100 : 50} className="h-2 bg-slate-200" />
-              </div>
+        <main className="p-8 max-w-7xl mx-auto w-full min-h-screen">
+          <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Weekly Wellness</h1>
+              <p className="text-muted-foreground font-medium">Synchronize your emotional health with professional clinical oversight.</p>
             </div>
+            <Badge variant="outline" className="h-10 px-6 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> University Security Active
+            </Badge>
+          </header>
 
-            {/* Chat Container */}
-            <div className="flex-1 bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden flex flex-col">
-              {/* Chat Header */}
-              <div className="p-5 border-b flex items-center gap-3 bg-white/50 backdrop-blur-md">
-                <div className="relative">
-                  <Avatar className="h-10 w-10 ring-2 ring-primary/10">
-                    <AvatarFallback className="bg-primary text-white text-xs font-bold">🤖</AvatarFallback>
-                  </Avatar>
-                  <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${isComplete ? 'bg-slate-300' : 'bg-emerald-500'}`}></span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-slate-900">Guidi</h4>
-                  <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1">
-                    {isComplete ? 'Session Concluded' : 'AI Wellness Companion'}
-                  </p>
-                </div>
-              </div>
+          <Tabs defaultValue="chatbot" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 max-w-md mb-8 bg-slate-100/50 p-1 h-14 rounded-2xl">
+              <TabsTrigger value="chatbot" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <MessageSquare className="h-4 w-4" /> Guidi AI Chat
+              </TabsTrigger>
+              <TabsTrigger value="forms" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm relative">
+                <ClipboardList className="h-4 w-4" /> Clinical Tasks
+                {tasks.filter(t => t.status === 'pending').length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-[9px] text-white rounded-full flex items-center justify-center border-2 border-white">
+                    {tasks.filter(t => t.status === 'pending').length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
 
-              {/* Chat Messages */}
-              <ScrollArea className="flex-1 p-6 bg-slate-50/30">
-                <div className="space-y-6">
-                  {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                      <div className={`max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`p-4 rounded-2xl text-sm leading-relaxed ${
-                          msg.role === 'user' 
-                            ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
-                            : 'bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm'
-                        }`}>
-                          {msg.text}
+            <TabsContent value="chatbot">
+              <div className="flex flex-col h-[calc(100vh-340px)] w-full bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="p-6 border-b flex items-center gap-4 bg-white/80 backdrop-blur-md">
+                  <div className="relative">
+                    <Avatar className="h-12 w-12 ring-4 ring-primary/5">
+                      <AvatarFallback className="bg-primary text-white text-sm font-black">🤖</AvatarFallback>
+                    </Avatar>
+                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"></span>
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900">Guidi</h4>
+                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
+                  </div>
+                </div>
+
+                <ScrollArea className="flex-1 p-8 bg-slate-50/20">
+                  <div className="max-w-4xl mx-auto space-y-8">
+                    {messages.map((msg, idx) => (
+                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                        <div className={`max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                          <div className={`p-5 rounded-2xl text-sm leading-relaxed font-medium shadow-sm ${
+                            msg.role === 'user' 
+                              ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                              : 'bg-white text-slate-700 rounded-tl-none border border-slate-50'
+                          }`}>
+                            {msg.text}
+                          </div>
+                          <span className="text-[9px] text-slate-300 font-bold mt-2 uppercase tracking-widest">{msg.time}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground mt-2 font-bold uppercase tracking-wider">{msg.time}</span>
                       </div>
-                    </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none shadow-sm flex gap-1.5 items-center">
-                        <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
-                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white border border-slate-50 p-5 rounded-2xl rounded-tl-none shadow-sm flex gap-2 items-center">
+                          <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
+                          <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                          <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {isComplete && (
-                    <div className="flex flex-col items-center py-8 space-y-4">
-                      <div className="h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
-                         <CheckCircle2 className="h-10 w-10" />
+                    )}
+                    {isComplete && (
+                      <div className="flex flex-col items-center py-12 space-y-4">
+                        <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
+                           <CheckCircle2 className="h-10 w-10" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-black text-xl text-slate-900">Weekly Kamustahan Complete</h4>
+                          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 leading-relaxed">
+                            Guidi has synchronized your wellness data with your counselor's records. Thank you for your openness.
+                          </p>
+                        </div>
+                        <Button asChild className="rounded-xl font-black bg-primary h-12 px-8 mt-4">
+                          <Link href="/student/dashboard">Return to Overview</Link>
+                        </Button>
                       </div>
-                      <div className="text-center">
-                        <h4 className="font-black text-slate-900">Assessment Complete</h4>
-                        <p className="text-xs text-muted-foreground max-w-xs mx-auto mt-1">
-                          Guidi has gathered enough insights. You can now close this session or head back to your dashboard.
-                        </p>
-                      </div>
-                      <Button asChild variant="outline" className="rounded-xl font-bold">
-                        <Link href="/student/dashboard">Return to Dashboard</Link>
-                      </Button>
-                    </div>
-                  )}
-                  <div ref={scrollRef} />
-                </div>
-              </ScrollArea>
+                    )}
+                    <div ref={scrollRef} />
+                  </div>
+                </ScrollArea>
 
-              {/* Chat Controls */}
-              {!isComplete && (
-                <div className="p-6 border-t bg-white">
-                  {/* Quick Replies Strip */}
-                  <div className="space-y-4 mb-6">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">How are you feeling?</p>
-                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {!isComplete && (
+                  <div className="p-8 border-t bg-white">
+                    <div className="max-w-4xl mx-auto">
+                      <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
                         {emotionReplies.map((qr) => (
                           <Button
                             key={qr.label}
                             variant="outline"
-                            size="sm"
                             onClick={() => handleSendMessage(qr.label)}
-                            className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
+                            className="rounded-full px-6 h-10 text-xs font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95"
                           >
                             <qr.icon className={`h-3.5 w-3.5 mr-2 ${qr.color}`} />
                             {qr.label}
                           </Button>
                         ))}
                       </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">What's on your mind?</p>
-                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                        {concernReplies.map((qr) => (
-                          <Button
-                            key={qr.label}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSendMessage(qr.label)}
-                            className="rounded-full px-4 h-9 text-xs font-bold transition-all active:scale-95 border-slate-200 hover:border-primary hover:bg-primary/5 shrink-0"
-                          >
-                            <qr.icon className="h-3.5 w-3.5 mr-2 text-primary" />
-                            {qr.label}
-                          </Button>
-                        ))}
-                      </div>
+                      <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-4">
+                        <Input 
+                          placeholder="Type your wellness response..." 
+                          value={inputValue}
+                          onChange={(e) => setInputValue(e.target.value)}
+                          className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 font-medium"
+                          disabled={isLoading}
+                        />
+                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95">
+                          <Send className="h-5 w-5" />
+                        </Button>
+                      </form>
                     </div>
                   </div>
-
-                  {/* Message Input */}
-                  <form 
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSendMessage(inputValue);
-                    }}
-                    className="relative flex items-center gap-3"
-                  >
-                    <div className="flex-1 relative">
-                      <Input 
-                        placeholder="Type your response here..." 
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-5 pr-12 text-sm font-medium"
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <Button 
-                      type="submit"
-                      disabled={!inputValue.trim() || isLoading}
-                      className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-transform active:scale-95"
-                    >
-                      <Send className="h-5 w-5" />
-                    </Button>
-                  </form>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="mt-6 flex items-center justify-between text-muted-foreground">
-              <div className="flex items-center gap-2 text-[11px] font-bold">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                University Wellness Encryption Active
+                )}
               </div>
-              {!isComplete && (
-                <button className="text-[11px] font-black text-slate-700 hover:text-primary transition-colors flex items-center gap-1 group">
-                  SAVE & FINISH LATER
-                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              )}
-            </div>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="forms">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tasks.map(task => (
+                  <Card key={task.id} className="border-none shadow-lg shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col group">
+                    <div className={`h-2 w-full ${task.status === 'completed' ? 'bg-emerald-500' : 'bg-primary'}`} />
+                    <CardHeader className="p-8 pb-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none ${task.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
+                          {task.status === 'completed' ? 'Completed' : 'Clinical Task'}
+                        </Badge>
+                      </div>
+                      <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors">{task.title}</CardTitle>
+                      <CardDescription className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest pt-2">
+                        <User className="h-3 w-3" /> Dr. {task.counselorName?.split(' ').pop()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8 pt-0 flex-1 flex flex-col">
+                      <p className="text-sm text-slate-500 font-medium mb-8 leading-relaxed">
+                        {task.description}
+                      </p>
+                      <div className="mt-auto space-y-4">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <Clock className="h-3 w-3" /> Assigned: {task.date}
+                        </div>
+                        {task.status !== 'completed' ? (
+                          <Button onClick={() => handleCompleteTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/10">
+                            Complete Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
+                          </Button>
+                        ) : (
+                          <div className="flex items-center gap-2 text-emerald-600 font-black text-xs pt-2">
+                            <CheckCircle2 className="h-4 w-4" /> Assessment Submitted
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {tasks.length === 0 && (
+                  <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[2rem] border-2 border-dashed border-slate-100">
+                    <ClipboardList className="h-16 w-16 opacity-10 mb-4" />
+                    <p className="font-black text-lg">No assigned tasks found</p>
+                    <p className="text-sm font-medium">Your counselor hasn't assigned any clinical forms to you yet.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </main>
       </DashboardLayout>
     </ProtectedRoute>
