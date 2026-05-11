@@ -82,6 +82,8 @@ export default function StudentAppointments() {
         return <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold px-3 py-1">Completed</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-50 text-red-700 border-none font-bold px-3 py-1">Cancelled</Badge>;
+      case 'pending':
+        return <Badge className="bg-amber-50 text-amber-700 border-none font-bold px-3 py-1">Pending</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -139,6 +141,7 @@ export default function StudentAppointments() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -179,7 +182,7 @@ export default function StudentAppointments() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl">
                             <DropdownMenuItem className="font-bold text-xs">View Summary</DropdownMenuItem>
-                            {app.status === 'confirmed' && (
+                            {(app.status === 'confirmed' || app.status === 'pending') && (
                               <DropdownMenuItem className="font-bold text-xs text-red-600">Cancel</DropdownMenuItem>
                             )}
                           </DropdownMenuContent>

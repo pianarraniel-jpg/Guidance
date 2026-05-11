@@ -34,7 +34,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     storageService.init();
-    const storedUser = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+    // Use sessionStorage instead of localStorage for multi-tab testing
+    const storedUser = sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: foundUser.role,
         studentId: foundUser.studentId,
       };
-      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
+      sessionStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
       setUser(userToStore);
       return true;
     }
@@ -64,7 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithId = async (studentId: string): Promise<boolean> => {
     const users = storageService.getAll<any>(STORAGE_KEYS.USERS);
-    // Robust search: trim whitespace and ignore case
     const searchId = studentId.trim();
     const foundUser = users.find(u => u.studentId === searchId);
 
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: foundUser.role,
         studentId: foundUser.studentId,
       };
-      localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
+      sessionStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(userToStore));
       setUser(userToStore);
       return true;
     }
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    sessionStorage.removeItem(STORAGE_KEYS.AUTH_USER);
     setUser(null);
     router.push('/login');
   };

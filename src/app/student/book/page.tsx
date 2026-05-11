@@ -138,14 +138,14 @@ export default function BookAppointment() {
         date: format(selectedDate, 'yyyy-MM-dd'),
         time: selectedTime,
         type: sessionType === 'Physical' ? 'Physical Session' : 'Virtual Session',
-        status: APPOINTMENT_STATUS.CONFIRMED,
+        status: APPOINTMENT_STATUS.PENDING, // Default to Pending
         location: sessionType === 'Physical' ? 'Guidance Office - Room 302' : 'Online - Zoom/Google Meet',
         reason: reason.trim(),
         createdAt: new Date().toISOString()
       };
 
       storageService.create(STORAGE_KEYS.APPOINTMENTS, newAppointment);
-      toast({ title: "✅ Success", description: "Your appointment has been confirmed." });
+      toast({ title: "✅ Success", description: "Your appointment request has been submitted." });
       setTimeout(() => router.push('/student/appointments'), 1500);
     } catch (e) {
       toast({ variant: "destructive", title: "Booking Failed", description: "An error occurred." });
