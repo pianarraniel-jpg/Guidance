@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -14,12 +15,8 @@ import {
   LogOut,
   Bell,
   Settings,
-  PlusCircle,
   Sparkles,
-  Users,
-  TrendingUp,
-  BarChart3,
-  FileDown
+  Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -64,7 +61,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0">
+      <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0 z-40">
         <div className="px-6 mb-10">
           <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Supportive Wellness</p>
@@ -72,7 +69,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <nav className="flex-1 px-3 space-y-1">
           {sidebarItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname.startsWith(item.href);
             return (
               <Link 
                 key={item.label} 
@@ -116,13 +113,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen relative">
         {/* Header */}
         <header className="h-16 bg-white border-b px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
           <div className="flex items-center gap-4">
              <h1 className="lg:hidden font-bold text-primary">GuidanceSync</h1>
              <h2 className="hidden lg:block text-lg font-bold text-[#1E293B]">
-               {sidebarItems.find(i => i.href === pathname)?.label || 'Dashboard'}
+               {sidebarItems.find(i => pathname.startsWith(i.href))?.label || 'Dashboard'}
              </h2>
           </div>
 
@@ -151,7 +148,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>
