@@ -16,7 +16,8 @@ import {
   Calendar,
   MessageSquare,
   Plus,
-  ShieldCheck
+  ShieldCheck,
+  Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -33,10 +34,10 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
+    { icon: Users, label: 'Students', href: '/counselor/students' },
     { icon: Calendar, label: 'Appointments', href: '/counselor/appointments' },
     { icon: FileText, label: 'Assessments', href: '/counselor/assessments' },
     { icon: MessageSquare, label: 'Messages', href: '/counselor/messages' },
-    { icon: Users, label: 'Resources', href: '/counselor/resources' },
   ];
 
   return (
@@ -74,9 +75,11 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
         </nav>
 
         <div className="px-4 mt-auto space-y-4">
-          <Button className="w-full bg-primary hover:bg-primary/90 text-white font-black rounded-xl h-12 shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-            <Plus className="h-4 w-4" />
-            New Assessment
+          <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white font-black rounded-xl h-12 shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+            <Link href="/counselor/students">
+              <Plus className="h-4 w-4" />
+              Enroll Student
+            </Link>
           </Button>
 
           <div className="pt-4 border-t border-slate-100 space-y-1">
@@ -120,10 +123,16 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             </button>
             
             <div className="pl-4 border-l border-slate-100">
-              <Avatar className="h-9 w-9 ring-2 ring-primary/5 cursor-pointer">
-                <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
-                <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
-              </Avatar>
+              <Link href="/counselor/settings" className="flex items-center gap-3 group">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-black leading-none group-hover:text-primary transition-colors">{user?.name}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Counseling Staff</p>
+                </div>
+                <Avatar className="h-9 w-9 ring-2 ring-primary/5 cursor-pointer">
+                  <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
+                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           </div>
         </header>
