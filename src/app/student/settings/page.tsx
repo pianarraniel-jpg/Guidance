@@ -46,6 +46,7 @@ export default function StudentSettings() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const generateStrongPassword = () => {
@@ -101,9 +102,22 @@ export default function StudentSettings() {
         description: "Your security credentials have been refreshed.",
       });
       setIsPasswordModalOpen(false);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      resetForm();
+    }
+  };
+
+  const resetForm = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrentPassword(false);
+    setShowPassword(false);
+  };
+
+  const handleModalClose = (open: boolean) => {
+    setIsPasswordModalOpen(open);
+    if (!open) {
+      resetForm();
     }
   };
 
@@ -157,7 +171,7 @@ export default function StudentSettings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
+                <Dialog open={isPasswordModalOpen} onOpenChange={handleModalClose}>
                   <DialogTrigger asChild>
                     <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-3">
@@ -186,13 +200,22 @@ export default function StudentSettings() {
                     <div className="space-y-5 py-4">
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Current Password</Label>
-                        <Input 
-                          type="password"
-                          placeholder="••••••••" 
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="h-12 rounded-xl bg-slate-50 border-none"
-                        />
+                        <div className="relative">
+                          <Input 
+                            type={showCurrentPassword ? "text" : "password"}
+                            placeholder="••••••••" 
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            className="h-12 rounded-xl bg-slate-50 border-none pr-10"
+                          />
+                          <button 
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-primary transition-colors"
+                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          >
+                            {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -216,6 +239,7 @@ export default function StudentSettings() {
                             className="h-12 rounded-xl bg-slate-50 border-none pr-10"
                           />
                           <button 
+                            type="button"
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-primary transition-colors"
                             onClick={() => setShowPassword(!showPassword)}
                           >
