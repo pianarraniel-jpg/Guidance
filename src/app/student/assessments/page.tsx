@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -112,7 +111,7 @@ export default function StudentAssessments() {
     try {
       const history = messages.map(m => ({
         role: m.role,
-        parts: [{ text: m.text }]
+        content: [{ text: m.text }]
       }));
 
       const result = await studentStressAssessment({
