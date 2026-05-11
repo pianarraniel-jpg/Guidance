@@ -80,7 +80,7 @@ export default function CounselorAppointmentsPage() {
     });
     loadAppointments();
     if (selectedApp?.id === id) {
-      setSelectedApp({ ...selectedApp, status: newStatus });
+      setSelectedApp((prev: any) => prev ? { ...prev, status: newStatus } : null);
     }
   };
 
@@ -209,7 +209,10 @@ export default function CounselorAppointmentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-xl border-slate-100">
                         <DropdownMenuItem 
-                          onClick={() => openDetails(app)}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            openDetails(app);
+                          }}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                         >
                           <Eye className="h-4 w-4 text-slate-400" /> View Details
@@ -305,7 +308,7 @@ export default function CounselorAppointmentsPage() {
               <div>
                 <DialogTitle className="text-2xl font-black text-slate-900">{selectedApp?.studentName}</DialogTitle>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge className="bg-primary/10 text-primary border-none font-bold text-[10px] uppercase">Ref: #{selectedApp?.id.slice(-6).toUpperCase()}</Badge>
+                  <Badge className="bg-primary/10 text-primary border-none font-bold text-[10px] uppercase">Ref: #{selectedApp?.id?.slice(-6).toUpperCase()}</Badge>
                   {getStatusBadge(selectedApp?.status)}
                 </div>
               </div>
