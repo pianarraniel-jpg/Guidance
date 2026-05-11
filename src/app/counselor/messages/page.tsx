@@ -18,7 +18,8 @@ import {
   Info,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  MessageSquare
 } from 'lucide-react';
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { useToast } from '@/hooks/use-toast';
