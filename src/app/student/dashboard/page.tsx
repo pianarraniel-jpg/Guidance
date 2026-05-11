@@ -5,21 +5,42 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
-  MessageSquare, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from 'recharts';
+import { 
   Calendar, 
-  FileText, 
-  HelpCircle, 
   ChevronRight, 
-  Send, 
   Heart,
-  Bell
+  TrendingUp,
+  Brain,
+  Zap,
+  CheckCircle2,
+  Clock,
+  ArrowUpRight
 } from 'lucide-react';
 import Link from 'next/link';
+
+const moodData = [
+  { day: 'Mon', mood: 6, stress: 8 },
+  { day: 'Tue', mood: 7, stress: 7 },
+  { day: 'Wed', mood: 5, stress: 9 },
+  { day: 'Thu', mood: 8, stress: 5 },
+  { day: 'Fri', mood: 8, stress: 4 },
+  { day: 'Sat', mood: 9, stress: 3 },
+  { day: 'Sun', mood: 9, stress: 2 },
+];
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -30,152 +51,208 @@ export default function StudentDashboard() {
       <DashboardLayout>
         <div className="p-8 max-w-7xl mx-auto w-full">
           {/* Hero Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div>
               <h1 className="text-4xl font-bold font-headline text-[#171717] mb-2">Kumusta, {firstName}?</h1>
-              <p className="text-muted-foreground">How are you feeling today? Take a moment to check in with yourself.</p>
+              <p className="text-muted-foreground">Here is a look at your wellness data for this week.</p>
             </div>
-            <Button size="lg" className="bg-[#007055] hover:bg-[#005c46] text-white font-bold rounded-xl shadow-lg px-6 h-12 flex items-center gap-2">
-              <Heart className="h-5 w-5 fill-current" /> Start Kamustahan Check-in
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="outline" className="rounded-xl font-bold h-12 px-6 border-primary/20 text-primary hover:bg-primary/5">
+                Download Report
+              </Button>
+              <Button size="lg" className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg px-6 h-12 flex items-center gap-2">
+                <Heart className="h-5 w-5 fill-current" /> Daily Check-in
+              </Button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* AI Chat Card */}
-            <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden flex flex-col min-h-[440px]">
-              <div className="p-4 border-b flex items-center justify-between bg-white">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500">
-                    <MessageSquare className="h-6 w-6" />
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            {/* Wellness Trends Analysis */}
+            <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden flex flex-col bg-white">
+              <CardHeader className="pb-2 border-b">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-sm">Quick Wellness Check</h4>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      Wellness Trends
+                    </CardTitle>
+                    <CardDescription>Visualizing your mood and stress levels over the last 7 days.</CardDescription>
                   </div>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 font-bold px-3 py-1">
+                    Improving
+                  </Badge>
                 </div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Assistant Online</span>
-              </div>
-              
-              <CardContent className="flex-1 p-6 space-y-6 bg-[#F8FAFC]">
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8 mt-1 border border-primary/10">
-                    <AvatarFallback className="bg-primary text-white text-[10px]">GS</AvatarFallback>
-                  </Avatar>
-                  <div className="bg-white border text-foreground p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm shadow-sm">
-                    Hi {firstName}! I'm here to listen. How's your week been so far?
-                  </div>
-                </div>
-
-                <div className="flex items-start justify-end gap-3">
-                  <div className="bg-[#007055] text-white p-3 rounded-2xl rounded-tr-none max-w-[80%] text-sm shadow-md">
-                    It's been a bit stressful with the upcoming exams, to be honest.
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8 mt-1 border border-primary/10">
-                    <AvatarFallback className="bg-primary text-white text-[10px]">GS</AvatarFallback>
-                  </Avatar>
-                  <div className="bg-white border text-foreground p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm shadow-sm">
-                    I understand. Exams can be tough! Would you like to try a 2-minute breathing exercise or talk to a...
-                  </div>
-                </div>
+              </CardHeader>
+              <CardContent className="pt-6 h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={moodData}>
+                    <defs>
+                      <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#248F7D" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#248F7D" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#64748b', fontSize: 12}}
+                    />
+                    <YAxis 
+                      hide
+                      domain={[0, 10]}
+                    />
+                    <Tooltip 
+                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="mood" 
+                      stroke="#248F7D" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorMood)" 
+                      name="Mood Level"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="stress" 
+                      stroke="#f97316" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="Stress Level"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </CardContent>
+              <div className="p-4 border-t bg-slate-50/50 flex items-center justify-around gap-4">
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Avg Mood</p>
+                  <p className="text-xl font-black text-primary">7.5</p>
+                </div>
+                <div className="h-8 w-px bg-slate-200" />
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Peak Stress</p>
+                  <p className="text-xl font-black text-orange-500">Wed</p>
+                </div>
+                <div className="h-8 w-px bg-slate-200" />
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Assessments</p>
+                  <p className="text-xl font-black text-blue-600">4/4</p>
+                </div>
+              </div>
+            </Card>
 
-              <div className="p-4 border-t bg-white">
-                <div className="relative flex items-center gap-2">
-                  <Input 
-                    placeholder="Type your feelings here..." 
-                    className="flex-1 h-12 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl px-4"
-                  />
-                  <Button size="icon" className="h-10 w-10 rounded-lg bg-[#007055] hover:bg-[#005c46]">
-                    <Send className="h-4 w-4" />
+            {/* Quick Insights Sidebar */}
+            <div className="flex flex-col gap-6">
+              <Card className="bg-primary border-none shadow-md p-6 text-white relative overflow-hidden group">
+                <div className="relative z-10">
+                  <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                    <Brain className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">AI Insights</h3>
+                  <p className="text-emerald-50/80 text-sm leading-relaxed mb-6">
+                    "Your mood peaks when you engage in social activities on weekends. Try scheduling a study group for mid-week."
+                  </p>
+                  <Button variant="secondary" className="bg-white text-primary hover:bg-emerald-50 font-bold w-full rounded-xl">
+                    Full Analysis
                   </Button>
                 </div>
-              </div>
-            </Card>
+                <Zap className="absolute -bottom-4 -right-4 h-32 w-32 text-white/5 group-hover:scale-110 transition-transform duration-500" />
+              </Card>
 
-            {/* Book Appointment CTA Card */}
-            <Card className="bg-[#005c46] border-none shadow-sm p-8 flex flex-col justify-between text-white relative overflow-hidden group">
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3">Need to talk?</h3>
-                <p className="text-emerald-50/70 text-sm leading-relaxed mb-8">
-                  Schedule a 1-on-1 session with our professional counselors.
-                </p>
-                <Button asChild variant="secondary" className="bg-white text-[#005c46] hover:bg-emerald-50 font-bold px-8 py-6 rounded-xl w-full">
-                  <Link href="/student/book">Book Appointment</Link>
-                </Button>
-              </div>
-              
-              <Calendar className="absolute -bottom-4 -right-4 h-32 w-32 text-white/5 group-hover:scale-110 transition-transform duration-500" />
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="border-none shadow-sm p-6">
-              <h4 className="font-bold text-muted-foreground text-sm mb-6 uppercase tracking-wider">Available Counselors</h4>
-              <div className="space-y-6">
-                {[
-                  { name: 'Dr. Elena Ramos', role: 'Stress Management', img: 'counselor1' },
-                  { name: 'Prof. Marco Cruz', role: 'Academic Anxiety', img: 'counselor2' },
-                ].map((c, i) => (
-                  <div key={i} className="flex items-center justify-between group cursor-pointer">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-12 w-12 border-2 border-primary/5">
-                        <AvatarImage src={`https://picsum.photos/seed/${c.img}/64/64`} />
-                        <AvatarFallback>{c.name[0]}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-bold text-sm group-hover:text-primary transition-colors">{c.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-medium">{c.role}</p>
+              <Card className="border-none shadow-sm p-6 bg-white flex-1">
+                <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-4">Wellness Goals</h4>
+                <div className="space-y-4">
+                  {[
+                    { label: 'Sleep Quality', value: 85, color: 'bg-indigo-500' },
+                    { label: 'Activity Level', value: 45, color: 'bg-emerald-500' },
+                    { label: 'Stress Management', value: 70, color: 'bg-orange-500' },
+                  ].map((goal) => (
+                    <div key={goal.label} className="space-y-2">
+                      <div className="flex justify-between items-center text-xs font-bold">
+                        <span>{goal.label}</span>
+                        <span className="text-muted-foreground">{goal.value}%</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${goal.color} transition-all duration-1000`} 
+                          style={{ width: `${goal.value}%` }} 
+                        />
                       </div>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Personal Wellness Score */}
+            <Card className="border-none shadow-sm p-6 flex flex-col justify-between overflow-hidden relative">
+              <div>
+                <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Overall Score</h4>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-6xl font-black text-primary tracking-tighter">84</span>
+                  <span className="text-lg font-bold text-muted-foreground">/100</span>
+                </div>
+                <p className="text-sm font-medium text-emerald-600 mt-4 flex items-center gap-1">
+                  <ArrowUpRight className="h-4 w-4" /> 12% improvement from last week
+                </p>
               </div>
-              <Button variant="outline" className="w-full mt-8 border-primary/20 text-primary font-bold hover:bg-primary/5 rounded-xl">
-                View All Experts
+              <div className="mt-8 flex gap-2">
+                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-none font-bold">Resilient</Badge>
+                <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-none font-bold">Consistent</Badge>
+              </div>
+            </Card>
+
+            {/* Next Appointment Card */}
+            <Card className="border-none shadow-sm p-6 relative group overflow-hidden">
+              <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Upcoming Session</h4>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="h-14 w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center text-primary border border-primary/10">
+                  <span className="text-xs font-black uppercase tracking-tighter">Jun</span>
+                  <span className="text-xl font-black leading-none">15</span>
+                </div>
+                <div>
+                  <p className="font-bold text-sm">Follow-up Session</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Clock className="h-3 w-3" /> 10:00 AM • Dr. Ramos
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" className="w-full font-bold rounded-xl border-primary/20 text-primary hover:bg-primary/5 group-hover:bg-primary group-hover:text-white transition-all">
+                Reschedule
               </Button>
             </Card>
 
-            <Card className="border-none shadow-sm p-6">
-              <h4 className="font-bold text-muted-foreground text-sm mb-6 uppercase tracking-wider">My Appointments</h4>
+            {/* Quick Actions / Tips */}
+            <Card className="border-none shadow-sm p-6 bg-slate-50/50">
+              <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Recommended Actions</h4>
               <div className="space-y-4">
-                <div className="p-4 rounded-xl border bg-white space-y-3 relative overflow-hidden group hover:border-primary/30 transition-all">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tomorrow, 10:00 AM</p>
-                      <p className="font-bold text-sm mt-1">Session with Dr. Ramos</p>
-                    </div>
-                    <Badge className="bg-orange-100 text-orange-600 hover:bg-orange-100 text-[9px] font-black uppercase">Confirmed</Badge>
+                <div className="p-3 bg-white rounded-xl border border-primary/5 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow">
+                  <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+                    <Heart className="h-5 w-5" />
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <HelpCircle className="h-3 w-3" />
-                    Guidance Room 204
+                  <div className="flex-1">
+                    <p className="text-xs font-bold">5-Min Box Breathing</p>
+                    <p className="text-[10px] text-muted-foreground">Manage immediate stress</p>
                   </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-primary/5 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow">
+                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold">Weekly Review</p>
+                    <p className="text-[10px] text-muted-foreground">Complete your summary</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
-            </Card>
-
-            <Card className="border-none shadow-sm p-6 relative">
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="font-bold text-muted-foreground text-sm uppercase tracking-wider">Messages</h4>
-                <Badge className="bg-[#007055] text-white rounded-full h-5 min-w-[20px] flex items-center justify-center text-[10px] font-bold">2</Badge>
-              </div>
-              <div className="space-y-6">
-                <div className="flex items-start gap-3 group cursor-pointer">
-                  <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
-                    <Bell className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm">Appointment Reminder</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Don't forget your session tomorrow...</p>
-                  </div>
-                </div>
-              </div>
-              <Button variant="link" className="w-full mt-6 text-xs text-muted-foreground hover:text-primary font-bold">
-                See all messages
-              </Button>
             </Card>
           </div>
         </div>
