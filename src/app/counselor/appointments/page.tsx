@@ -120,7 +120,11 @@ export default function CounselorAppointmentsPage() {
 
   const openDetails = (app: any) => {
     setSelectedApp(app);
-    setIsDetailsOpen(true);
+    // CRITICAL: Use setTimeout to allow the DropdownMenu to close fully
+    // and release its body lock/pointer-events before opening the Dialog.
+    setTimeout(() => {
+      setIsDetailsOpen(true);
+    }, 100);
   };
 
   return (
@@ -209,30 +213,27 @@ export default function CounselorAppointmentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-xl border-slate-100">
                         <DropdownMenuItem 
-                          onSelect={(e) => {
-                            e.preventDefault();
-                            openDetails(app);
-                          }}
+                          onSelect={() => openDetails(app)}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                         >
                           <Eye className="h-4 w-4 text-slate-400" /> View Details
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-1 bg-slate-50" />
                         <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(app.id, APPOINTMENT_STATUS.CONFIRMED)}
+                          onSelect={() => handleUpdateStatus(app.id, APPOINTMENT_STATUS.CONFIRMED)}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
                         >
                           <Check className="h-4 w-4" /> Accept Session
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(app.id, 'pending')}
+                          onSelect={() => handleUpdateStatus(app.id, 'pending')}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                         >
                           <CalendarClock className="h-4 w-4" /> Reschedule
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-1 bg-slate-50" />
                         <DropdownMenuItem 
-                          onClick={() => handleDelete(app.id)}
+                          onSelect={() => handleDelete(app.id)}
                           className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" /> Delete Record
