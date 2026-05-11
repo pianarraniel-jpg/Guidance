@@ -12,7 +12,11 @@ import {
   LogOut,
   Bell,
   Settings,
-  Search
+  Search,
+  Calendar,
+  MessageSquare,
+  Plus,
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -29,125 +33,103 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
-    { icon: Users, label: 'Students', href: '/counselor/students' },
-    { icon: FileText, label: 'Session Notes', href: '/counselor/session-notes' },
-  ];
-
-  const subNavItems = [
-    { label: 'Client Records', href: '/counselor/students' },
-    { label: 'Post-Session Notes', href: '/counselor/session-notes' },
-    { label: 'Analytics', href: '/counselor/analytics' },
+    { icon: Calendar, label: 'Appointments', href: '/counselor/appointments' },
+    { icon: FileText, label: 'Assessments', href: '/counselor/assessments' },
+    { icon: MessageSquare, label: 'Messages', href: '/counselor/messages' },
+    { icon: Users, label: 'Resources', href: '/counselor/resources' },
   ];
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       {/* Counselor Sidebar */}
-      <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0 z-40">
-        <div className="px-6 mb-10">
-          <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
-          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Supportive Wellness</p>
+      <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-8 sticky top-0 h-screen shrink-0 z-40">
+        <div className="px-6 mb-12">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 font-headline">GuidanceSync</h2>
+          </div>
+          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] pl-10">Supportive Wellness</p>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
+        <nav className="flex-1 px-4 space-y-1.5">
           {sidebarItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link 
                 key={item.label} 
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                   isActive 
-                    ? 'bg-primary text-white shadow-md' 
-                    : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                    ? 'bg-primary/5 text-primary' 
+                    : 'text-slate-400 hover:text-primary hover:bg-primary/5'
                 }`}
               >
-                <item.icon className={`h-5 w-5 ${isActive ? 'text-white' : ''}`} />
+                <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="px-3 space-y-1 mt-auto">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-muted hover:text-primary transition-all text-left">
-            <HelpCircle className="h-5 w-5" />
-            Help Center
-          </button>
-          <button 
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all text-left"
-          >
-            <LogOut className="h-5 w-5" />
-            Sign Out
-          </button>
+        <div className="px-4 mt-auto space-y-4">
+          <Button className="w-full bg-primary hover:bg-primary/90 text-white font-black rounded-xl h-12 shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Assessment
+          </Button>
+
+          <div className="pt-4 border-t border-slate-100 space-y-1">
+            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-primary transition-all text-left">
+              <HelpCircle className="h-4 w-4" />
+              Help Center
+            </button>
+            <button 
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-red-500 transition-all text-left"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen relative">
-        {/* Top Professional Header */}
+        {/* Top Header */}
         <header className="h-16 bg-white border-b px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
-          <div className="flex items-center gap-4">
-             <h2 className="text-lg font-bold text-[#1E293B]">Dashboard</h2>
+          <div className="relative w-96 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
+            <Input
+              placeholder="Search student records..."
+              className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-xs font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
+            />
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full">
+          <div className="flex items-center gap-5">
+            <button className="text-slate-400 hover:text-primary relative transition-colors">
               <Bell className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full" asChild>
-              <Link href="/counselor/settings">
-                <Settings className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div className="pl-4 border-l">
-              <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold leading-none">{user?.name}</p>
-                  <p className="text-[10px] text-muted-foreground capitalize">Counselor</p>
-                </div>
-                <Avatar className="h-9 w-9 ring-2 ring-primary/5">
-                  <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
-                </Avatar>
-              </div>
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border-2 border-white"></span>
+            </button>
+            <button className="text-slate-400 hover:text-primary transition-colors">
+              <HelpCircle className="h-5 w-5" />
+            </button>
+            <button className="text-slate-400 hover:text-primary transition-colors">
+              <Settings className="h-5 w-5" />
+            </button>
+            
+            <div className="pl-4 border-l border-slate-100">
+              <Avatar className="h-9 w-9 ring-2 ring-primary/5 cursor-pointer">
+                <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
+                <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
+              </Avatar>
             </div>
           </div>
         </header>
 
-        {/* Sub-Navigation Header */}
-        <div className="bg-white border-b px-8 py-4 flex items-center justify-between sticky top-16 z-30">
-          <nav className="flex items-center gap-8">
-            {subNavItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`text-sm font-bold transition-all relative py-2 ${
-                    isActive ? 'text-primary' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {item.label}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="relative hidden md:block w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search students..."
-              className="pl-10 h-10 bg-slate-100/50 border-none rounded-xl text-xs"
-            />
-          </div>
-        </div>
-
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-8">
           {children}
         </main>
       </div>
