@@ -60,15 +60,11 @@ const studentStressAssessmentFlow = ai.defineFlow(
 
 Your responses should always help the student feel heard and understood. When you believe you have gathered sufficient information to form a preliminary understanding of their stress factors, conclude the assessment by providing a summary of what you've learned. Otherwise, continue the conversation, gently probing for more details or offering encouragement.`;
 
-    const messages = [
-      { role: 'system', parts: [{ text: systemPrompt }] },
-      ...input.history,
-      { role: 'user', parts: [{ text: input.currentMessage }] }
-    ];
-
     const { output } = await ai.generate({
       model: 'googleai/gemini-1.5-flash', // Using a suitable conversational model
-      prompt: messages,
+      system: systemPrompt,
+      messages: input.history,
+      prompt: input.currentMessage,
       output: { schema: StudentStressAssessmentOutputSchema },
       config: {
         temperature: 0.7, // A moderate temperature for balanced creativity and consistency
