@@ -3,260 +3,297 @@
 
 import React from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
-import Navbar from '@/components/common/Navbar';
-import { Card, CardContent } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
-  MessageSquare, 
+  LayoutDashboard, 
   Calendar, 
-  Search, 
-  Bell, 
+  ClipboardCheck, 
+  MessageSquare, 
+  FileText, 
   HelpCircle, 
-  Heart, 
-  Send, 
+  LogOut,
+  Bell,
+  Search,
   ChevronRight,
-  Plus
+  Send,
+  Heart,
+  Clock
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const firstName = user?.name.split(' ')[0] || 'Student';
+
+  const sidebarItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', active: true, href: '/student/dashboard' },
+    { icon: Calendar, label: 'Appointments', active: false, href: '/student/appointments' },
+    { icon: ClipboardCheck, label: 'Assessments', active: false, href: '/student/assessments' },
+    { icon: MessageSquare, label: 'Messages', active: false, href: '/student/messages' },
+    { icon: FileText, label: 'Resources', active: false, href: '/student/resources' },
+  ];
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
-      <div className="min-h-screen bg-[#F8FAFC]">
-        {/* Dashboard Header */}
-        <header className="bg-white border-b sticky top-0 z-50">
-          <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-8 flex-1">
-              <Link href="/" className="font-headline text-xl font-bold text-primary flex items-center gap-2">
-                GuidanceSync
-              </Link>
-              <div className="hidden md:flex relative max-w-md w-full group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input 
-                  placeholder="Search resources..." 
-                  className="pl-10 bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-primary h-9"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 md:gap-6">
-              <Link href="/student/kamustahan" className="hidden lg:block text-sm font-bold text-primary hover:underline underline-offset-4 decoration-2">
-                Kamustahan Portal
-              </Link>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
-                  <Bell className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
-                  <HelpCircle className="h-5 w-5" />
-                </Button>
-                <div className="pl-2 ml-2 border-l flex items-center gap-3">
-                  <Avatar className="h-8 w-8 border-2 border-primary/10">
-                    <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
-                    <AvatarFallback>{firstName[0]}</AvatarFallback>
-                  </Avatar>
-                </div>
-              </div>
-            </div>
+      <div className="flex min-h-screen bg-[#F8FAFC]">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6">
+          <div className="px-6 mb-10">
+            <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Supportive Wellness</p>
           </div>
-        </header>
-        
-        <main className="container mx-auto px-4 py-8 max-w-7xl">
-          {/* Hero Section */}
-          <section className="mb-8">
-            <div className="bg-[#007055] rounded-[2rem] p-8 md:p-12 text-white relative overflow-hidden flex flex-col md:flex-row items-center justify-between min-h-[320px]">
-              <div className="relative z-10 max-w-xl text-center md:text-left">
-                <h1 className="text-5xl font-bold font-headline mb-4">Kumusta, {firstName}?</h1>
-                <p className="text-emerald-50/80 text-lg mb-8 max-w-md">
-                  How are you feeling today? We're here to support your journey and provide the care you need.
-                </p>
-                <Button size="lg" className="bg-white text-[#007055] hover:bg-emerald-50 font-bold rounded-xl shadow-xl px-8 h-12">
-                  <Heart className="mr-2 h-5 w-5 fill-current" /> Start Kamustahan Check-in
-                </Button>
-              </div>
-              
-              <div className="mt-8 md:mt-0 relative z-10 w-full md:w-auto flex justify-center">
-                <div className="relative h-64 w-64 md:h-72 md:w-72">
-                  <Image 
-                    src="https://picsum.photos/seed/plant1/600/600" 
-                    alt="Growth"
-                    fill
-                    className="object-cover rounded-3xl shadow-2xl border-4 border-white/10"
-                    data-ai-hint="potted plant"
-                  />
-                </div>
-              </div>
 
-              {/* Decorative shapes */}
-              <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-400/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+          <nav className="flex-1 px-3 space-y-1">
+            {sidebarItems.map((item) => (
+              <Link 
+                key={item.label} 
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                  item.active 
+                    ? 'bg-primary text-white shadow-md' 
+                    : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                }`}
+              >
+                <item.icon className={`h-5 w-5 ${item.active ? 'text-white' : ''}`} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="px-3 space-y-1 mt-auto">
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-muted hover:text-primary transition-all">
+              <HelpCircle className="h-5 w-5" />
+              Help Center
+            </button>
+            <button 
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-all"
+            >
+              <LogOut className="h-5 w-5" />
+              Sign Out
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          {/* Top Navbar */}
+          <header className="h-16 bg-white border-b px-8 flex items-center justify-between sticky top-0 z-40">
+            <div className="flex items-center gap-8">
+              <h3 className="lg:hidden font-bold text-primary">GuidanceSync</h3>
+              <nav className="hidden md:flex items-center gap-6">
+                <Link href="/student/dashboard" className="text-sm font-bold text-primary border-b-2 border-primary pb-5 mt-5">Dashboard</Link>
+                <Link href="/student/appointments" className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors">Appointments</Link>
+                <Link href="/student/assessments" className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors">Assessments</Link>
+              </nav>
             </div>
-          </section>
 
-          <div className="grid gap-6 lg:grid-cols-12">
-            {/* Left Column: AI Chat Assessment */}
-            <div className="lg:col-span-6">
-              <Card className="h-full border-none shadow-md overflow-hidden flex flex-col">
-                <div className="p-6 border-b flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <MessageSquare className="h-6 w-6" />
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="text-muted-foreground">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-muted-foreground">
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+              <div className="pl-4 border-l">
+                <Avatar className="h-8 w-8 ring-2 ring-primary/10">
+                  <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
+                  <AvatarFallback className="bg-primary/5 text-primary">{firstName[0]}</AvatarFallback>
+                </Avatar>
+              </div>
+            </div>
+          </header>
+
+          <main className="p-8 max-w-7xl mx-auto w-full">
+            {/* Hero Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+              <div>
+                <h1 className="text-4xl font-bold font-headline text-[#171717] mb-2">Kumusta, {firstName}?</h1>
+                <p className="text-muted-foreground">How are you feeling today? Take a moment to check in with yourself.</p>
+              </div>
+              <Button size="lg" className="bg-[#007055] hover:bg-[#005c46] text-white font-bold rounded-xl shadow-lg px-6 h-12 flex items-center gap-2">
+                <Heart className="h-5 w-5 fill-current" /> Start Kamustahan Check-in
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* AI Chat Card */}
+              <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden flex flex-col min-h-[440px]">
+                <div className="p-4 border-b flex items-center justify-between bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500">
+                      <MessageSquare className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm">Quick Wellness Check</h4>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg leading-tight">Quick Wellness Check</h3>
-                    <p className="text-sm text-muted-foreground">Always available for a quick chat</p>
-                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Assistant Online</span>
                 </div>
                 
-                <CardContent className="flex-1 p-6 space-y-6 overflow-y-auto max-h-[400px]">
-                  {/* AI Message 1 */}
+                <CardContent className="flex-1 p-6 space-y-6 bg-[#F8FAFC]">
                   <div className="flex items-start gap-3">
-                    <Avatar className="h-8 w-8 mt-1">
-                      <AvatarImage src="https://picsum.photos/seed/ai-bot/32/32" />
-                      <AvatarFallback>G</AvatarFallback>
+                    <Avatar className="h-8 w-8 mt-1 border border-primary/10">
+                      <AvatarFallback className="bg-primary text-white text-[10px]">GS</AvatarFallback>
                     </Avatar>
-                    <div className="bg-primary/10 text-foreground p-4 rounded-2xl rounded-tl-none max-w-[85%] text-sm leading-relaxed">
-                      Hi {firstName}! I'm Guidi, your wellness companion. How has your week been going so far?
+                    <div className="bg-white border text-foreground p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm shadow-sm">
+                      Hi {firstName}! I'm here to listen. How's your week been so far?
                     </div>
                   </div>
 
-                  {/* AI Message 2 */}
+                  <div className="flex items-start justify-end gap-3">
+                    <div className="bg-[#007055] text-white p-3 rounded-2xl rounded-tr-none max-w-[80%] text-sm shadow-md">
+                      It's been a bit stressful with the upcoming exams, to be honest.
+                    </div>
+                  </div>
+
                   <div className="flex items-start gap-3">
-                    <Avatar className="h-8 w-8 mt-1">
-                      <AvatarImage src="https://picsum.photos/seed/ai-bot/32/32" />
-                      <AvatarFallback>G</AvatarFallback>
+                    <Avatar className="h-8 w-8 mt-1 border border-primary/10">
+                      <AvatarFallback className="bg-primary text-white text-[10px]">GS</AvatarFallback>
                     </Avatar>
-                    <div className="bg-primary/10 text-foreground p-4 rounded-2xl rounded-tl-none max-w-[85%] text-sm leading-relaxed">
-                      You can pick how you're feeling below, or just type anything on your mind.
+                    <div className="bg-white border text-foreground p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm shadow-sm">
+                      I understand. Exams can be tough! Would you like to try a 2-minute breathing exercise or talk to a...
                     </div>
                   </div>
                 </CardContent>
 
-                <div className="p-6 border-t space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {['Stressed', 'Anxious', 'Doing Okay', 'Happy', 'Tired'].map((mood) => (
-                      <Button key={mood} variant="outline" size="sm" className="rounded-full border-muted text-xs font-medium hover:border-primary hover:text-primary transition-all">
-                        {mood}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="relative">
+                <div className="p-4 border-t bg-white">
+                  <div className="relative flex items-center gap-2">
                     <Input 
-                      placeholder="Type your message..." 
-                      className="pr-12 h-12 bg-muted/30 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl"
+                      placeholder="Type your feelings here..." 
+                      className="flex-1 h-12 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl px-4"
                     />
-                    <Button size="icon" className="absolute right-1 top-1 h-10 w-10 rounded-lg bg-primary hover:bg-primary/90">
+                    <Button size="icon" className="h-10 w-10 rounded-lg bg-[#007055] hover:bg-[#005c46]">
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
               </Card>
-            </div>
 
-            {/* Middle Column: Appointments & Messages */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Book Appointment Card */}
-              <Card className="border-none shadow-md p-6 bg-white flex flex-col items-center text-center">
-                <div className="h-12 w-12 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600 mb-4">
-                  <Calendar className="h-6 w-6" />
+              {/* Book Appointment CTA Card */}
+              <Card className="bg-[#005c46] border-none shadow-sm p-8 flex flex-col justify-between text-white relative overflow-hidden group">
+                <div className="relative z-10">
+                  <h3 className="text-xl font-bold mb-3">Need to talk?</h3>
+                  <p className="text-emerald-50/70 text-sm leading-relaxed mb-8">
+                    Schedule a 1-on-1 session with our professional counselors.
+                  </p>
+                  <Button asChild variant="secondary" className="bg-white text-[#005c46] hover:bg-emerald-50 font-bold px-8 py-6 rounded-xl w-full">
+                    <Link href="/student/book">Book Appointment</Link>
+                  </Button>
                 </div>
-                <h3 className="font-bold text-lg mb-2">Book Appointment</h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Schedule a session with your preferred counselor.
-                </p>
-                <Button variant="link" asChild className="text-primary font-bold h-auto p-0 hover:no-underline flex items-center">
-                  <Link href="/student/book">
-                    Schedule Now <ChevronRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </Button>
-              </Card>
-
-              {/* My Appointments Status */}
-              <Card className="border-none shadow-md p-4 hover:bg-accent/10 transition-colors cursor-pointer group">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
-                      <Calendar className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">My Appointments</p>
-                      <p className="text-[10px] text-muted-foreground">Next: Oct 24, 2:00 PM</p>
-                    </div>
-                  </div>
-                  <Badge className="bg-primary text-white hover:bg-primary font-bold rounded-full h-6 min-w-[24px] flex items-center justify-center">2</Badge>
-                </div>
-              </Card>
-
-              {/* Messages Status */}
-              <Card className="border-none shadow-md p-4 hover:bg-accent/10 transition-colors cursor-pointer group">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500">
-                      <MessageSquare className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Messages</p>
-                      <p className="text-[10px] text-muted-foreground">Unread from Counselor</p>
-                    </div>
-                  </div>
-                  <Badge className="bg-[#B45309] text-white hover:bg-[#B45309] font-bold rounded-full h-6 min-w-[24px] flex items-center justify-center">5</Badge>
-                </div>
+                
+                {/* Decorative Icon */}
+                <Calendar className="absolute -bottom-4 -right-4 h-32 w-32 text-white/5 group-hover:scale-110 transition-transform duration-500" />
               </Card>
             </div>
 
-            {/* Right Column: Counselor List */}
-            <div className="lg:col-span-3">
-              <Card className="h-full border-none shadow-md p-6 flex flex-col">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-lg">Counselors</h3>
-                  <Button variant="link" className="text-xs text-primary font-bold h-auto p-0">View All</Button>
-                </div>
-
-                <div className="space-y-6 flex-1">
+            {/* Bottom Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Available Counselors */}
+              <Card className="border-none shadow-sm p-6">
+                <h4 className="font-bold text-muted-foreground text-sm mb-6 uppercase tracking-wider">Available Counselors</h4>
+                <div className="space-y-6">
                   {[
-                    { name: 'Dr. Elena Santos', role: 'Clinical Psychologist', online: true },
-                    { name: 'Prof. Marco Reyes', role: 'Guidance Specialist', online: true },
-                    { name: 'Ms. Clara Cruz', role: 'Stress Management', online: false },
-                  ].map((counselor, idx) => (
-                    <div key={idx} className="flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={`https://picsum.photos/seed/counselor${idx}/40/40`} />
-                            <AvatarFallback>{counselor.name[0]}</AvatarFallback>
-                          </Avatar>
-                          {counselor.online && (
-                            <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 border-2 border-white rounded-full" />
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <p className="text-sm font-bold leading-tight group-hover:text-primary transition-colors">{counselor.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{counselor.role}</p>
+                    { name: 'Dr. Elena Ramos', role: 'Stress Management', img: 'counselor1' },
+                    { name: 'Prof. Marco Cruz', role: 'Academic Anxiety', img: 'counselor2' },
+                  ].map((c, i) => (
+                    <div key={i} className="flex items-center justify-between group cursor-pointer">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 border-2 border-primary/5">
+                          <AvatarImage src={`https://picsum.photos/seed/${c.img}/64/64`} />
+                          <AvatarFallback>{c.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-bold text-sm group-hover:text-primary transition-colors">{c.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium">{c.role}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10">
-                        <Calendar className="h-4 w-4" />
-                      </Button>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                   ))}
                 </div>
-
-                <Button variant="outline" className="w-full mt-8 border-dashed border-2 hover:bg-accent/50 group rounded-xl">
-                  <Plus className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary" /> 
-                  <span className="text-xs font-bold text-muted-foreground group-hover:text-primary">Request New Counselor</span>
+                <Button variant="outline" className="w-full mt-8 border-primary/20 text-primary font-bold hover:bg-primary/5 rounded-xl">
+                  View All Experts
                 </Button>
               </Card>
+
+              {/* My Appointments */}
+              <Card className="border-none shadow-sm p-6">
+                <h4 className="font-bold text-muted-foreground text-sm mb-6 uppercase tracking-wider">My Appointments</h4>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl border bg-white space-y-3 relative overflow-hidden group hover:border-primary/30 transition-all">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tomorrow, 10:00 AM</p>
+                        <p className="font-bold text-sm mt-1">Session with Dr. Ramos</p>
+                      </div>
+                      <Badge className="bg-orange-100 text-orange-600 hover:bg-orange-100 text-[9px] font-black uppercase">Confirmed</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <HelpCircle className="h-3 w-3" />
+                      Guidance Room 204
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border bg-[#F8FAFC] opacity-60 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Oct 12, 02:30 PM</p>
+                        <p className="font-bold text-sm">Consultation - Wellness</p>
+                      </div>
+                      <Badge className="bg-emerald-100 text-emerald-600 hover:bg-emerald-100 text-[9px] font-black uppercase">Completed</Badge>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Recent Messages */}
+              <Card className="border-none shadow-sm p-6 relative">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="font-bold text-muted-foreground text-sm uppercase tracking-wider">Messages</h4>
+                  <Badge className="bg-[#007055] text-white rounded-full h-5 min-w-[20px] flex items-center justify-center text-[10px] font-bold">2</Badge>
+                </div>
+                <div className="space-y-6">
+                  <div className="flex items-start gap-3 group cursor-pointer">
+                    <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                      <Bell className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Appointment Reminder</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Don't forget your session tomorrow...</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 group cursor-pointer">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">New Assessment Result</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Your Stress Level Analysis is ready.</p>
+                    </div>
+                  </div>
+                </div>
+                <Button variant="link" className="w-full mt-6 text-xs text-muted-foreground hover:text-primary font-bold">
+                  See all messages
+                </Button>
+
+                {/* Floating Help Widget */}
+                <div className="absolute bottom-[-10px] right-[-10px]">
+                   <Button size="icon" className="h-12 w-12 rounded-full bg-[#B45309] shadow-xl hover:bg-[#92400E] hover:scale-110 transition-all">
+                     <HelpCircle className="h-6 w-6 text-white" />
+                   </Button>
+                </div>
+              </Card>
             </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </ProtectedRoute>
   );
 }
+
