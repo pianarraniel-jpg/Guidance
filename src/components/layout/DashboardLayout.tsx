@@ -130,8 +130,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full">
               <Bell className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full">
-              <Settings className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full" asChild>
+              <Link href={`/${user?.role}/settings`}>
+                <Settings className="h-5 w-5" />
+              </Link>
             </Button>
             <div className="pl-4 border-l">
               <div className="flex items-center gap-3">
