@@ -32,7 +32,8 @@ import {
   Eye,
   User,
   MapPin,
-  FileText
+  FileText,
+  Target
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
