@@ -65,7 +65,6 @@ export default function CounselorAppointmentsPage() {
 
   const loadAppointments = () => {
     const data = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-    // Sort by date descending
     data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setAppointments(data);
   };
@@ -74,11 +73,11 @@ export default function CounselorAppointmentsPage() {
     loadAppointments();
   }, []);
 
-  // AUTOMATIC READ: Mark all appointment-related notifications as read when landing on this page
+  // AUTOMATIC READ: Mark appointment notifications read when on this page
   useEffect(() => {
     const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
     unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
+  }, [notifications, markAsRead]);
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
     storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
@@ -128,10 +127,7 @@ export default function CounselorAppointmentsPage() {
 
   const openDetails = (app: any) => {
     setSelectedApp(app);
-    // Explicit read if clicking specific appointment from roster
     markAsRead(`apt-${app.id}`);
-    // CRITICAL: Use setTimeout to allow the DropdownMenu to close fully
-    // and release its body lock/pointer-events before opening the Dialog.
     setTimeout(() => {
       setIsDetailsOpen(true);
     }, 100);
@@ -179,7 +175,7 @@ export default function CounselorAppointmentsPage() {
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pl-8">Student</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Appointment Info</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Location</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Schedule</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px) uppercase tracking-widest h-14">Schedule</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Status</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pr-8 text-right">Action</TableHead>
               </TableRow>
@@ -307,7 +303,6 @@ export default function CounselorAppointmentsPage() {
         </Card>
       </div>
 
-      {/* Appointment Details Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-8 bg-slate-50 border-b relative">

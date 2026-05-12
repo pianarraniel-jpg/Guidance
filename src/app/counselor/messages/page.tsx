@@ -46,7 +46,7 @@ type Contact = any & {
 
 export default function CounselorMessagesPage() {
   const { user } = useAuth();
-  const { markAsRead } = useNotifications();
+  const { notifications, markAsRead } = useNotifications();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -117,7 +117,7 @@ export default function CounselorMessagesPage() {
         setActiveStudent(currentActive);
       }
     }
-  }, [activeStudent, user]);
+  }, [activeStudent?.id, user, notifications]);
 
   useEffect(() => {
     loadData();
@@ -135,7 +135,6 @@ export default function CounselorMessagesPage() {
     if (activeStudent && activeStudent.lastMessage && activeStudent.lastMessage.senderId === activeStudent.id) {
       const msgId = `msg-${activeStudent.lastMessage.id}`;
       const groupId = `group-msg-${activeStudent.id}`;
-      
       markAsRead(msgId);
       markAsRead(groupId);
     }
@@ -149,7 +148,6 @@ export default function CounselorMessagesPage() {
 
   const handleSelectStudent = (student: any) => {
     setActiveStudent(student);
-    // Explicit read: Clear notifications for this student upon selection
     markAsRead(`group-msg-${student.id}`);
     if (student.lastMessage && student.lastMessage.senderId === student.id) {
       markAsRead(`msg-${student.lastMessage.id}`);
@@ -170,15 +168,13 @@ export default function CounselorMessagesPage() {
     };
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
-    
-    // Also clear notifications for this student if replying
     markAsRead(`group-msg-${activeStudent.id}`);
     if (activeStudent.lastMessage && activeStudent.lastMessage.senderId === activeStudent.id) {
       markAsRead(`msg-${activeStudent.lastMessage.id}`);
     }
 
     setInputValue('');
-    loadData(); // Local refresh
+    loadData();
   };
 
   const handleSendBookingForm = () => {
@@ -239,7 +235,6 @@ export default function CounselorMessagesPage() {
 
   return (
     <div className="h-[calc(100vh-120px)] flex gap-6">
-      {/* Contact List Sidebar */}
       <Card className="w-80 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-slate-50">
           <div className="relative group mb-4">
@@ -298,7 +293,6 @@ export default function CounselorMessagesPage() {
         </ScrollArea>
       </Card>
 
-      {/* Chat Area */}
       <Card className="flex-1 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
         {activeStudent ? (
           <>
@@ -343,12 +337,6 @@ export default function CounselorMessagesPage() {
 
             <ScrollArea className="flex-1 p-8 bg-slate-50/30">
               <div className="max-w-4xl mx-auto space-y-8">
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="bg-white border-slate-100 text-slate-300 font-bold text-[10px] uppercase py-1 px-4 rounded-full">
-                    Conversation Sync Enabled
-                  </Badge>
-                </div>
-
                 {messages.map((msg) => (
                   <div 
                     key={msg.id} 

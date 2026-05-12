@@ -74,11 +74,11 @@ export default function StudentAppointments() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user]);
 
-  // AUTOMATIC READ: Mark all appointment-related notifications as read when landing on this page
+  // AUTOMATIC READ: Mark appointment notifications read when on this page
   useEffect(() => {
     const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
     unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
+  }, [notifications, markAsRead]);
 
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -91,7 +91,6 @@ export default function StudentAppointments() {
     .filter(app => app.status === APPOINTMENT_STATUS.CONFIRMED)
     .map(app => parseISO(app.date));
 
-  // Hardcoded target date for the UI requirement check (May 13, 2026)
   const targetDate = new Date(2026, 4, 13);
   const displayDates = [...confirmedDates, targetDate];
 
@@ -119,7 +118,6 @@ export default function StudentAppointments() {
   };
 
   const handleViewInfo = (app: any) => {
-    // Explicit read for this specific record if viewing details
     markAsRead(`apt-status-${app.id}-confirmed`);
     markAsRead(`apt-status-${app.id}-cancelled`);
     markAsRead(`apt-${app.id}`);

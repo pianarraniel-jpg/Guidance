@@ -41,7 +41,7 @@ type CounselorContact = any & {
 
 export default function StudentMessages() {
   const { user } = useAuth();
-  const { markAsRead } = useNotifications();
+  const { notifications, markAsRead } = useNotifications();
   const [counselors, setCounselors] = useState<CounselorContact[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -111,7 +111,7 @@ export default function StudentMessages() {
         setActiveCounselor(currentActive);
       }
     }
-  }, [activeCounselor, user]);
+  }, [activeCounselor?.id, user, notifications]);
 
   useEffect(() => {
     loadData();
@@ -129,7 +129,6 @@ export default function StudentMessages() {
     if (activeCounselor && activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
       const msgId = `msg-${activeCounselor.lastMessage.id}`;
       const groupId = `group-msg-${activeCounselor.id}`;
-      
       markAsRead(msgId);
       markAsRead(groupId);
     }
@@ -143,7 +142,6 @@ export default function StudentMessages() {
 
   const handleSelectCounselor = (counselor: any) => {
     setActiveCounselor(counselor);
-    // Explicit read: Clear notifications for this counselor upon selection
     markAsRead(`group-msg-${counselor.id}`);
     if (counselor.lastMessage && counselor.lastMessage.senderId === counselor.id) {
       markAsRead(`msg-${counselor.lastMessage.id}`);
@@ -164,15 +162,13 @@ export default function StudentMessages() {
     };
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
-    
-    // Also clear notifications for this counselor if replying
     markAsRead(`group-msg-${activeCounselor.id}`);
     if (activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
       markAsRead(`msg-${activeCounselor.lastMessage.id}`);
     }
 
     setInputValue('');
-    loadData(); // Local refresh
+    loadData();
   };
 
   const filteredCounselors = counselors.filter(c => 
@@ -183,7 +179,6 @@ export default function StudentMessages() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="flex h-[calc(100vh-64px)] overflow-hidden">
-          {/* Conversation List */}
           <div className="w-80 bg-white border-r flex flex-col shrink-0">
             <div className="p-6 border-b">
               <div className="relative group">
@@ -242,7 +237,6 @@ export default function StudentMessages() {
             </ScrollArea>
           </div>
 
-          {/* Chat Area */}
           <div className="flex-1 flex flex-col bg-white">
             {activeCounselor ? (
               <>
