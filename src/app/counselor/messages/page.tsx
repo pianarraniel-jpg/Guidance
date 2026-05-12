@@ -119,14 +119,24 @@ export default function CounselorMessagesPage() {
 
   // Mark active chat as read
   useEffect(() => {
-    if (activeStudent && activeStudent.lastMessage) {
-      if (activeStudent.lastMessage.senderId === activeStudent.id) {
-        markAsRead(`msg-${activeStudent.lastMessage.id}`);
+    if (activeStudent && user) {
+      // Find all incoming messages from this student
+      const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
+      const incomingFromActive = allMessages
+        .filter(m => m.senderId === activeStudent.id && m.receiverId === user.id)
+        .sort((a, b) => b.timestamp - a.timestamp);
+      
+      if (incomingFromActive.length > 0) {
+        const latestIncoming = incomingFromActive[0];
+        
+        // 1. Mark individual messages read for roster dots
+        incomingFromActive.forEach(m => markAsRead(`msg-${m.id}`));
+        
+        // 2. Mark grouped bell notification read using THE EXACT ID from NotificationContext
+        markAsRead(`group-msg-${activeStudent.id}-${latestIncoming.id}`);
       }
-      // Clear the group ID specifically constructed in context
-      markAsRead(`group-msg-${activeStudent.id}-${activeStudent.lastMessage.id}`);
     }
-  }, [activeStudent?.id, activeStudent?.lastMessage?.id, markAsRead]);
+  }, [activeStudent?.id, messages.length, markAsRead, user?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {

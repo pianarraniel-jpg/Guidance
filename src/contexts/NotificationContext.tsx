@@ -95,11 +95,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
         
-        if (unreadInGroup.length > 0) {
+        // Construct a unique ID for this specific "latest message" from this sender
+        const groupId = `group-msg-${senderId}-${lastMsg.id}`;
+        const isGroupRead = readSet.has(groupId);
+
+        if (unreadInGroup.length > 0 || isGroupRead) {
           const sender = allUsers.find(u => u.id === senderId);
           const name = sender?.name || 'Student';
-          // Use specific lastMsg ID so that new messages generate a new (unread) alert ID
-          const groupId = `group-msg-${senderId}-${lastMsg.id}`;
           
           alerts.push({
             id: groupId,
@@ -111,7 +113,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             timestamp: lastMsg.timestamp,
             link: '/counselor/messages',
             studentName: name,
-            isRead: readSet.has(groupId)
+            isRead: isGroupRead
           });
         }
       });
@@ -185,10 +187,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
 
-        if (unreadInGroup.length > 0) {
+        const groupId = `group-msg-${senderId}-${lastMsg.id}`;
+        const isGroupRead = readSet.has(groupId);
+
+        if (unreadInGroup.length > 0 || isGroupRead) {
           const sender = allUsers.find(u => u.id === senderId);
           const name = sender?.name || 'Counselor';
-          const groupId = `group-msg-${senderId}-${lastMsg.id}`;
           
           alerts.push({
             id: groupId,
@@ -200,7 +204,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             timestamp: lastMsg.timestamp,
             link: '/student/messages',
             studentName: name,
-            isRead: readSet.has(groupId)
+            isRead: isGroupRead
           });
         }
       });
@@ -227,7 +231,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     window.addEventListener('storage', handleStorage);
-    // Faster polling for better real-time feel
     const interval = setInterval(refreshNotifications, 2000);
 
     return () => {
@@ -247,7 +250,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAllAsRead = () => {
     const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-    const newIds = notifications.map(n => n.id);
+    const newIds = notifications.filter(n => !n.isRead).map(n => n.id);
+    if (newIds.length === 0) return;
     const updated = Array.from(new Set([...currentReadIds, ...newIds]));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
     refreshNotifications();
