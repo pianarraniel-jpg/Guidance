@@ -76,6 +76,7 @@ export default function CounselorMessagesPage() {
       ).sort((a, b) => b.timestamp - a.timestamp);
       
       const lastMsg = studentMessages[0];
+      // Only mark as unread if the student was the sender
       const isUnread = lastMsg && 
                        lastMsg.senderId === student.id && 
                        !readSet.has(`msg-${lastMsg.id}`);
@@ -156,6 +157,18 @@ export default function CounselorMessagesPage() {
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
+    
+    // Auto-mark previous messages as read since we are responding
+    if (activeStudent.isUnread && activeStudent.lastMessage) {
+      const msgId = `msg-${activeStudent.lastMessage.id}`;
+      const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+      if (!currentReadIds.includes(msgId)) {
+        const updated = [...currentReadIds, msgId];
+        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+      }
+    }
+
     loadData(); // Local refresh
   };
 
@@ -253,12 +266,12 @@ export default function CounselorMessagesPage() {
                     <AvatarFallback className="bg-primary/10 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
                   {contact.isUnread && (
-                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-primary rounded-full border-2 border-white animate-pulse shadow-sm"></span>
+                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm"></span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
-                    <h4 className={`text-sm ${contact.isUnread ? 'font-black text-primary' : 'font-bold text-slate-900'} truncate`}>{contact.name}</h4>
+                    <h4 className={`text-sm ${contact.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-900'} truncate`}>{contact.name}</h4>
                     {contact.lastMessage && (
                       <span className="text-[9px] text-slate-300 font-bold uppercase">{contact.lastMessage.time}</span>
                     )}
