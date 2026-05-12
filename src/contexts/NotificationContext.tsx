@@ -54,6 +54,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Current read IDs for filtering/marking
     const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
     const readSet = new Set(currentReadIds);
+    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
 
     if (isCounselor) {
       // 1. Counselor: Check for Pending Appointments
@@ -92,25 +93,34 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
         });
 
-      // 3. Counselor: Check for New Messages
+      // 3. Counselor: Grouped Messages from Students
       const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
-      messages
-        .filter(m => m.receiverId === user.id)
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 10)
-        .forEach(m => {
-          const id = `msg-${m.id}`;
-          alerts.push({
-            id,
-            type: 'message',
-            title: 'New Message',
-            description: `From Student: ${m.text.substring(0, 30)}${m.text.length > 30 ? '...' : ''}`,
-            timestamp: m.timestamp,
-            link: '/counselor/messages',
-            studentName: 'Student',
-            isRead: readSet.has(id)
-          });
+      const unreadMessages = messages.filter(m => 
+        m.receiverId === user.id && !readSet.has(`msg-${m.id}`)
+      );
+      
+      const groupedBySender = unreadMessages.reduce((acc, m) => {
+        if (!acc[m.senderId]) acc[m.senderId] = [];
+        acc[m.senderId].push(m);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      Object.entries(groupedBySender).forEach(([senderId, msgs]) => {
+        const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
+        const sender = allUsers.find(u => u.id === senderId);
+        const name = sender?.name || 'Student';
+        
+        alerts.push({
+          id: `group-msg-${senderId}`,
+          type: 'message',
+          title: `${msgs.length} New Message${msgs.length > 1 ? 's' : ''} from ${name}`,
+          description: lastMsg.text,
+          timestamp: lastMsg.timestamp,
+          link: '/counselor/messages',
+          studentName: name,
+          isRead: false
         });
+      });
     } else if (isStudent) {
       // 1. Student: Check for Appointment Status Changes
       const appointments = storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
@@ -123,7 +133,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             type: 'appointment',
             title: a.status === APPOINTMENT_STATUS.CONFIRMED ? 'Session Confirmed' : 'Session Cancelled',
             description: `Your session with Dr. ${a.counselorName?.split(' ').pop()} for ${a.date} is ${a.status}.`,
-            timestamp: Date.now() - 1000, // Show as recent if not read
+            timestamp: Date.now() - 1000, 
             link: '/student/appointments',
             studentName: 'You',
             isRead: readSet.has(id)
@@ -140,7 +150,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             id,
             type: 'assessment',
             title: 'Feedback Received',
-            description: `Your counselor has provided feedback on your assessment: ${a.summary.substring(0, 20)}...`,
+            description: `Your counselor has provided feedback on your assessment.`,
             timestamp: a.evaluatedAt || Date.now(),
             link: '/student/assessments',
             studentName: 'You',
@@ -148,25 +158,34 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
         });
 
-      // 3. Student: Check for New Messages from Counselor
+      // 3. Student: Grouped Messages from Counselor
       const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
-      messages
-        .filter(m => m.receiverId === user.id)
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 10)
-        .forEach(m => {
-          const id = `msg-${m.id}`;
-          alerts.push({
-            id,
-            type: 'message',
-            title: 'New Message from Counselor',
-            description: m.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : m.text.substring(0, 30),
-            timestamp: m.timestamp,
-            link: '/student/messages',
-            studentName: 'Counselor',
-            isRead: readSet.has(id)
-          });
+      const unreadMessages = messages.filter(m => 
+        m.receiverId === user.id && !readSet.has(`msg-${m.id}`)
+      );
+
+      const groupedBySender = unreadMessages.reduce((acc, m) => {
+        if (!acc[m.senderId]) acc[m.senderId] = [];
+        acc[m.senderId].push(m);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      Object.entries(groupedBySender).forEach(([senderId, msgs]) => {
+        const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
+        const sender = allUsers.find(u => u.id === senderId);
+        const name = sender?.name || 'Counselor';
+        
+        alerts.push({
+          id: `group-msg-${senderId}`,
+          type: 'message',
+          title: `${msgs.length} New Message${msgs.length > 1 ? 's' : ''} from ${name}`,
+          description: lastMsg.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : lastMsg.text,
+          timestamp: lastMsg.timestamp,
+          link: '/student/messages',
+          studentName: name,
+          isRead: false
         });
+      });
     }
 
     // Sort all by most recent

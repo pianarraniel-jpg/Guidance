@@ -41,7 +41,7 @@ type CounselorContact = any & {
 
 export default function StudentMessages() {
   const { user } = useAuth();
-  const { notifications, markAsRead } = useNotifications();
+  const { markAsRead } = useNotifications();
   const [counselors, setCounselors] = useState<CounselorContact[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -137,6 +137,8 @@ export default function StudentMessages() {
       unreadFromCounselor.forEach(msg => {
         markAsRead(`msg-${msg.id}`);
       });
+      // Also mark any grouped message notification for this counselor as read
+      markAsRead(`group-msg-${activeCounselor.id}`);
     }
   }, [activeCounselor?.id, chatHistory.length, markAsRead, user]);
 
