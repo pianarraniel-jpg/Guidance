@@ -243,7 +243,7 @@ export default function StudentAssessments() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <main className="p-8 max-w-7xl mx-auto w-full min-h-screen">
-          <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Weekly Wellness</h1>
               <p className="text-muted-foreground font-medium">Synchronize your emotional health with professional clinical oversight.</p>
@@ -254,7 +254,7 @@ export default function StudentAssessments() {
           </header>
 
           <Tabs defaultValue="chatbot" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-md mb-8 bg-slate-100/50 p-1 h-14 rounded-2xl">
+            <TabsList className="grid w-full grid-cols-2 max-w-md mb-6 bg-slate-100/50 p-1 h-14 rounded-2xl">
               <TabsTrigger value="chatbot" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 <MessageSquare className="h-4 w-4" /> Guidi AI Chat
               </TabsTrigger>
@@ -269,8 +269,8 @@ export default function StudentAssessments() {
             </TabsList>
 
             <TabsContent value="chatbot">
-              <div className="flex flex-col h-[calc(100vh-250px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                <div className="p-8 border-b flex items-center gap-6 bg-white/80 backdrop-blur-md">
+              <div className="flex flex-col h-[calc(100vh-210px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="p-6 border-b flex items-center gap-6 bg-white/80 backdrop-blur-md">
                   <div className="relative">
                     <Avatar className="h-14 w-14 ring-4 ring-primary/5">
                       <AvatarFallback className="bg-primary text-white text-lg font-black">🤖</AvatarFallback>
@@ -283,8 +283,8 @@ export default function StudentAssessments() {
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 p-10 bg-slate-50/10">
-                  <div className="max-w-4xl mx-auto space-y-10">
+                <ScrollArea className="flex-1 p-6 md:p-10 bg-slate-50/10">
+                  <div className="max-w-4xl mx-auto space-y-8 md:space-y-10">
                     {messages.map((msg, idx) => (
                       <div key={idx} className={`flex items-start gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
                         {msg.role === 'model' && (
@@ -292,8 +292,8 @@ export default function StudentAssessments() {
                             <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
                           </Avatar>
                         )}
-                        <div className={`max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
+                        <div className={`max-w-[85%] md:max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                          <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
                             msg.role === 'user' 
                               ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
                               : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
@@ -337,10 +337,10 @@ export default function StudentAssessments() {
                 </ScrollArea>
 
                 {!isComplete && (
-                  <div className="p-10 border-t bg-white">
+                  <div className="p-6 md:p-10 border-t bg-white">
                     <div className="max-w-4xl mx-auto">
                       {!isLoading && (
-                        <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">
+                        <div className="flex gap-3 overflow-x-auto pb-4 md:pb-6 no-scrollbar">
                           {emotionReplies.map((qr) => (
                             <Button
                               key={qr.label}
@@ -366,10 +366,10 @@ export default function StudentAssessments() {
                           placeholder="Type your wellness response..." 
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
-                          className="h-16 bg-slate-50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl pl-8 pr-8 text-base font-medium"
+                          className="h-14 md:h-16 bg-slate-50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl pl-6 md:pl-8 pr-6 md:pr-8 text-base font-medium"
                           disabled={isLoading}
                         />
-                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-16 w-16 rounded-2xl bg-primary shadow-xl shadow-primary/20 transition-all active:scale-95 flex items-center justify-center">
+                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-primary shadow-xl shadow-primary/20 transition-all active:scale-95 flex items-center justify-center shrink-0">
                           <Send className="h-6 w-6" />
                         </Button>
                       </form>
