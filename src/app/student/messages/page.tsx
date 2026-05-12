@@ -74,7 +74,8 @@ export default function StudentMessages() {
       // Determine unread status specifically for messages FROM this counselor TO student
       const hasUnread = lastMsg && 
                        lastMsg.senderId === counselor.id && 
-                       !readSet.has(`msg-${lastMsg.id}`);
+                       !readSet.has(`msg-${lastMsg.id}`) &&
+                       !readSet.has(`group-msg-${counselor.id}`);
 
       return {
         ...counselor,
@@ -103,6 +104,12 @@ export default function StudentMessages() {
         (m.senderId === activeCounselor.id && m.receiverId === user.id)
       ).sort((a, b) => a.timestamp - b.timestamp);
       setChatHistory(filtered);
+      
+      // Update active counselor metadata if changed in list
+      const currentActive = counselorsWithMetadata.find(c => c.id === activeCounselor.id);
+      if (currentActive && currentActive.lastMessage?.id !== activeCounselor.lastMessage?.id) {
+        setActiveCounselor(currentActive);
+      }
     }
   }, [activeCounselor, user]);
 
@@ -117,6 +124,17 @@ export default function StudentMessages() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
+  // AUTOMATIC READ: Clear notifications when active counselor changes OR when a new message arrives from them while viewing
+  useEffect(() => {
+    if (activeCounselor && activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
+      const msgId = `msg-${activeCounselor.lastMessage.id}`;
+      const groupId = `group-msg-${activeCounselor.id}`;
+      
+      markAsRead(msgId);
+      markAsRead(groupId);
+    }
+  }, [activeCounselor?.id, activeCounselor?.lastMessage?.id, markAsRead]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -126,10 +144,10 @@ export default function StudentMessages() {
   const handleSelectCounselor = (counselor: any) => {
     setActiveCounselor(counselor);
     // Explicit read: Clear notifications for this counselor upon selection
+    markAsRead(`group-msg-${counselor.id}`);
     if (counselor.lastMessage && counselor.lastMessage.senderId === counselor.id) {
       markAsRead(`msg-${counselor.lastMessage.id}`);
     }
-    markAsRead(`group-msg-${counselor.id}`);
   };
 
   const handleSend = (e?: React.FormEvent) => {

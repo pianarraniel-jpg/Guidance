@@ -77,10 +77,11 @@ export default function CounselorMessagesPage() {
       ).sort((a, b) => b.timestamp - a.timestamp);
       
       const lastMsg = studentMessages[0];
-      // Only mark as unread if the student was the sender
+      // Only mark as unread if the student was the sender and not marked read
       const isUnread = lastMsg && 
                        lastMsg.senderId === student.id && 
-                       !readSet.has(`msg-${lastMsg.id}`);
+                       !readSet.has(`msg-${lastMsg.id}`) &&
+                       !readSet.has(`group-msg-${student.id}`);
 
       return {
         ...student,
@@ -110,7 +111,7 @@ export default function CounselorMessagesPage() {
       ).sort((a, b) => a.timestamp - b.timestamp);
       setMessages(filtered);
       
-      // Update the active student data with the latest from its own list item
+      // Update current active metadata if list item updated
       const currentActive = studentsWithMetadata.find(s => s.id === activeStudent.id);
       if (currentActive && currentActive.lastMessage?.id !== activeStudent.lastMessage?.id) {
         setActiveStudent(currentActive);
@@ -129,6 +130,17 @@ export default function CounselorMessagesPage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
+  // AUTOMATIC READ: Mark messages as read when active student changes OR when a new message arrives from the current active student
+  useEffect(() => {
+    if (activeStudent && activeStudent.lastMessage && activeStudent.lastMessage.senderId === activeStudent.id) {
+      const msgId = `msg-${activeStudent.lastMessage.id}`;
+      const groupId = `group-msg-${activeStudent.id}`;
+      
+      markAsRead(msgId);
+      markAsRead(groupId);
+    }
+  }, [activeStudent?.id, activeStudent?.lastMessage?.id, markAsRead]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -138,10 +150,10 @@ export default function CounselorMessagesPage() {
   const handleSelectStudent = (student: any) => {
     setActiveStudent(student);
     // Explicit read: Clear notifications for this student upon selection
+    markAsRead(`group-msg-${student.id}`);
     if (student.lastMessage && student.lastMessage.senderId === student.id) {
       markAsRead(`msg-${student.lastMessage.id}`);
     }
-    markAsRead(`group-msg-${student.id}`);
   };
 
   const handleSendMessage = (e?: React.FormEvent) => {
@@ -241,7 +253,7 @@ export default function CounselorMessagesPage() {
           </div>
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Roster</span>
-            <Badge className="bg-primary/10 text-primary border-none text-[9px] font-black">{filteredContacts.length}</Badge>
+            <Badge className="bg-primary/10 text-primary border-none text-[10px] font-black">{filteredContacts.length}</Badge>
           </div>
         </div>
 
@@ -260,7 +272,7 @@ export default function CounselorMessagesPage() {
                 <div className="relative">
                   <Avatar className="h-10 w-10 ring-2 ring-white">
                     <AvatarImage src={`https://picsum.photos/seed/${contact.id}/64/64`} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold">{contact.name[0]}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/5 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
                   {contact.isUnread && (
                     <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm"></span>
@@ -294,7 +306,7 @@ export default function CounselorMessagesPage() {
               <div className="flex items-center gap-4">
                 <Avatar className="h-11 w-11 ring-2 ring-primary/5">
                   <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/64/64`} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold">{activeStudent.name[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{activeStudent.name[0]}</AvatarFallback>
                 </Avatar>
                 <div>
                   <div className="flex items-center gap-2">
