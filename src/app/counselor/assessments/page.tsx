@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -50,9 +49,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from '@/components/ui/slider';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function CounselorAssessmentsPage() {
   const { user: counselor } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const [assessments, setAssessments] = useState<any[]>([]);
   const [selectedAssessment, setSelectedAssessment] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
@@ -92,6 +93,12 @@ export default function CounselorAssessmentsPage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  // AUTOMATIC READ: Mark all assessment/submission notifications as read when visiting this portal
+  useEffect(() => {
+    const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
+    unreadAsmts.forEach(n => markAsRead(n.id));
+  }, [notifications.length, markAsRead]);
+
   const handleCreateTask = () => {
     if (!targetStudent || !taskTitle || !counselor) return;
 
@@ -130,6 +137,8 @@ export default function CounselorAssessmentsPage() {
     setEvalRating([5]);
     setEvalComments('');
     setIsEvalOpen(true);
+    // Explicit read if clicking specific item
+    markAsRead(`asmt-${assessment.id}`);
   };
 
   const handleSubmitEvaluation = () => {
@@ -165,6 +174,11 @@ export default function CounselorAssessmentsPage() {
   const pendingEvaluations = assessments.filter(a => a.type === 'CLINICAL_FORM' && a.status === 'submitted');
   const aiInsights = assessments.filter(a => a.type === 'AI_CHAT');
 
+  const selectAssessment = (a: any) => {
+    setSelectedAssessment(a);
+    markAsRead(`asmt-${a.id}`);
+  };
+
   return (
     <div className="max-w-7xl mx-auto w-full pb-10">
       <header className="mb-8 flex items-center justify-between">
@@ -197,7 +211,7 @@ export default function CounselorAssessmentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
+                    <Label className="text-[10px) font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
                     <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Anxiety Root Analysis" className="h-12 rounded-xl" />
                   </div>
                 </div>
@@ -265,7 +279,7 @@ export default function CounselorAssessmentsPage() {
                     {assessments.filter(a => a.type === 'CLINICAL_FORM' && a.status === 'evaluated').map(a => (
                       <div 
                         key={a.id} 
-                        onClick={() => setSelectedAssessment(a)}
+                        onClick={() => selectAssessment(a)}
                         className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
                           selectedAssessment?.id === a.id ? 'bg-slate-50 ring-1 ring-slate-100' : 'hover:bg-slate-50/50'
                         }`}
@@ -293,7 +307,7 @@ export default function CounselorAssessmentsPage() {
                     {aiInsights.map((a) => (
                       <div 
                         key={a.id} 
-                        onClick={() => setSelectedAssessment(a)}
+                        onClick={() => selectAssessment(a)}
                         className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${
                           selectedAssessment?.id === a.id ? 'bg-primary/5 ring-1 ring-primary/10' : 'hover:bg-slate-50'
                         }`}

@@ -55,7 +55,7 @@ type Message = {
 
 export default function StudentAssessments() {
   const { user } = useAuth();
-  const { markAsRead } = useNotifications();
+  const { notifications, markAsRead } = useNotifications();
   const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -96,6 +96,12 @@ export default function StudentAssessments() {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, [user, firstName]);
+
+  // AUTOMATIC READ: Mark all assessment/feedback notifications as read when landing on this page
+  useEffect(() => {
+    const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
+    unreadAsmts.forEach(n => markAsRead(n.id));
+  }, [notifications.length, markAsRead]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -168,7 +174,7 @@ export default function StudentAssessments() {
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
     setTaskAnswers({});
-    // Intentional read: clear specific feedback notification for this assessment
+    // Explicit read if opening specific task
     markAsRead(`asmt-eval-${task.id}`);
   };
 

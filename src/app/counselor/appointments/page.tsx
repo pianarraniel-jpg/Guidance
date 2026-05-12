@@ -52,6 +52,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function CounselorAppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -60,6 +61,7 @@ export default function CounselorAppointmentsPage() {
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const { toast } = useToast();
+  const { notifications, markAsRead } = useNotifications();
 
   const loadAppointments = () => {
     const data = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
@@ -71,6 +73,12 @@ export default function CounselorAppointmentsPage() {
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  // AUTOMATIC READ: Mark all appointment-related notifications as read when landing on this page
+  useEffect(() => {
+    const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
+    unreadApts.forEach(n => markAsRead(n.id));
+  }, [notifications.length, markAsRead]);
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
     storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
@@ -120,6 +128,8 @@ export default function CounselorAppointmentsPage() {
 
   const openDetails = (app: any) => {
     setSelectedApp(app);
+    // Explicit read if clicking specific appointment from roster
+    markAsRead(`apt-${app.id}`);
     // CRITICAL: Use setTimeout to allow the DropdownMenu to close fully
     // and release its body lock/pointer-events before opening the Dialog.
     setTimeout(() => {

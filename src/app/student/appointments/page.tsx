@@ -74,6 +74,12 @@ export default function StudentAppointments() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user]);
 
+  // AUTOMATIC READ: Mark all appointment-related notifications as read when landing on this page
+  useEffect(() => {
+    const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
+    unreadApts.forEach(n => markAsRead(n.id));
+  }, [notifications.length, markAsRead]);
+
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          app.type?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -113,7 +119,7 @@ export default function StudentAppointments() {
   };
 
   const handleViewInfo = (app: any) => {
-    // Intentional read: clear specific status update notification for this session
+    // Explicit read for this specific record if viewing details
     markAsRead(`apt-status-${app.id}-confirmed`);
     markAsRead(`apt-status-${app.id}-cancelled`);
     markAsRead(`apt-${app.id}`);
