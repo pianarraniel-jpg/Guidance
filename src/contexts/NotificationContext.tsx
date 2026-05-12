@@ -113,7 +113,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         alerts.push({
           id: `group-msg-${senderId}`,
           type: 'message',
-          title: `${msgs.length} New Message${msgs.length > 1 ? 's' : ''} from ${name}`,
+          title: `New Message from ${name}`,
           description: lastMsg.text,
           timestamp: lastMsg.timestamp,
           link: '/counselor/messages',
@@ -178,7 +178,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         alerts.push({
           id: `group-msg-${senderId}`,
           type: 'message',
-          title: `${msgs.length} New Message${msgs.length > 1 ? 's' : ''} from ${name}`,
+          title: `New Message from ${name}`,
           description: lastMsg.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : lastMsg.text,
           timestamp: lastMsg.timestamp,
           link: '/student/messages',

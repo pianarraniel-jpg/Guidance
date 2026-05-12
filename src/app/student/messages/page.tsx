@@ -36,7 +36,7 @@ type ChatMessage = {
 
 type CounselorContact = any & {
   lastMessage?: ChatMessage;
-  unreadCount: number;
+  isUnread: boolean;
 };
 
 export default function StudentMessages() {
@@ -71,8 +71,8 @@ export default function StudentMessages() {
       
       const lastMsg = convMessages[0];
       
-      // Calculate unread count specifically for messages FROM this counselor TO student
-      const incomingUnread = allMessages.filter(m => 
+      // Determine unread status specifically for messages FROM this counselor TO student
+      const hasUnread = allMessages.some(m => 
         m.senderId === counselor.id && 
         m.receiverId === user.id && 
         !readSet.has(`msg-${m.id}`)
@@ -81,7 +81,7 @@ export default function StudentMessages() {
       return {
         ...counselor,
         lastMessage: lastMsg,
-        unreadCount: incomingUnread.length
+        isUnread: hasUnread
       };
     });
 
@@ -198,22 +198,20 @@ export default function StudentMessages() {
                         <AvatarImage src={`https://picsum.photos/seed/${counselor.id}/64/64`} />
                         <AvatarFallback className="font-bold text-primary bg-primary/5">{counselor.name[0]}</AvatarFallback>
                       </Avatar>
-                      {counselor.unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black text-white animate-in zoom-in shadow-sm">
-                          {counselor.unreadCount}
-                        </span>
+                      {counselor.isUnread && (
+                        <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm"></span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-0.5">
-                        <h4 className={`text-sm ${counselor.unreadCount > 0 ? 'font-black text-slate-900' : 'font-bold text-slate-700'} truncate`}>
+                        <h4 className={`text-sm ${counselor.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-700'} truncate`}>
                           {counselor.name}
                         </h4>
                         {counselor.lastMessage && (
                           <span className="text-[9px] text-slate-300 font-bold uppercase">{counselor.lastMessage.time}</span>
                         )}
                       </div>
-                      <p className={`text-[11px] truncate ${counselor.unreadCount > 0 ? 'font-bold text-slate-600' : 'text-slate-400'}`}>
+                      <p className={`text-[11px] truncate ${counselor.isUnread ? 'font-bold text-slate-600' : 'text-slate-400'}`}>
                         {counselor.lastMessage 
                           ? (counselor.lastMessage.text === '[BOOKING_REQUEST]' ? '📅 Session Invitation' : counselor.lastMessage.text)
                           : 'Wellness Counselor'
