@@ -58,10 +58,20 @@ export default function BookAppointment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [counselors, setCounselors] = useState<any[]>([]);
 
-  useEffect(() => {
-    const allUsers = storageService.getByField<any>(STORAGE_KEYS.USERS, 'role', 'counselor');
-    setCounselors(allUsers || []);
+  const loadCounselors = useCallback(() => {
+    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    const counselorList = allUsers.filter(u => u.role === 'counselor');
+    setCounselors(counselorList || []);
   }, []);
+
+  useEffect(() => {
+    loadCounselors();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.USERS) loadCounselors();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [loadCounselors]);
 
   const timeSlots = useMemo(() => [
     "09:00 AM", 
