@@ -97,12 +97,6 @@ export default function StudentAssessments() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [user, firstName]);
 
-  // AUTOMATIC READ: Mark all assessment/feedback notifications as read when landing on this page
-  useEffect(() => {
-    const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
-    unreadAsmts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
-
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -174,7 +168,8 @@ export default function StudentAssessments() {
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
     setTaskAnswers({});
-    // Explicit read if opening specific task
+    // Explicit read: mark assignment task AND evaluation as read when opening
+    markAsRead(`asmt-task-${task.id}`);
     markAsRead(`asmt-eval-${task.id}`);
   };
 
@@ -391,7 +386,7 @@ export default function StudentAssessments() {
                           </div>
                         ) : (
                           <div className="space-y-4 pt-4 border-t border-slate-50">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between" onClick={() => markAsRead(`asmt-eval-${task.id}`)}>
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
                               <div className="flex items-center gap-1">
                                 <span className="text-lg font-black text-primary">{task.counselorRating}</span>

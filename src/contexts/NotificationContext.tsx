@@ -158,7 +158,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
         });
 
-      // 3. Student: Grouped Messages from Counselor
+      // 3. Student: Check for New Clinical Tasks Assigned
+      const tasks = storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
+      tasks
+        .filter(t => t.status === 'pending')
+        .forEach(t => {
+          const id = `asmt-task-${t.id}`;
+          alerts.push({
+            id,
+            type: 'assessment',
+            title: 'New Clinical Task',
+            description: `Dr. ${t.counselorName?.split(' ').pop()} assigned: ${t.title}`,
+            timestamp: t.timestamp || Date.now(),
+            link: '/student/assessments',
+            studentName: 'You',
+            isRead: readSet.has(id)
+          });
+        });
+
+      // 4. Student: Grouped Messages from Counselor
       const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
       const unreadMessages = messages.filter(m => 
         m.receiverId === user.id && !readSet.has(`msg-${m.id}`)
@@ -201,7 +219,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         STORAGE_KEYS.APPOINTMENTS,
         STORAGE_KEYS.ASSESSMENTS,
         STORAGE_KEYS.MESSAGES,
-        STORAGE_KEYS.NOTIFICATIONS_READ
+        STORAGE_KEYS.NOTIFICATIONS_READ,
+        STORAGE_KEYS.ASSESSMENT_TASKS
       ];
       if (watched.includes(e.key as any)) {
         refreshNotifications();
