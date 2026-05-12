@@ -108,6 +108,12 @@ export default function CounselorMessagesPage() {
         (m.senderId === activeStudent.id && m.receiverId === user.id)
       ).sort((a, b) => a.timestamp - b.timestamp);
       setMessages(filtered);
+      
+      // Update the active student data with the latest from its own list item
+      const currentActive = studentsWithMetadata.find(s => s.id === activeStudent.id);
+      if (currentActive && currentActive.lastMessage?.id !== activeStudent.lastMessage?.id) {
+        setActiveStudent(currentActive);
+      }
     }
   }, [activeStudent, user]);
 
@@ -128,19 +134,23 @@ export default function CounselorMessagesPage() {
     }
   }, [messages]);
 
-  // Mark messages as read when active student changes or data reloads
+  // AUTOMATIC READ: Mark messages as read when active student changes OR when a new message arrives from the current active student
   useEffect(() => {
-    if (activeStudent && activeStudent.isUnread && activeStudent.lastMessage) {
-      const msgId = `msg-${activeStudent.lastMessage.id}`;
+    if (activeStudent && activeStudent.lastMessage) {
       const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-      if (!currentReadIds.includes(msgId)) {
+      const msgId = `msg-${activeStudent.lastMessage.id}`;
+      
+      // Only mark as read if the message is from the student and not already in readIds
+      const needsMarking = activeStudent.lastMessage.senderId === activeStudent.id && !currentReadIds.includes(msgId);
+
+      if (needsMarking) {
         const updated = [...currentReadIds, msgId];
         localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
-        // Dispatch event so other components (like NotificationBell) update
+        // Dispatch event so other components and the list in this page update immediately
         window.dispatchEvent(new Event('storage'));
       }
     }
-  }, [activeStudent]);
+  }, [activeStudent, activeStudent?.lastMessage?.id]);
 
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -158,17 +168,6 @@ export default function CounselorMessagesPage() {
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
     
-    // Auto-mark previous messages as read since we are responding
-    if (activeStudent.isUnread && activeStudent.lastMessage) {
-      const msgId = `msg-${activeStudent.lastMessage.id}`;
-      const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-      if (!currentReadIds.includes(msgId)) {
-        const updated = [...currentReadIds, msgId];
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
-        window.dispatchEvent(new Event('storage'));
-      }
-    }
-
     loadData(); // Local refresh
   };
 
