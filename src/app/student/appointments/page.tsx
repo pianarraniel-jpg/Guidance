@@ -78,7 +78,7 @@ export default function StudentAppointments() {
   useEffect(() => {
     const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
     unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
+  }, [notifications.length, markAsRead]);
 
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 

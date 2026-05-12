@@ -97,6 +97,12 @@ export default function StudentAssessments() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [user, firstName]);
 
+  // AUTOMATIC READ: Mark all assessment/submission notifications as read when visiting this portal
+  useEffect(() => {
+    const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
+    unreadAsmts.forEach(n => markAsRead(n.id));
+  }, [notifications.length, markAsRead]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });

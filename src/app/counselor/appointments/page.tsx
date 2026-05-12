@@ -77,7 +77,7 @@ export default function CounselorAppointmentsPage() {
   useEffect(() => {
     const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
     unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
+  }, [notifications.length, markAsRead]);
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
     storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
@@ -175,7 +175,7 @@ export default function CounselorAppointmentsPage() {
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pl-8">Student</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Appointment Info</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Location</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px) uppercase tracking-widest h-14">Schedule</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Schedule</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">Status</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14 pr-8 text-right">Action</TableHead>
               </TableRow>
