@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 type Message = {
   id: string;
@@ -46,6 +47,7 @@ type Contact = any & {
 
 export default function CounselorMessagesPage() {
   const { user } = useAuth();
+  const { markAsRead } = useNotifications();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -137,20 +139,13 @@ export default function CounselorMessagesPage() {
   // AUTOMATIC READ: Mark messages as read when active student changes OR when a new message arrives from the current active student
   useEffect(() => {
     if (activeStudent && activeStudent.lastMessage) {
-      const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
       const msgId = `msg-${activeStudent.lastMessage.id}`;
-      
-      // Only mark as read if the message is from the student and not already in readIds
-      const needsMarking = activeStudent.lastMessage.senderId === activeStudent.id && !currentReadIds.includes(msgId);
-
-      if (needsMarking) {
-        const updated = [...currentReadIds, msgId];
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
-        // Dispatch event so other components and the list in this page update immediately
-        window.dispatchEvent(new Event('storage'));
+      // Only mark as read if the message is from the student
+      if (activeStudent.lastMessage.senderId === activeStudent.id) {
+        markAsRead(msgId);
       }
     }
-  }, [activeStudent, activeStudent?.lastMessage?.id]);
+  }, [activeStudent?.id, activeStudent?.lastMessage?.id, markAsRead]);
 
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
