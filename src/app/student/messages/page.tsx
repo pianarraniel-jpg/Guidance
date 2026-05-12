@@ -1,10 +1,10 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -36,6 +36,7 @@ type ChatMessage = {
 
 export default function StudentMessages() {
   const { user } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const [counselors, setCounselors] = useState<any[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -80,6 +81,14 @@ export default function StudentMessages() {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatHistory]);
+
+  // AUTOMATIC READ: Clear message notifications when visiting this page
+  useEffect(() => {
+    const unreadMessageNotifs = notifications.filter(
+      n => n.type === 'message' && !n.isRead
+    );
+    unreadMessageNotifs.forEach(n => markAsRead(n.id));
+  }, [notifications, markAsRead]);
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();

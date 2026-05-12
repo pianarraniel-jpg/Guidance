@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ import { format, parseISO } from 'date-fns';
 
 export default function StudentAppointments() {
   const { user } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -71,6 +73,14 @@ export default function StudentAppointments() {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user]);
+
+  // AUTOMATIC READ: Clear appointment notifications when visiting this page
+  useEffect(() => {
+    const unreadAppointmentNotifs = notifications.filter(
+      n => n.type === 'appointment' && !n.isRead
+    );
+    unreadAppointmentNotifs.forEach(n => markAsRead(n.id));
+  }, [notifications, markAsRead]);
 
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -190,7 +200,7 @@ export default function StudentAppointments() {
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-black text-slate-900 text-xs">{format(parseISO(app.date), 'MMM dd, yyyy')}</span>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase">{app.time}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">{app.time}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-xs font-black text-slate-700">{app.counselorName}</TableCell>

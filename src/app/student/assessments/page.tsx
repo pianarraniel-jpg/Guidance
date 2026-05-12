@@ -1,10 +1,10 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -55,6 +55,7 @@ type Message = {
 
 export default function StudentAssessments() {
   const { user } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,6 +102,14 @@ export default function StudentAssessments() {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // AUTOMATIC READ: Clear assessment notifications when visiting this page
+  useEffect(() => {
+    const unreadAssessmentNotifs = notifications.filter(
+      n => n.type === 'assessment' && !n.isRead
+    );
+    unreadAssessmentNotifs.forEach(n => markAsRead(n.id));
+  }, [notifications, markAsRead]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading || isComplete) return;
