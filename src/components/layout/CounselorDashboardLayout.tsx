@@ -126,14 +126,14 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
 
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
+            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-primary transition-colors">
               <HelpCircle className="h-5 w-5" />
-            </button>
-            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors" asChild>
+            </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-primary transition-colors" asChild>
               <Link href="/counselor/settings">
                 <Settings className="h-5 w-5" />
               </Link>
-            </button>
+            </Button>
             
             <div className="pl-4 border-l border-slate-100 ml-2">
               <Link href="/counselor/settings" className="flex items-center gap-3 group">
