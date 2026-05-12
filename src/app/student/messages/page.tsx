@@ -126,11 +126,14 @@ export default function StudentMessages() {
 
   // AUTOMATIC READ: Clear notifications when active counselor changes OR when a new message arrives from them while viewing
   useEffect(() => {
-    if (activeCounselor && activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
-      const msgId = `msg-${activeCounselor.lastMessage.id}`;
+    if (activeCounselor) {
       const groupId = `group-msg-${activeCounselor.id}`;
-      markAsRead(msgId);
       markAsRead(groupId);
+      
+      if (activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
+        const msgId = `msg-${activeCounselor.lastMessage.id}`;
+        markAsRead(msgId);
+      }
     }
   }, [activeCounselor?.id, activeCounselor?.lastMessage?.id, markAsRead]);
 

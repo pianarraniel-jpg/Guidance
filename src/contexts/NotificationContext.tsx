@@ -109,16 +109,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
         const sender = allUsers.find(u => u.id === senderId);
         const name = sender?.name || 'Student';
+        const groupId = `group-msg-${senderId}`;
         
         alerts.push({
-          id: `group-msg-${senderId}`,
+          id: groupId,
           type: 'message',
           title: `New Message from ${name}`,
           description: lastMsg.text,
           timestamp: lastMsg.timestamp,
           link: '/counselor/messages',
           studentName: name,
-          isRead: false
+          isRead: readSet.has(groupId)
         });
       });
     } else if (isStudent) {
@@ -192,16 +193,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
         const sender = allUsers.find(u => u.id === senderId);
         const name = sender?.name || 'Counselor';
+        const groupId = `group-msg-${senderId}`;
         
         alerts.push({
-          id: `group-msg-${senderId}`,
+          id: groupId,
           type: 'message',
           title: `New Message from ${name}`,
           description: lastMsg.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : lastMsg.text,
           timestamp: lastMsg.timestamp,
           link: '/student/messages',
           studentName: name,
-          isRead: false
+          isRead: readSet.has(groupId)
         });
       });
     }
