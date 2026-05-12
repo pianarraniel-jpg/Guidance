@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
@@ -29,16 +30,22 @@ interface CounselorDashboardLayoutProps {
 
 export default function CounselorDashboardLayout({ children }: CounselorDashboardLayoutProps) {
   const { user, logout } = useAuth();
+  const { notifications } = useNotifications();
   const pathname = usePathname();
   const firstName = user?.name.split(' ')[0] || 'Counselor';
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
     { icon: Users, label: 'Students', href: '/counselor/students' },
-    { icon: Calendar, label: 'Appointments', href: '/counselor/appointments' },
-    { icon: FileText, label: 'Assessments', href: '/counselor/assessments' },
-    { icon: MessageSquare, label: 'Messages', href: '/counselor/messages' },
+    { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
+    { icon: FileText, label: 'Assessments', href: '/counselor/assessments', type: 'assessment' },
+    { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
   ];
+
+  const getUnreadCount = (type?: string) => {
+    if (!type) return 0;
+    return notifications.filter(n => n.type === type && !n.isRead).length;
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -57,18 +64,25 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
         <nav className="flex-1 px-4 space-y-1.5">
           {sidebarItems.map((item) => {
             const isActive = pathname === item.href;
+            const unreadCount = getUnreadCount(item.type);
+            
             return (
               <Link 
                 key={item.label} 
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all relative group ${
                   isActive 
                     ? 'bg-primary/5 text-primary' 
                     : 'text-slate-400 hover:text-primary hover:bg-primary/5'
                 }`}
               >
                 <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {unreadCount > 0 && (
+                  <span className="h-5 w-5 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-black animate-pulse shadow-sm">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -115,8 +129,10 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
               <HelpCircle className="h-5 w-5" />
             </button>
-            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
-              <Settings className="h-5 w-5" />
+            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors" asChild>
+              <Link href="/counselor/settings">
+                <Settings className="h-5 w-5" />
+              </Link>
             </button>
             
             <div className="pl-4 border-l border-slate-100 ml-2">
