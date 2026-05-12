@@ -1,6 +1,8 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
@@ -22,8 +24,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-accent selection:text-primary">
         <AuthProvider>
-          {children}
-          <Toaster />
+          <NotificationProvider>
+            {children}
+            <Toaster />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

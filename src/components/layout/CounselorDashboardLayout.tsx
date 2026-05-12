@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,18 +11,17 @@ import {
   FileText, 
   HelpCircle, 
   LogOut,
-  Bell,
   Settings,
   Search,
   Calendar,
   MessageSquare,
   Plus,
-  ShieldCheck,
-  Briefcase
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Input } from '@/components/ui/input';
+import NotificationBell from '@/components/common/NotificationBell';
 
 interface CounselorDashboardLayoutProps {
   children: React.ReactNode;
@@ -110,19 +110,16 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             />
           </div>
 
-          <div className="flex items-center gap-5">
-            <button className="text-slate-400 hover:text-primary relative transition-colors">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border-2 border-white"></span>
-            </button>
-            <button className="text-slate-400 hover:text-primary transition-colors">
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
               <HelpCircle className="h-5 w-5" />
             </button>
-            <button className="text-slate-400 hover:text-primary transition-colors">
+            <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
               <Settings className="h-5 w-5" />
             </button>
             
-            <div className="pl-4 border-l border-slate-100">
+            <div className="pl-4 border-l border-slate-100 ml-2">
               <Link href="/counselor/settings" className="flex items-center gap-3 group">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-black leading-none group-hover:text-primary transition-colors">{user?.name}</p>
