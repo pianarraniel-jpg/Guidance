@@ -41,6 +41,7 @@ type Message = {
 
 type Contact = any & {
   lastMessage?: Message;
+  isUnread?: boolean;
 };
 
 export default function CounselorMessagesPage() {
@@ -57,11 +58,15 @@ export default function CounselorMessagesPage() {
   const loadData = useCallback(() => {
     if (!user) return;
 
+    // Load read notification IDs to determine unread status
+    const readIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+    const readSet = new Set(readIds);
+
     // Load all students
     const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
     const students = allUsers.filter(u => u.role === 'student');
     
-    // Load all messages to find last message for each contact
+    // Load all messages
     const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
 
     const studentsWithMetadata = students.map(student => {
@@ -70,9 +75,15 @@ export default function CounselorMessagesPage() {
         (m.senderId === student.id && m.receiverId === user.id)
       ).sort((a, b) => b.timestamp - a.timestamp);
       
+      const lastMsg = studentMessages[0];
+      const isUnread = lastMsg && 
+                       lastMsg.senderId === student.id && 
+                       !readSet.has(`msg-${lastMsg.id}`);
+
       return {
         ...student,
-        lastMessage: studentMessages[0]
+        lastMessage: lastMsg,
+        isUnread
       };
     });
 
@@ -102,7 +113,7 @@ export default function CounselorMessagesPage() {
   useEffect(() => {
     loadData();
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.MESSAGES || e.key === STORAGE_KEYS.USERS) {
+      if (e.key === STORAGE_KEYS.MESSAGES || e.key === STORAGE_KEYS.USERS || e.key === STORAGE_KEYS.NOTIFICATIONS_READ) {
         loadData();
       }
     };
@@ -115,6 +126,20 @@ export default function CounselorMessagesPage() {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Mark messages as read when active student changes or data reloads
+  useEffect(() => {
+    if (activeStudent && activeStudent.isUnread && activeStudent.lastMessage) {
+      const msgId = `msg-${activeStudent.lastMessage.id}`;
+      const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+      if (!currentReadIds.includes(msgId)) {
+        const updated = [...currentReadIds, msgId];
+        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
+        // Dispatch event so other components (like NotificationBell) update
+        window.dispatchEvent(new Event('storage'));
+      }
+    }
+  }, [activeStudent]);
 
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -227,18 +252,18 @@ export default function CounselorMessagesPage() {
                     <AvatarImage src={`https://picsum.photos/seed/${contact.id}/64/64`} />
                     <AvatarFallback className="bg-primary/10 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
-                  {contact.lastMessage?.senderId === contact.id && (
-                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full border-2 border-white"></span>
+                  {contact.isUnread && (
+                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-primary rounded-full border-2 border-white animate-pulse shadow-sm"></span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
-                    <h4 className="text-sm font-black text-slate-900 truncate">{contact.name}</h4>
+                    <h4 className={`text-sm ${contact.isUnread ? 'font-black text-primary' : 'font-bold text-slate-900'} truncate`}>{contact.name}</h4>
                     {contact.lastMessage && (
                       <span className="text-[9px] text-slate-300 font-bold uppercase">{contact.lastMessage.time}</span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 truncate font-medium">
+                  <p className={`text-xs truncate ${contact.isUnread ? 'font-bold text-slate-700' : 'font-medium text-slate-400'}`}>
                     {contact.lastMessage 
                       ? (contact.lastMessage.text === '[BOOKING_REQUEST]' ? 'Sent session invitation' : contact.lastMessage.text)
                       : 'Click to open chat'
