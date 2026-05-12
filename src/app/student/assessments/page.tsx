@@ -264,57 +264,57 @@ export default function StudentAssessments() {
             </TabsList>
 
             <TabsContent value="chatbot">
-              <div className="flex flex-col h-[calc(100vh-340px)] w-full bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b flex items-center gap-4 bg-white/80 backdrop-blur-md">
+              <div className="flex flex-col h-[calc(100vh-250px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b flex items-center gap-6 bg-white/80 backdrop-blur-md">
                   <div className="relative">
-                    <Avatar className="h-12 w-12 ring-4 ring-primary/5">
-                      <AvatarFallback className="bg-primary text-white text-sm font-black">🤖</AvatarFallback>
+                    <Avatar className="h-14 w-14 ring-4 ring-primary/5">
+                      <AvatarFallback className="bg-primary text-white text-lg font-black">🤖</AvatarFallback>
                     </Avatar>
-                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"></span>
+                    <span className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full border-2 border-white bg-emerald-500"></span>
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-900">Guidi</h4>
-                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
+                    <h4 className="font-black text-slate-900 text-xl">Guidi</h4>
+                    <p className="text-[11px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 p-8 bg-slate-50/20">
-                  <div className="max-w-4xl mx-auto space-y-8">
+                <ScrollArea className="flex-1 p-10 bg-slate-50/10">
+                  <div className="max-w-4xl mx-auto space-y-10">
                     {messages.map((msg, idx) => (
-                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                        <div className={`max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-5 rounded-2xl text-sm leading-relaxed font-medium shadow-sm ${
+                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
+                        <div className={`max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                          <div className={`p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
                             msg.role === 'user' 
                               ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
-                              : 'bg-white text-slate-700 rounded-tl-none border border-slate-50'
+                              : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
                           }`}>
                             {msg.text}
                           </div>
-                          <span className="text-[9px] text-slate-300 font-bold mt-2 uppercase tracking-widest">{msg.time}</span>
+                          <span className="text-[10px] text-slate-300 font-bold mt-2 uppercase tracking-widest px-1">{msg.time}</span>
                         </div>
                       </div>
                     ))}
                     {isLoading && (
                       <div className="flex justify-start">
-                        <div className="bg-white border border-slate-50 p-5 rounded-2xl rounded-tl-none shadow-sm flex gap-2 items-center">
-                          <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
-                          <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                        <div className="bg-white border border-slate-50 p-6 rounded-3xl rounded-tl-none shadow-sm flex gap-2.5 items-center">
+                          <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce"></span>
+                          <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
                         </div>
                       </div>
                     )}
                     {isComplete && (
-                      <div className="flex flex-col items-center py-12 space-y-4">
-                        <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
-                           <CheckCircle2 className="h-10 w-10" />
+                      <div className="flex flex-col items-center py-16 space-y-6">
+                        <div className="h-24 w-24 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
+                           <CheckCircle2 className="h-12 w-12" />
                         </div>
                         <div className="text-center">
-                          <h4 className="font-black text-xl text-slate-900">Weekly Kamustahan Complete</h4>
-                          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 leading-relaxed">
+                          <h4 className="font-black text-2xl text-slate-900">Weekly Kamustahan Complete</h4>
+                          <p className="text-sm text-slate-400 max-w-md mx-auto mt-3 leading-relaxed">
                             Guidi has synchronized your wellness data with your counselor's records. Thank you for your openness.
                           </p>
                         </div>
-                        <Button asChild className="rounded-xl font-black bg-primary h-12 px-8 mt-4">
+                        <Button asChild className="rounded-2xl font-black bg-primary h-14 px-10 mt-6 shadow-xl shadow-primary/20">
                           <Link href="/student/dashboard">Return to Overview</Link>
                         </Button>
                       </div>
@@ -324,31 +324,31 @@ export default function StudentAssessments() {
                 </ScrollArea>
 
                 {!isComplete && (
-                  <div className="p-8 border-t bg-white">
+                  <div className="p-10 border-t bg-white">
                     <div className="max-w-4xl mx-auto">
-                      <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+                      <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">
                         {emotionReplies.map((qr) => (
                           <Button
                             key={qr.label}
                             variant="outline"
                             onClick={() => handleSendMessage(qr.label)}
-                            className="rounded-full px-6 h-10 text-xs font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95"
+                            className="rounded-full px-8 h-12 text-sm font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95 shadow-sm"
                           >
-                            <qr.icon className={`h-3.5 w-3.5 mr-2 ${qr.color}`} />
+                            <qr.icon className={`h-4 w-4 mr-2.5 ${qr.color}`} />
                             {qr.label}
                           </Button>
                         ))}
                       </div>
-                      <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-4">
+                      <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-5">
                         <Input 
                           placeholder="Type your wellness response..." 
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
-                          className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 font-medium"
+                          className="h-16 bg-slate-50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl pl-8 pr-8 text-base font-medium"
                           disabled={isLoading}
                         />
-                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95">
-                          <Send className="h-5 w-5" />
+                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-16 w-16 rounded-2xl bg-primary shadow-xl shadow-primary/20 transition-all active:scale-95 flex items-center justify-center">
+                          <Send className="h-6 w-6" />
                         </Button>
                       </form>
                     </div>
