@@ -24,6 +24,7 @@ interface NotificationContextType {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   clearNotifications: () => void;
+  refreshNotifications: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -95,7 +96,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
         
-        // Construct a unique ID for this specific "latest message" from this sender
+        // Dynamic ID based on latest received message to ensure "newness"
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
         const isGroupRead = readSet.has(groupId);
 
@@ -210,7 +211,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
     }
 
-    // Sort all by most recent
     setNotifications(alerts.sort((a, b) => b.timestamp - a.timestamp));
   }, [isCounselor, isStudent, user]);
 
@@ -267,7 +267,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       unreadCount: notifications.filter(n => !n.isRead).length,
       markAsRead,
       markAllAsRead,
-      clearNotifications 
+      clearNotifications,
+      refreshNotifications
     }}>
       {children}
     </NotificationContext.Provider>

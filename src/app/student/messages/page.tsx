@@ -113,27 +113,31 @@ export default function StudentMessages() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
-  // Mark active chat as read
+  // Mark active chat as read - SEEN Logic
   useEffect(() => {
-    if (activeCounselor && user) {
-      // Find all incoming messages from this counselor
-      const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
-      const incomingFromActive = allMessages
+    if (activeCounselor && user && chatHistory.length > 0) {
+      // Find latest incoming from counselor in the chat state
+      const incomingFromActive = chatHistory
         .filter(m => m.senderId === activeCounselor.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
       
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
+        const msgId = `msg-${latestIncoming.id}`;
+        const groupId = `group-msg-${activeCounselor.id}-${latestIncoming.id}`;
         
-        // 1. Mark individual messages read for roster dots
-        incomingFromActive.forEach(m => markAsRead(`msg-${m.id}`));
-        
-        // 2. Mark grouped bell notification read using THE EXACT ID from NotificationContext
-        // The NotificationContext uses the latest RECEIVED message ID for the groupId
-        markAsRead(`group-msg-${activeCounselor.id}-${latestIncoming.id}`);
+        const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+        if (!currentReadIds.includes(msgId) || !currentReadIds.includes(groupId)) {
+          // 1. Mark specific message read (for roster dot)
+          markAsRead(msgId);
+          // 2. Mark the group notification read (for bell icon)
+          markAsRead(groupId);
+          // 3. Immediately refresh local roster state
+          loadData();
+        }
       }
     }
-  }, [activeCounselor?.id, chatHistory.length, markAsRead, user?.id]);
+  }, [activeCounselor?.id, chatHistory, markAsRead, user?.id, loadData]);
 
   useEffect(() => {
     if (scrollRef.current) {

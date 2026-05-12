@@ -117,26 +117,31 @@ export default function CounselorMessagesPage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
-  // Mark active chat as read
+  // Mark active chat as read - SEEN Logic
   useEffect(() => {
-    if (activeStudent && user) {
-      // Find all incoming messages from this student
-      const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
-      const incomingFromActive = allMessages
+    if (activeStudent && user && messages.length > 0) {
+      // Find latest incoming from student in the messages state
+      const incomingFromActive = messages
         .filter(m => m.senderId === activeStudent.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
       
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
+        const msgId = `msg-${latestIncoming.id}`;
+        const groupId = `group-msg-${activeStudent.id}-${latestIncoming.id}`;
         
-        // 1. Mark individual messages read for roster dots
-        incomingFromActive.forEach(m => markAsRead(`msg-${m.id}`));
-        
-        // 2. Mark grouped bell notification read using THE EXACT ID from NotificationContext
-        markAsRead(`group-msg-${activeStudent.id}-${latestIncoming.id}`);
+        const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+        if (!currentReadIds.includes(msgId) || !currentReadIds.includes(groupId)) {
+          // 1. Mark individual messages read for roster dots
+          markAsRead(msgId);
+          // 2. Mark grouped bell notification read
+          markAsRead(groupId);
+          // 3. Immediately refresh local roster state
+          loadData();
+        }
       }
     }
-  }, [activeStudent?.id, messages.length, markAsRead, user?.id]);
+  }, [activeStudent?.id, messages, markAsRead, user?.id, loadData]);
 
   useEffect(() => {
     if (scrollRef.current) {

@@ -93,11 +93,13 @@ export default function CounselorAssessmentsPage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // AUTOMATIC READ: Mark all assessment/submission notifications as read when visiting this portal
+  // AUTOMATIC READ: Clear assessment/submission notifications when viewing this portal
   useEffect(() => {
     const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
-    unreadAsmts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
+    if (unreadAsmts.length > 0) {
+      unreadAsmts.forEach(n => markAsRead(n.id));
+    }
+  }, [notifications, markAsRead]);
 
   const handleCreateTask = () => {
     if (!targetStudent || !taskTitle || !counselor) return;
@@ -137,7 +139,7 @@ export default function CounselorAssessmentsPage() {
     setEvalRating([5]);
     setEvalComments('');
     setIsEvalOpen(true);
-    // Explicit read if clicking specific item
+    // Explicit read on click
     markAsRead(`asmt-${assessment.id}`);
   };
 
@@ -211,7 +213,7 @@ export default function CounselorAssessmentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px) font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
+                    <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
                     <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Anxiety Root Analysis" className="h-12 rounded-xl" />
                   </div>
                 </div>

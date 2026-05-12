@@ -73,11 +73,13 @@ export default function CounselorAppointmentsPage() {
     loadAppointments();
   }, []);
 
-  // AUTOMATIC READ: Mark appointment notifications read when on this page
+  // AUTOMATIC READ: Clear appointment notifications when on this page
   useEffect(() => {
     const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
-    unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
+    if (unreadApts.length > 0) {
+      unreadApts.forEach(n => markAsRead(n.id));
+    }
+  }, [notifications, markAsRead]);
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
     storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });

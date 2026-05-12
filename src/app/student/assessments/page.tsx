@@ -80,7 +80,7 @@ export default function StudentAssessments() {
   };
 
   useEffect(() => {
-    // Initialize welcome message after mount to avoid hydration mismatch
+    // Initialize welcome message
     setMessages([
       {
         role: 'model',
@@ -97,11 +97,13 @@ export default function StudentAssessments() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [user, firstName]);
 
-  // AUTOMATIC READ: Mark all assessment/submission notifications as read when visiting this portal
+  // AUTOMATIC READ: Clear assessment notifications when viewing this portal
   useEffect(() => {
     const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
-    unreadAsmts.forEach(n => markAsRead(n.id));
-  }, [notifications.length, markAsRead]);
+    if (unreadAsmts.length > 0) {
+      unreadAsmts.forEach(n => markAsRead(n.id));
+    }
+  }, [notifications, markAsRead]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -174,7 +176,7 @@ export default function StudentAssessments() {
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
     setTaskAnswers({});
-    // Explicit read: mark assignment task AND evaluation as read when opening
+    // Explicit read on interaction
     markAsRead(`asmt-task-${task.id}`);
     markAsRead(`asmt-eval-${task.id}`);
   };
