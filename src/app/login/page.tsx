@@ -271,10 +271,6 @@ export default function LoginPage() {
           </Tabs>
 
           <div className="text-center space-y-6">
-            <p className="text-sm text-muted-foreground">
-              New to GuidanceSync? <Button variant="link" className="p-0 h-auto text-primary font-bold">Register now</Button>
-            </p>
-
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-muted" />
