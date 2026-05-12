@@ -52,15 +52,10 @@ export default function StudentMessages() {
   const loadData = useCallback(() => {
     if (!user) return;
 
-    // Load read notification IDs
     const readIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
     const readSet = new Set(readIds);
-
-    // Load all counselors
     const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
     const counselorList = allUsers.filter(u => u.role === 'counselor');
-    
-    // Load all messages
     const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
 
     const counselorsWithMetadata = counselorList.map(counselor => {
@@ -70,12 +65,9 @@ export default function StudentMessages() {
       ).sort((a, b) => b.timestamp - a.timestamp);
       
       const lastMsg = convMessages[0];
-      
-      // Determine unread status specifically for messages FROM this counselor TO student
       const hasUnread = lastMsg && 
                        lastMsg.senderId === counselor.id && 
-                       !readSet.has(`msg-${lastMsg.id}`) &&
-                       !readSet.has(`group-msg-${counselor.id}`);
+                       !readSet.has(`msg-${lastMsg.id}`);
 
       return {
         ...counselor,
@@ -84,7 +76,6 @@ export default function StudentMessages() {
       };
     });
 
-    // Sort: most recent message first
     counselorsWithMetadata.sort((a, b) => {
       const timeA = a.lastMessage?.timestamp || 0;
       const timeB = b.lastMessage?.timestamp || 0;
@@ -97,7 +88,6 @@ export default function StudentMessages() {
       setActiveCounselor(counselorsWithMetadata[0]);
     }
 
-    // Load messages for the active conversation
     if (activeCounselor) {
       const filtered = allMessages.filter(m => 
         (m.senderId === user.id && m.receiverId === activeCounselor.id) ||
@@ -105,18 +95,17 @@ export default function StudentMessages() {
       ).sort((a, b) => a.timestamp - b.timestamp);
       setChatHistory(filtered);
       
-      // Update active counselor metadata if changed in list
       const currentActive = counselorsWithMetadata.find(c => c.id === activeCounselor.id);
       if (currentActive && currentActive.lastMessage?.id !== activeCounselor.lastMessage?.id) {
         setActiveCounselor(currentActive);
       }
     }
-  }, [activeCounselor?.id, user, notifications]);
+  }, [activeCounselor?.id, user]);
 
   useEffect(() => {
     loadData();
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.MESSAGES || e.key === STORAGE_KEYS.USERS || e.key === STORAGE_KEYS.NOTIFICATIONS_READ) {
+      if ([STORAGE_KEYS.MESSAGES, STORAGE_KEYS.USERS, STORAGE_KEYS.NOTIFICATIONS_READ].includes(e.key as any)) {
         loadData();
       }
     };
@@ -124,16 +113,14 @@ export default function StudentMessages() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
-  // AUTOMATIC READ: Clear notifications when active counselor changes OR when a new message arrives from them while viewing
+  // Mark active chat as read
   useEffect(() => {
-    if (activeCounselor) {
-      const groupId = `group-msg-${activeCounselor.id}`;
-      markAsRead(groupId);
-      
-      if (activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
-        const msgId = `msg-${activeCounselor.lastMessage.id}`;
-        markAsRead(msgId);
+    if (activeCounselor && activeCounselor.lastMessage) {
+      if (activeCounselor.lastMessage.senderId === activeCounselor.id) {
+        markAsRead(`msg-${activeCounselor.lastMessage.id}`);
       }
+      // Clear the specific group notification ID used in the bell
+      markAsRead(`group-msg-${activeCounselor.id}-${activeCounselor.lastMessage.id}`);
     }
   }, [activeCounselor?.id, activeCounselor?.lastMessage?.id, markAsRead]);
 
@@ -145,10 +132,6 @@ export default function StudentMessages() {
 
   const handleSelectCounselor = (counselor: any) => {
     setActiveCounselor(counselor);
-    markAsRead(`group-msg-${counselor.id}`);
-    if (counselor.lastMessage && counselor.lastMessage.senderId === counselor.id) {
-      markAsRead(`msg-${counselor.lastMessage.id}`);
-    }
   };
 
   const handleSend = (e?: React.FormEvent) => {
@@ -165,11 +148,6 @@ export default function StudentMessages() {
     };
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
-    markAsRead(`group-msg-${activeCounselor.id}`);
-    if (activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
-      markAsRead(`msg-${activeCounselor.lastMessage.id}`);
-    }
-
     setInputValue('');
     loadData();
   };
