@@ -339,19 +339,28 @@ export default function StudentAssessments() {
                 {!isComplete && (
                   <div className="p-10 border-t bg-white">
                     <div className="max-w-4xl mx-auto">
-                      <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">
-                        {emotionReplies.map((qr) => (
-                          <Button
-                            key={qr.label}
-                            variant="outline"
-                            onClick={() => handleSendMessage(qr.label)}
-                            className="rounded-full px-8 h-12 text-sm font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95 shadow-sm"
-                          >
-                            <qr.icon className={`h-4 w-4 mr-2.5 ${qr.color}`} />
-                            {qr.label}
-                          </Button>
-                        ))}
-                      </div>
+                      {!isLoading && (
+                        <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">
+                          {emotionReplies.map((qr) => (
+                            <Button
+                              key={qr.label}
+                              variant="outline"
+                              onClick={() => handleSendMessage(qr.label)}
+                              className="rounded-full px-8 h-12 text-sm font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95 shadow-sm"
+                            >
+                              <qr.icon className={`h-4 w-4 mr-2.5 ${qr.color}`} />
+                              {qr.label}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {isLoading && (
+                        <div className="pb-6 px-4">
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Guidi is analyzing your response...</p>
+                        </div>
+                      )}
+
                       <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-5">
                         <Input 
                           placeholder="Type your wellness response..." 
