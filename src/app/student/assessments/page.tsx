@@ -243,18 +243,18 @@ export default function StudentAssessments() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <main className="p-8 max-w-7xl mx-auto w-full min-h-screen">
-          <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <header className="mb-4 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Weekly Wellness</h1>
-              <p className="text-muted-foreground font-medium">Synchronize your emotional health with professional clinical oversight.</p>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Weekly Wellness</h1>
+              <p className="text-sm text-muted-foreground font-medium">Synchronize your emotional health with professional clinical oversight.</p>
             </div>
-            <Badge variant="outline" className="h-10 px-6 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <Badge variant="outline" className="h-9 px-5 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[9px] tracking-widest flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" /> University Security Active
             </Badge>
           </header>
 
           <Tabs defaultValue="chatbot" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-md mb-6 bg-slate-100/50 p-1 h-14 rounded-2xl">
+            <TabsList className="grid w-full grid-cols-2 max-w-sm mb-4 bg-slate-100/50 p-1 h-12 rounded-2xl">
               <TabsTrigger value="chatbot" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 <MessageSquare className="h-4 w-4" /> Guidi AI Chat
               </TabsTrigger>
@@ -269,22 +269,22 @@ export default function StudentAssessments() {
             </TabsList>
 
             <TabsContent value="chatbot">
-              <div className="flex flex-col h-[calc(100vh-210px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b flex items-center gap-6 bg-white/80 backdrop-blur-md">
+              <div className="flex flex-col h-[calc(100vh-140px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="p-5 border-b flex items-center gap-4 bg-white/80 backdrop-blur-md">
                   <div className="relative">
-                    <Avatar className="h-14 w-14 ring-4 ring-primary/5">
+                    <Avatar className="h-12 w-12 ring-4 ring-primary/5">
                       <AvatarFallback className="bg-primary text-white text-lg font-black">🤖</AvatarFallback>
                     </Avatar>
-                    <span className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full border-2 border-white bg-emerald-500"></span>
+                    <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"></span>
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-900 text-xl">Guidi</h4>
-                    <p className="text-[11px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
+                    <h4 className="font-black text-slate-900 text-lg">Guidi</h4>
+                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 p-6 md:p-10 bg-slate-50/10">
-                  <div className="max-w-4xl mx-auto space-y-8 md:space-y-10">
+                <ScrollArea className="flex-1 p-4 md:p-8 bg-slate-50/10">
+                  <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
                     {messages.map((msg, idx) => (
                       <div key={idx} className={`flex items-start gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
                         {msg.role === 'model' && (
@@ -292,7 +292,7 @@ export default function StudentAssessments() {
                             <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
                           </Avatar>
                         )}
-                        <div className={`max-w-[85%] md:max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`max-w-[85%] md:max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                           <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
                             msg.role === 'user' 
                               ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
@@ -337,8 +337,8 @@ export default function StudentAssessments() {
                 </ScrollArea>
 
                 {!isComplete && (
-                  <div className="p-6 md:p-10 border-t bg-white">
-                    <div className="max-w-4xl mx-auto">
+                  <div className="p-6 md:p-8 border-t bg-white">
+                    <div className="max-w-5xl mx-auto">
                       {!isLoading && (
                         <div className="flex gap-3 overflow-x-auto pb-4 md:pb-6 no-scrollbar">
                           {emotionReplies.map((qr) => (
