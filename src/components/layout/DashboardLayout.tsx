@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -13,13 +12,14 @@ import {
   FileText, 
   HelpCircle, 
   LogOut,
-  Bell,
   Settings,
   Sparkles,
-  Users
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import NotificationBell from '@/components/common/NotificationBell';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -63,8 +63,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0 z-40">
         <div className="px-6 mb-10">
-          <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
-          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Supportive Wellness</p>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
+          </div>
+          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider pl-10">Supportive Wellness</p>
         </div>
 
         <nav className="flex-1 px-3 space-y-1">
@@ -124,10 +129,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full" asChild>
+            <NotificationBell />
+            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full h-10 w-10" asChild>
               <Link href={`/${user?.role}/settings`}>
                 <Settings className="h-5 w-5" />
               </Link>

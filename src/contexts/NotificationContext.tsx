@@ -29,7 +29,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isCounselor } = useAuth();
+  const { user, isCounselor, isStudent } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
@@ -44,7 +44,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const refreshNotifications = useCallback(() => {
-    if (!isCounselor || !user) {
+    if (!user) {
       setNotifications([]);
       return;
     }
@@ -55,66 +55,124 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
     const readSet = new Set(currentReadIds);
 
-    // 1. Check for Pending Appointments
-    const appointments = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-    appointments
-      .filter(a => a.status === APPOINTMENT_STATUS.PENDING)
-      .forEach(a => {
-        const id = `apt-${a.id}`;
-        alerts.push({
-          id,
-          type: 'appointment',
-          title: 'New Booking Request',
-          description: `${a.studentName} requested a session for ${a.date}`,
-          timestamp: new Date(a.createdAt || Date.now()).getTime(),
-          link: '/counselor/appointments',
-          studentName: a.studentName,
-          isRead: readSet.has(id)
+    if (isCounselor) {
+      // 1. Counselor: Check for Pending Appointments
+      const appointments = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+      appointments
+        .filter(a => a.status === APPOINTMENT_STATUS.PENDING)
+        .forEach(a => {
+          const id = `apt-${a.id}`;
+          alerts.push({
+            id,
+            type: 'appointment',
+            title: 'New Booking Request',
+            description: `${a.studentName} requested a session for ${a.date}`,
+            timestamp: new Date(a.createdAt || Date.now()).getTime(),
+            link: '/counselor/appointments',
+            studentName: a.studentName,
+            isRead: readSet.has(id)
+          });
         });
-      });
 
-    // 2. Check for Submitted Assessments (Forms)
-    const assessments = storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
-    assessments
-      .filter(a => a.status === 'submitted')
-      .forEach(a => {
-        const id = `asmt-${a.id}`;
-        alerts.push({
-          id,
-          type: 'assessment',
-          title: 'Assessment Submitted',
-          description: `${a.studentName} completed a clinical form`,
-          timestamp: a.timestamp || Date.now(),
-          link: '/counselor/assessments',
-          studentName: a.studentName,
-          isRead: readSet.has(id)
+      // 2. Counselor: Check for Submitted Assessments (Forms)
+      const assessments = storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
+      assessments
+        .filter(a => a.status === 'submitted')
+        .forEach(a => {
+          const id = `asmt-${a.id}`;
+          alerts.push({
+            id,
+            type: 'assessment',
+            title: 'Assessment Submitted',
+            description: `${a.studentName} completed a clinical form`,
+            timestamp: a.timestamp || Date.now(),
+            link: '/counselor/assessments',
+            studentName: a.studentName,
+            isRead: readSet.has(id)
+          });
         });
-      });
 
-    // 3. Check for New Messages
-    const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
-    messages
-      .filter(m => m.receiverId === user.id)
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 10) // Show last 10 messages as alerts
-      .forEach(m => {
-        const id = `msg-${m.id}`;
-        alerts.push({
-          id,
-          type: 'message',
-          title: 'New Message',
-          description: `Student ${m.senderRole}: ${m.text.substring(0, 30)}${m.text.length > 30 ? '...' : ''}`,
-          timestamp: m.timestamp,
-          link: '/counselor/messages',
-          studentName: 'Student',
-          isRead: readSet.has(id)
+      // 3. Counselor: Check for New Messages
+      const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
+      messages
+        .filter(m => m.receiverId === user.id)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 10)
+        .forEach(m => {
+          const id = `msg-${m.id}`;
+          alerts.push({
+            id,
+            type: 'message',
+            title: 'New Message',
+            description: `From Student: ${m.text.substring(0, 30)}${m.text.length > 30 ? '...' : ''}`,
+            timestamp: m.timestamp,
+            link: '/counselor/messages',
+            studentName: 'Student',
+            isRead: readSet.has(id)
+          });
         });
-      });
+    } else if (isStudent) {
+      // 1. Student: Check for Appointment Status Changes
+      const appointments = storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
+      appointments
+        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.CANCELLED)
+        .forEach(a => {
+          const id = `apt-status-${a.id}-${a.status}`;
+          alerts.push({
+            id,
+            type: 'appointment',
+            title: a.status === APPOINTMENT_STATUS.CONFIRMED ? 'Session Confirmed' : 'Session Cancelled',
+            description: `Your session with Dr. ${a.counselorName?.split(' ').pop()} for ${a.date} is ${a.status}.`,
+            timestamp: Date.now() - 1000, // Show as recent if not read
+            link: '/student/appointments',
+            studentName: 'You',
+            isRead: readSet.has(id)
+          });
+        });
+
+      // 2. Student: Check for Clinical Feedback (Evaluated Assessments)
+      const assessments = storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);
+      assessments
+        .filter(a => a.status === 'evaluated')
+        .forEach(a => {
+          const id = `asmt-eval-${a.id}`;
+          alerts.push({
+            id,
+            type: 'assessment',
+            title: 'Feedback Received',
+            description: `Your counselor has provided feedback on your assessment: ${a.summary.substring(0, 20)}...`,
+            timestamp: a.evaluatedAt || Date.now(),
+            link: '/student/assessments',
+            studentName: 'You',
+            isRead: readSet.has(id)
+          });
+        });
+
+      // 3. Student: Check for New Messages from Counselor
+      const messages = storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
+      messages
+        .filter(m => m.receiverId === user.id)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 10)
+        .forEach(m => {
+          const id = `msg-${m.id}`;
+          alerts.push({
+            id,
+            type: 'message',
+            title: 'New Message from Counselor',
+            description: m.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : m.text.substring(0, 30),
+            timestamp: m.timestamp,
+            link: '/student/messages',
+            studentName: 'Counselor',
+            isRead: readSet.has(id)
+          });
+        });
+    }
 
     // Sort all by most recent
     setNotifications(alerts.sort((a, b) => b.timestamp - a.timestamp));
     setReadIds(readSet);
-  }, [isCounselor, user]);
+  }, [isCounselor, isStudent, user]);
 
   useEffect(() => {
     refreshNotifications();
@@ -132,7 +190,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     window.addEventListener('storage', handleStorage);
-    const interval = setInterval(refreshNotifications, 5000); // Poll every 5s for local session updates
+    const interval = setInterval(refreshNotifications, 5000);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
