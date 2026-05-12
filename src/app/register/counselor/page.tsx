@@ -36,17 +36,34 @@ export default function CounselorRegisterPage() {
     setError('');
     setIsSubmitting(true);
 
-    if (!email.endsWith('@uspf.edu.ph')) {
-      setError('Only USPF university emails (@uspf.edu.ph) are permitted.');
+    // Validation: Domain Check
+    if (!email.toLowerCase().endsWith('@uspf.edu.ph')) {
+      setError('Only official USPF staff emails (@uspf.edu.ph) are permitted for counselor registration.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validation: Length Check
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
       setIsSubmitting(false);
       return;
     }
 
     const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
-    const exists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase() || u.staffId === staffId);
+    
+    // Check if email or staffId already exists
+    const emailExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
+    const idExists = allUsers.some(u => u.staffId === staffId || u.studentId === staffId);
 
-    if (exists) {
-      setError('A staff member with this Email or ID already exists.');
+    if (emailExists) {
+      setError('This email is already registered. Please sign in instead.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (idExists) {
+      setError('This Staff ID is already registered in our system.');
       setIsSubmitting(false);
       return;
     }
@@ -60,14 +77,20 @@ export default function CounselorRegisterPage() {
       createdAt: new Date().toISOString()
     };
 
-    storageService.create(STORAGE_KEYS.USERS, newCounselor);
-    
-    toast({
-      title: "Registration Successful",
-      description: "Staff account created. You can now log in.",
-    });
+    try {
+      storageService.create(STORAGE_KEYS.USERS, newCounselor);
+      
+      toast({
+        title: "Registration Successful",
+        description: `Welcome to the team, Dr. ${name.split(' ').pop()}! Redirecting to login...`,
+      });
 
-    setTimeout(() => router.push('/login/counselor'), 2000);
+      // Redirect to login after a short delay
+      setTimeout(() => router.push('/login/counselor'), 2000);
+    } catch (err) {
+      setError('An error occurred while creating your account. Please try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -83,14 +106,14 @@ export default function CounselorRegisterPage() {
             <ShieldCheck className="h-10 w-10" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Staff Enrollment</h1>
-          <p className="text-slate-500 font-medium mt-2">Create your USPF Counselor Account</p>
+          <p className="text-slate-500 font-medium mt-2">Create your professional GuidanceSync account</p>
         </div>
 
         <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="p-8 pb-0">
              <div className="flex items-center gap-3 mb-2">
                 <Briefcase className="h-4 w-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Credential Verification</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">University Credential Verification</span>
              </div>
              <CardTitle className="text-xl font-black">Register Counselor</CardTitle>
           </CardHeader>
@@ -102,7 +125,7 @@ export default function CounselorRegisterPage() {
                 <div className="relative group">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                   <Input 
-                    placeholder="e.g. Dr. Jane Smith"
+                    placeholder="e.g. Dr. Maria Santos"
                     className="h-14 pl-12 rounded-2xl border-slate-100 bg-slate-50 focus-visible:ring-primary/20 font-medium"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -117,7 +140,7 @@ export default function CounselorRegisterPage() {
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                   <Input 
                     type="email"
-                    placeholder="name@uspf.edu.ph"
+                    placeholder="counselor@uspf.edu.ph"
                     className="h-14 pl-12 rounded-2xl border-slate-100 bg-slate-50 focus-visible:ring-primary/20 font-medium"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
