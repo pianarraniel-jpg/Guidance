@@ -72,16 +72,14 @@ export default function StudentMessages() {
       const lastMsg = convMessages[0];
       
       // Determine unread status specifically for messages FROM this counselor TO student
-      const hasUnread = allMessages.some(m => 
-        m.senderId === counselor.id && 
-        m.receiverId === user.id && 
-        !readSet.has(`msg-${m.id}`)
-      );
+      const hasUnread = lastMsg && 
+                       lastMsg.senderId === counselor.id && 
+                       !readSet.has(`msg-${lastMsg.id}`);
 
       return {
         ...counselor,
         lastMessage: lastMsg,
-        isUnread: hasUnread
+        isUnread: !!hasUnread
       };
     });
 
@@ -125,22 +123,14 @@ export default function StudentMessages() {
     }
   }, [chatHistory]);
 
-  // AUTOMATIC READ: Mark counselor messages as read when active counselor changes OR when a new message arrives
-  useEffect(() => {
-    if (activeCounselor && user) {
-      const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
-      const unreadFromCounselor = allMessages.filter(m => 
-        m.senderId === activeCounselor.id && 
-        m.receiverId === user.id
-      );
-      
-      unreadFromCounselor.forEach(msg => {
-        markAsRead(`msg-${msg.id}`);
-      });
-      // Also mark any grouped message notification for this counselor as read
-      markAsRead(`group-msg-${activeCounselor.id}`);
+  const handleSelectCounselor = (counselor: any) => {
+    setActiveCounselor(counselor);
+    // Explicit read: Clear notifications for this counselor upon selection
+    if (counselor.lastMessage && counselor.lastMessage.senderId === counselor.id) {
+      markAsRead(`msg-${counselor.lastMessage.id}`);
     }
-  }, [activeCounselor?.id, chatHistory.length, markAsRead, user]);
+    markAsRead(`group-msg-${counselor.id}`);
+  };
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -156,6 +146,13 @@ export default function StudentMessages() {
     };
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
+    
+    // Also clear notifications for this counselor if replying
+    markAsRead(`group-msg-${activeCounselor.id}`);
+    if (activeCounselor.lastMessage && activeCounselor.lastMessage.senderId === activeCounselor.id) {
+      markAsRead(`msg-${activeCounselor.lastMessage.id}`);
+    }
+
     setInputValue('');
     loadData(); // Local refresh
   };
@@ -186,7 +183,7 @@ export default function StudentMessages() {
                 {filteredCounselors.map(counselor => (
                   <div 
                     key={counselor.id}
-                    onClick={() => setActiveCounselor(counselor)}
+                    onClick={() => handleSelectCounselor(counselor)}
                     className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
                       activeCounselor?.id === counselor.id 
                         ? 'bg-primary/5 ring-1 ring-primary/20 shadow-sm' 

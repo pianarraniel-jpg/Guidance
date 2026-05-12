@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -136,16 +135,14 @@ export default function CounselorMessagesPage() {
     }
   }, [messages]);
 
-  // AUTOMATIC READ: Mark messages as read when active student changes OR when a new message arrives from the current active student
-  useEffect(() => {
-    if (activeStudent && activeStudent.lastMessage) {
-      const msgId = `msg-${activeStudent.lastMessage.id}`;
-      // Only mark as read if the message is from the student
-      if (activeStudent.lastMessage.senderId === activeStudent.id) {
-        markAsRead(msgId);
-      }
+  const handleSelectStudent = (student: any) => {
+    setActiveStudent(student);
+    // Explicit read: Clear notifications for this student upon selection
+    if (student.lastMessage && student.lastMessage.senderId === student.id) {
+      markAsRead(`msg-${student.lastMessage.id}`);
     }
-  }, [activeStudent?.id, activeStudent?.lastMessage?.id, markAsRead]);
+    markAsRead(`group-msg-${student.id}`);
+  };
 
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -161,8 +158,14 @@ export default function CounselorMessagesPage() {
     };
 
     storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
-    setInputValue('');
     
+    // Also clear notifications for this student if replying
+    markAsRead(`group-msg-${activeStudent.id}`);
+    if (activeStudent.lastMessage && activeStudent.lastMessage.senderId === activeStudent.id) {
+      markAsRead(`msg-${activeStudent.lastMessage.id}`);
+    }
+
+    setInputValue('');
     loadData(); // Local refresh
   };
 
@@ -247,7 +250,7 @@ export default function CounselorMessagesPage() {
             {filteredContacts.map((contact) => (
               <div 
                 key={contact.id}
-                onClick={() => setActiveStudent(contact)}
+                onClick={() => handleSelectStudent(contact)}
                 className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
                   activeStudent?.id === contact.id 
                     ? 'bg-primary/5 ring-1 ring-primary/10' 

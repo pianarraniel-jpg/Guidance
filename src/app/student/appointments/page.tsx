@@ -74,14 +74,6 @@ export default function StudentAppointments() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user]);
 
-  // AUTOMATIC READ: Clear appointment notifications when visiting this page
-  useEffect(() => {
-    const unreadAppointmentNotifs = notifications.filter(
-      n => n.type === 'appointment' && !n.isRead
-    );
-    unreadAppointmentNotifs.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
-
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          app.type?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -118,6 +110,13 @@ export default function StudentAppointments() {
       default:
         return <Badge variant="outline" className="text-[9px] font-black uppercase tracking-wider">{status}</Badge>;
     }
+  };
+
+  const handleViewInfo = (app: any) => {
+    // Intentional read: clear specific status update notification for this session
+    markAsRead(`apt-status-${app.id}-confirmed`);
+    markAsRead(`apt-status-${app.id}-cancelled`);
+    markAsRead(`apt-${app.id}`);
   };
 
   return (
@@ -213,7 +212,7 @@ export default function StudentAppointments() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="rounded-xl p-1 border-slate-100 shadow-xl">
-                                <DropdownMenuItem className="font-bold text-xs p-2.5 rounded-lg cursor-pointer">
+                                <DropdownMenuItem onClick={() => handleViewInfo(app)} className="font-bold text-xs p-2.5 rounded-lg cursor-pointer">
                                   <Info className="h-3.5 w-3.5 mr-2" /> View Info
                                 </DropdownMenuItem>
                                 {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
