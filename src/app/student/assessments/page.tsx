@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -59,13 +60,7 @@ export default function StudentAssessments() {
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Chatbot State
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'model',
-      text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -84,13 +79,22 @@ export default function StudentAssessments() {
   };
 
   useEffect(() => {
+    // Initialize welcome message after mount to avoid hydration mismatch
+    setMessages([
+      {
+        role: 'model',
+        text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+
     loadTasks();
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ASSESSMENT_TASKS) loadTasks();
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [user]);
+  }, [user, firstName]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -168,7 +172,6 @@ export default function StudentAssessments() {
   const handleSubmitTask = () => {
     if (!activeTask || !user) return;
 
-    // Check if all questions are answered
     const questions = activeTask.questions || ['Please describe your current stress level.'];
     const unanswered = questions.some((_, i: number) => !taskAnswers[i]);
     
@@ -183,7 +186,6 @@ export default function StudentAssessments() {
 
     const submissionDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     
-    // Create the assessment record
     storageService.create(STORAGE_KEYS.ASSESSMENTS, {
       studentId: user.id,
       studentName: user.name,
@@ -191,7 +193,7 @@ export default function StudentAssessments() {
       summary: `Clinical Response to: ${activeTask.title}`,
       answers: taskAnswers,
       questions: questions,
-      stressLevel: 50, // Default until counselor rates
+      stressLevel: 50,
       focusAreas: ['Clinical Assignment'],
       timestamp: Date.now(),
       taskId: activeTask.id,
@@ -199,7 +201,6 @@ export default function StudentAssessments() {
       status: 'submitted'
     });
 
-    // Update the task status
     storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, activeTask.id, { 
       status: 'submitted',
       lastUpdate: Date.now()
