@@ -22,6 +22,7 @@ interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   markAsRead: (id: string) => void;
+  markIdsAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
   clearNotifications: () => void;
   refreshNotifications: () => void;
@@ -96,7 +97,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
         
-        // Dynamic ID based on latest received message to ensure "newness"
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
         const isGroupRead = readSet.has(groupId);
 
@@ -216,23 +216,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   useEffect(() => {
     refreshNotifications();
-    
     const handleStorage = (e: StorageEvent) => {
-      const watched = [
-        STORAGE_KEYS.APPOINTMENTS,
-        STORAGE_KEYS.ASSESSMENTS,
-        STORAGE_KEYS.MESSAGES,
-        STORAGE_KEYS.NOTIFICATIONS_READ,
-        STORAGE_KEYS.ASSESSMENT_TASKS
-      ];
-      if (watched.includes(e.key as any)) {
-        refreshNotifications();
-      }
+      const watched = [STORAGE_KEYS.APPOINTMENTS, STORAGE_KEYS.ASSESSMENTS, STORAGE_KEYS.MESSAGES, STORAGE_KEYS.NOTIFICATIONS_READ, STORAGE_KEYS.ASSESSMENT_TASKS];
+      if (watched.includes(e.key as any)) refreshNotifications();
     };
-
     window.addEventListener('storage', handleStorage);
     const interval = setInterval(refreshNotifications, 2000);
-
     return () => {
       window.removeEventListener('storage', handleStorage);
       clearInterval(interval);
@@ -248,24 +237,29 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const markAllAsRead = () => {
+  const markIdsAsRead = useCallback((ids: string[]) => {
     const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-    const newIds = notifications.filter(n => !n.isRead).map(n => n.id);
+    const newIds = ids.filter(id => !currentReadIds.includes(id));
     if (newIds.length === 0) return;
     const updated = Array.from(new Set([...currentReadIds, ...newIds]));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
     refreshNotifications();
+  }, [refreshNotifications]);
+
+  const markAllAsRead = () => {
+    const newIds = notifications.filter(n => !n.isRead).map(n => n.id);
+    if (newIds.length === 0) return;
+    markIdsAsRead(newIds);
   };
 
-  const clearNotifications = () => {
-    setNotifications([]);
-  };
+  const clearNotifications = () => setNotifications([]);
 
   return (
     <NotificationContext.Provider value={{ 
       notifications, 
       unreadCount: notifications.filter(n => !n.isRead).length,
       markAsRead,
+      markIdsAsRead,
       markAllAsRead,
       clearNotifications,
       refreshNotifications

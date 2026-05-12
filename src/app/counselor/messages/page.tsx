@@ -42,7 +42,7 @@ type Contact = any & {
 
 export default function CounselorMessagesPage() {
   const { user } = useAuth();
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, markIdsAsRead } = useNotifications();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -120,28 +120,30 @@ export default function CounselorMessagesPage() {
   // Mark active chat as read - SEEN Logic
   useEffect(() => {
     if (activeStudent && user && messages.length > 0) {
-      // Find latest incoming from student in the messages state
       const incomingFromActive = messages
         .filter(m => m.senderId === activeStudent.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
       
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
-        const msgId = `msg-${latestIncoming.id}`;
-        const groupId = `group-msg-${activeStudent.id}-${latestIncoming.id}`;
-        
         const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-        if (!currentReadIds.includes(msgId) || !currentReadIds.includes(groupId)) {
-          // 1. Mark individual messages read for roster dots
-          markAsRead(msgId);
-          // 2. Mark grouped bell notification read
-          markAsRead(groupId);
-          // 3. Immediately refresh local roster state
+        
+        const idsToMark = [];
+        // Mark all incoming messages read
+        incomingFromActive.forEach(m => {
+          if (!currentReadIds.includes(`msg-${m.id}`)) idsToMark.push(`msg-${m.id}`);
+        });
+        // Mark grouped bell notification read
+        const groupId = `group-msg-${activeStudent.id}-${latestIncoming.id}`;
+        if (!currentReadIds.includes(groupId)) idsToMark.push(groupId);
+
+        if (idsToMark.length > 0) {
+          markIdsAsRead(idsToMark);
           loadData();
         }
       }
     }
-  }, [activeStudent?.id, messages, markAsRead, user?.id, loadData]);
+  }, [activeStudent?.id, messages, markIdsAsRead, user?.id, loadData]);
 
   useEffect(() => {
     if (scrollRef.current) {

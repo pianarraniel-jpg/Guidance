@@ -41,7 +41,7 @@ type CounselorContact = any & {
 
 export default function StudentMessages() {
   const { user } = useAuth();
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, markIdsAsRead } = useNotifications();
   const [counselors, setCounselors] = useState<CounselorContact[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -116,28 +116,30 @@ export default function StudentMessages() {
   // Mark active chat as read - SEEN Logic
   useEffect(() => {
     if (activeCounselor && user && chatHistory.length > 0) {
-      // Find latest incoming from counselor in the chat state
       const incomingFromActive = chatHistory
         .filter(m => m.senderId === activeCounselor.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
       
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
-        const msgId = `msg-${latestIncoming.id}`;
-        const groupId = `group-msg-${activeCounselor.id}-${latestIncoming.id}`;
-        
         const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-        if (!currentReadIds.includes(msgId) || !currentReadIds.includes(groupId)) {
-          // 1. Mark specific message read (for roster dot)
-          markAsRead(msgId);
-          // 2. Mark the group notification read (for bell icon)
-          markAsRead(groupId);
-          // 3. Immediately refresh local roster state
+        
+        const idsToMark = [];
+        // Mark all incoming messages as read
+        incomingFromActive.forEach(m => {
+          if (!currentReadIds.includes(`msg-${m.id}`)) idsToMark.push(`msg-${m.id}`);
+        });
+        // Mark the grouped bell notification as read
+        const groupId = `group-msg-${activeCounselor.id}-${latestIncoming.id}`;
+        if (!currentReadIds.includes(groupId)) idsToMark.push(groupId);
+
+        if (idsToMark.length > 0) {
+          markIdsAsRead(idsToMark);
           loadData();
         }
       }
     }
-  }, [activeCounselor?.id, chatHistory, markAsRead, user?.id, loadData]);
+  }, [activeCounselor?.id, chatHistory, markIdsAsRead, user?.id, loadData]);
 
   useEffect(() => {
     if (scrollRef.current) {
