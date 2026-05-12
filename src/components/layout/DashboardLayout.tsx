@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -20,6 +21,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import NotificationBell from '@/components/common/NotificationBell';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,6 +29,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout, isStudent, isCounselor, isAdmin } = useAuth();
+  const { notifications } = useNotifications();
   const pathname = usePathname();
   const firstName = user?.name.split(' ')[0] || 'User';
 
@@ -34,9 +37,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (isStudent) {
       return [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/student/dashboard' },
-        { icon: Calendar, label: 'Appointments', href: '/student/appointments' },
-        { icon: ClipboardCheck, label: 'Assessments', href: '/student/assessments' },
-        { icon: MessageSquare, label: 'Messages', href: '/student/messages' },
+        { icon: Calendar, label: 'Appointments', href: '/student/appointments', type: 'appointment' },
+        { icon: ClipboardCheck, label: 'Assessments', href: '/student/assessments', type: 'assessment' },
+        { icon: MessageSquare, label: 'Messages', href: '/student/messages', type: 'message' },
         { icon: FileText, label: 'Resources', href: '/student/resources' },
       ];
     }
@@ -58,6 +61,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const sidebarItems = getSidebarItems();
 
+  const getUnreadCount = (type?: string) => {
+    if (!type) return 0;
+    return notifications.filter(n => n.type === type && !n.isRead).length;
+  };
+
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       {/* Sidebar */}
@@ -75,18 +83,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <nav className="flex-1 px-3 space-y-1">
           {sidebarItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
+            const unreadCount = getUnreadCount((item as any).type);
+            
             return (
               <Link 
                 key={item.label} 
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all relative group ${
                   isActive 
                     ? 'bg-primary text-white shadow-md' 
                     : 'text-muted-foreground hover:bg-muted hover:text-primary'
                 }`}
               >
                 <item.icon className={`h-5 w-5 ${isActive ? 'text-white' : ''}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {unreadCount > 0 && (
+                  <span className={`h-5 w-5 rounded-full text-[10px] flex items-center justify-center font-black animate-pulse shadow-sm ${
+                    isActive ? 'bg-white text-primary' : 'bg-red-500 text-white'
+                  }`}>
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -102,13 +119,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Button>
           )}
           <div className="space-y-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-muted hover:text-primary transition-all">
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-muted hover:text-primary transition-all text-left">
               <HelpCircle className="h-5 w-5" />
               Help Center
             </button>
             <button 
               onClick={logout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all text-left"
             >
               <LogOut className="h-5 w-5" />
               Sign Out
