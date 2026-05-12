@@ -39,9 +39,13 @@ type Message = {
   timestamp: number;
 };
 
+type Contact = any & {
+  lastMessage?: Message;
+};
+
 export default function CounselorMessagesPage() {
   const { user } = useAuth();
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -51,18 +55,42 @@ export default function CounselorMessagesPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(() => {
+    if (!user) return;
+
     // Load all students
     const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
     const students = allUsers.filter(u => u.role === 'student');
-    setContacts(students);
+    
+    // Load all messages to find last message for each contact
+    const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
 
-    if (!activeStudent && students.length > 0) {
-      setActiveStudent(students[0]);
+    const studentsWithMetadata = students.map(student => {
+      const studentMessages = allMessages.filter(m => 
+        (m.senderId === user.id && m.receiverId === student.id) ||
+        (m.senderId === student.id && m.receiverId === user.id)
+      ).sort((a, b) => b.timestamp - a.timestamp);
+      
+      return {
+        ...student,
+        lastMessage: studentMessages[0]
+      };
+    });
+
+    // Sort contacts by last message timestamp (most recent first)
+    studentsWithMetadata.sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || 0;
+      const timeB = b.lastMessage?.timestamp || 0;
+      return timeB - timeA;
+    });
+
+    setContacts(studentsWithMetadata);
+
+    if (!activeStudent && studentsWithMetadata.length > 0) {
+      setActiveStudent(studentsWithMetadata[0]);
     }
 
     // Load messages for the active conversation
-    if (activeStudent && user) {
-      const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
+    if (activeStudent) {
       const filtered = allMessages.filter(m => 
         (m.senderId === user.id && m.receiverId === activeStudent.id) ||
         (m.senderId === activeStudent.id && m.receiverId === user.id)
@@ -199,12 +227,23 @@ export default function CounselorMessagesPage() {
                     <AvatarImage src={`https://picsum.photos/seed/${contact.id}/64/64`} />
                     <AvatarFallback className="bg-primary/10 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
+                  {contact.lastMessage?.senderId === contact.id && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full border-2 border-white"></span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
                     <h4 className="text-sm font-black text-slate-900 truncate">{contact.name}</h4>
+                    {contact.lastMessage && (
+                      <span className="text-[9px] text-slate-300 font-bold uppercase">{contact.lastMessage.time}</span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-400 truncate font-medium">Click to open chat</p>
+                  <p className="text-xs text-slate-400 truncate font-medium">
+                    {contact.lastMessage 
+                      ? (contact.lastMessage.text === '[BOOKING_REQUEST]' ? 'Sent session invitation' : contact.lastMessage.text)
+                      : 'Click to open chat'
+                    }
+                  </p>
                 </div>
               </div>
             ))}
