@@ -105,11 +105,12 @@ export default function StudentAssessments() {
     }
   }, [notifications, markAsRead]);
 
+  // Reliable Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading || isComplete) return;
@@ -143,7 +144,7 @@ export default function StudentAssessments() {
       if (result.assessmentComplete && result.assessmentSummary) {
         setIsComplete(true);
         
-        const transcript = [...messages, newUserMessage].map(m => m.text).join(' ');
+        const transcript = [...messages, newUserMessage, botResponse].map(m => m.text).join(' ');
         const focusAreas = [];
         if (transcript.toLowerCase().includes('academic')) focusAreas.push('Academic');
         if (transcript.toLowerCase().includes('family')) focusAreas.push('Personal');
@@ -168,6 +169,11 @@ export default function StudentAssessments() {
       }
     } catch (error) {
       console.error('Chat error:', error);
+      toast({
+        variant: "destructive",
+        title: "Connection Issue",
+        description: "I'm having trouble connecting right now. Please try again in a moment.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +182,6 @@ export default function StudentAssessments() {
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
     setTaskAnswers({});
-    // Explicit read on interaction
     markAsRead(`asmt-task-${task.id}`);
     markAsRead(`asmt-eval-${task.id}`);
   };
@@ -281,8 +286,13 @@ export default function StudentAssessments() {
                 <ScrollArea className="flex-1 p-10 bg-slate-50/10">
                   <div className="max-w-4xl mx-auto space-y-10">
                     {messages.map((msg, idx) => (
-                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
-                        <div className={`max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      <div key={idx} className={`flex items-start gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
+                        {msg.role === 'model' && (
+                          <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0 mt-1">
+                            <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
+                          </Avatar>
+                        )}
+                        <div className={`max-w-[75%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                           <div className={`p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
                             msg.role === 'user' 
                               ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
@@ -295,7 +305,10 @@ export default function StudentAssessments() {
                       </div>
                     ))}
                     {isLoading && (
-                      <div className="flex justify-start">
+                      <div className="flex justify-start items-start gap-4">
+                        <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0">
+                          <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
+                        </Avatar>
                         <div className="bg-white border border-slate-50 p-6 rounded-3xl rounded-tl-none shadow-sm flex gap-2.5 items-center">
                           <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce"></span>
                           <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
@@ -304,18 +317,18 @@ export default function StudentAssessments() {
                       </div>
                     )}
                     {isComplete && (
-                      <div className="flex flex-col items-center py-16 space-y-6">
-                        <div className="h-24 w-24 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
-                           <CheckCircle2 className="h-12 w-12" />
+                      <div className="flex flex-col items-center py-16 space-y-6 bg-emerald-50/30 rounded-[3rem] border border-emerald-100 mt-10">
+                        <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
+                           <CheckCircle2 className="h-10 w-10" />
                         </div>
                         <div className="text-center">
                           <h4 className="font-black text-2xl text-slate-900">Weekly Kamustahan Complete</h4>
-                          <p className="text-sm text-slate-400 max-w-md mx-auto mt-3 leading-relaxed">
+                          <p className="text-sm text-slate-500 max-w-md mx-auto mt-3 leading-relaxed font-medium">
                             Guidi has synchronized your wellness data with your counselor's records. Thank you for your openness.
                           </p>
                         </div>
                         <Button asChild className="rounded-2xl font-black bg-primary h-14 px-10 mt-6 shadow-xl shadow-primary/20">
-                          <Link href="/student/dashboard">Return to Overview</Link>
+                          <Link href="/student/dashboard">Return to Dashboard</Link>
                         </Button>
                       </div>
                     )}
@@ -394,7 +407,7 @@ export default function StudentAssessments() {
                           </div>
                         ) : (
                           <div className="space-y-4 pt-4 border-t border-slate-50">
-                            <div className="flex items-center justify-between" onClick={() => markAsRead(`asmt-eval-${task.id}`)}>
+                            <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
                               <div className="flex items-center gap-1">
                                 <span className="text-lg font-black text-primary">{task.counselorRating}</span>
