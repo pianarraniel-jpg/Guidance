@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -10,7 +9,8 @@ import {
   Calendar, 
   ClipboardList,
   ChevronRight,
-  Clock
+  Clock,
+  CheckCheck
 } from 'lucide-react';
 import {
   Popover,
@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 
 const NotificationBell = () => {
-  const { notifications, unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -56,13 +56,17 @@ const NotificationBell = () => {
               <Link 
                 key={notif.id} 
                 href={notif.link}
-                className="p-4 flex gap-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 group"
+                onClick={() => markAsRead(notif.id)}
+                className={`p-4 flex gap-3 transition-colors border-b border-slate-50 last:border-0 group ${notif.isRead ? 'opacity-50' : 'hover:bg-slate-50 bg-white'}`}
               >
                 <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
                   {getIcon(notif.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-slate-900 mb-0.5 group-hover:text-primary transition-colors">{notif.title}</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[11px] font-black text-slate-900 group-hover:text-primary transition-colors">{notif.title}</p>
+                    {!notif.isRead && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                  </div>
                   <p className="text-[10px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
                     {notif.description}
                   </p>
@@ -83,8 +87,12 @@ const NotificationBell = () => {
         </div>
         {notifications.length > 0 && (
           <div className="p-3 bg-slate-50/50 border-t border-slate-50">
-            <Button variant="ghost" className="w-full h-8 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary">
-              Mark all as read
+            <Button 
+              variant="ghost" 
+              onClick={markAllAsRead}
+              className="w-full h-8 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary gap-2"
+            >
+              <CheckCheck className="h-3.5 w-3.5" /> Mark all as read
             </Button>
           </div>
         )}

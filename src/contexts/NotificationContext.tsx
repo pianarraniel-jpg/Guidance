@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -16,11 +15,14 @@ export interface AppNotification {
   timestamp: number;
   link: string;
   studentName: string;
+  isRead: boolean;
 }
 
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
   clearNotifications: () => void;
 }
 
@@ -29,6 +31,17 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isCounselor } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  // Initialize read IDs from storage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ);
+      if (stored) {
+        setReadIds(new Set(JSON.parse(stored)));
+      }
+    }
+  }, []);
 
   const refreshNotifications = useCallback(() => {
     if (!isCounselor || !user) {
@@ -38,19 +51,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const alerts: AppNotification[] = [];
 
+    // Current read IDs for filtering/marking
+    const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+    const readSet = new Set(currentReadIds);
+
     // 1. Check for Pending Appointments
     const appointments = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
     appointments
       .filter(a => a.status === APPOINTMENT_STATUS.PENDING)
       .forEach(a => {
+        const id = `apt-${a.id}`;
         alerts.push({
-          id: `apt-${a.id}`,
+          id,
           type: 'appointment',
           title: 'New Booking Request',
           description: `${a.studentName} requested a session for ${a.date}`,
           timestamp: new Date(a.createdAt || Date.now()).getTime(),
           link: '/counselor/appointments',
-          studentName: a.studentName
+          studentName: a.studentName,
+          isRead: readSet.has(id)
         });
       });
 
@@ -59,14 +78,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     assessments
       .filter(a => a.status === 'submitted')
       .forEach(a => {
+        const id = `asmt-${a.id}`;
         alerts.push({
-          id: `asmt-${a.id}`,
+          id,
           type: 'assessment',
           title: 'Assessment Submitted',
           description: `${a.studentName} completed a clinical form`,
           timestamp: a.timestamp || Date.now(),
           link: '/counselor/assessments',
-          studentName: a.studentName
+          studentName: a.studentName,
+          isRead: readSet.has(id)
         });
       });
 
@@ -75,32 +96,35 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     messages
       .filter(m => m.receiverId === user.id)
       .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 5) // Just show last few as alerts
+      .slice(0, 10) // Show last 10 messages as alerts
       .forEach(m => {
+        const id = `msg-${m.id}`;
         alerts.push({
-          id: `msg-${m.id}`,
+          id,
           type: 'message',
           title: 'New Message',
           description: `Student ${m.senderRole}: ${m.text.substring(0, 30)}${m.text.length > 30 ? '...' : ''}`,
           timestamp: m.timestamp,
           link: '/counselor/messages',
-          studentName: 'Student'
+          studentName: 'Student',
+          isRead: readSet.has(id)
         });
       });
 
     // Sort all by most recent
     setNotifications(alerts.sort((a, b) => b.timestamp - a.timestamp));
+    setReadIds(readSet);
   }, [isCounselor, user]);
 
   useEffect(() => {
     refreshNotifications();
     
-    // Listen for storage changes from other tabs/actions
     const handleStorage = (e: StorageEvent) => {
       const watched = [
         STORAGE_KEYS.APPOINTMENTS,
         STORAGE_KEYS.ASSESSMENTS,
-        STORAGE_KEYS.MESSAGES
+        STORAGE_KEYS.MESSAGES,
+        STORAGE_KEYS.NOTIFICATIONS_READ
       ];
       if (watched.includes(e.key as any)) {
         refreshNotifications();
@@ -108,7 +132,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     window.addEventListener('storage', handleStorage);
-    const interval = setInterval(refreshNotifications, 10000); // Poll every 10s for local session updates
+    const interval = setInterval(refreshNotifications, 5000); // Poll every 5s for local session updates
 
     return () => {
       window.removeEventListener('storage', handleStorage);
@@ -116,12 +140,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, [refreshNotifications]);
 
-  const clearNotifications = () => setNotifications([]);
+  const markAsRead = (id: string) => {
+    const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+    if (!currentReadIds.includes(id)) {
+      const updated = [...currentReadIds, id];
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
+      refreshNotifications();
+    }
+  };
+
+  const markAllAsRead = () => {
+    const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+    const newIds = notifications.map(n => n.id);
+    const updated = Array.from(new Set([...currentReadIds, ...newIds]));
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_READ, JSON.stringify(updated));
+    refreshNotifications();
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
 
   return (
     <NotificationContext.Provider value={{ 
       notifications, 
-      unreadCount: notifications.length,
+      unreadCount: notifications.filter(n => !n.isRead).length,
+      markAsRead,
+      markAllAsRead,
       clearNotifications 
     }}>
       {children}
