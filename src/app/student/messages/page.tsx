@@ -34,10 +34,15 @@ type ChatMessage = {
   timestamp: number;
 };
 
+type CounselorContact = any & {
+  lastMessage?: ChatMessage;
+  unreadCount: number;
+};
+
 export default function StudentMessages() {
   const { user } = useAuth();
   const { notifications, markAsRead } = useNotifications();
-  const [counselors, setCounselors] = useState<any[]>([]);
+  const [counselors, setCounselors] = useState<CounselorContact[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -45,18 +50,56 @@ export default function StudentMessages() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(() => {
+    if (!user) return;
+
+    // Load read notification IDs
+    const readIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
+    const readSet = new Set(readIds);
+
     // Load all counselors
     const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
     const counselorList = allUsers.filter(u => u.role === 'counselor');
-    setCounselors(counselorList);
+    
+    // Load all messages
+    const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
 
-    if (!activeCounselor && counselorList.length > 0) {
-      setActiveCounselor(counselorList[0]);
+    const counselorsWithMetadata = counselorList.map(counselor => {
+      const convMessages = allMessages.filter(m => 
+        (m.senderId === user.id && m.receiverId === counselor.id) ||
+        (m.senderId === counselor.id && m.receiverId === user.id)
+      ).sort((a, b) => b.timestamp - a.timestamp);
+      
+      const lastMsg = convMessages[0];
+      
+      // Calculate unread count specifically for messages FROM this counselor TO student
+      const incomingUnread = allMessages.filter(m => 
+        m.senderId === counselor.id && 
+        m.receiverId === user.id && 
+        !readSet.has(`msg-${m.id}`)
+      );
+
+      return {
+        ...counselor,
+        lastMessage: lastMsg,
+        unreadCount: incomingUnread.length
+      };
+    });
+
+    // Sort: most recent message first
+    counselorsWithMetadata.sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || 0;
+      const timeB = b.lastMessage?.timestamp || 0;
+      return timeB - timeA;
+    });
+
+    setCounselors(counselorsWithMetadata);
+
+    if (!activeCounselor && counselorsWithMetadata.length > 0) {
+      setActiveCounselor(counselorsWithMetadata[0]);
     }
 
     // Load messages for the active conversation
-    if (activeCounselor && user) {
-      const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
+    if (activeCounselor) {
       const filtered = allMessages.filter(m => 
         (m.senderId === user.id && m.receiverId === activeCounselor.id) ||
         (m.senderId === activeCounselor.id && m.receiverId === user.id)
@@ -68,7 +111,7 @@ export default function StudentMessages() {
   useEffect(() => {
     loadData();
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.MESSAGES || e.key === STORAGE_KEYS.USERS) {
+      if (e.key === STORAGE_KEYS.MESSAGES || e.key === STORAGE_KEYS.USERS || e.key === STORAGE_KEYS.NOTIFICATIONS_READ) {
         loadData();
       }
     };
@@ -82,13 +125,20 @@ export default function StudentMessages() {
     }
   }, [chatHistory]);
 
-  // AUTOMATIC READ: Clear message notifications when visiting this page
+  // AUTOMATIC READ: Mark counselor messages as read when active counselor changes OR when a new message arrives
   useEffect(() => {
-    const unreadMessageNotifs = notifications.filter(
-      n => n.type === 'message' && !n.isRead
-    );
-    unreadMessageNotifs.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
+    if (activeCounselor && user) {
+      const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
+      const unreadFromCounselor = allMessages.filter(m => 
+        m.senderId === activeCounselor.id && 
+        m.receiverId === user.id
+      );
+      
+      unreadFromCounselor.forEach(msg => {
+        markAsRead(`msg-${msg.id}`);
+      });
+    }
+  }, [activeCounselor?.id, chatHistory.length, markAsRead, user]);
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -122,10 +172,10 @@ export default function StudentMessages() {
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input 
-                  placeholder="Search counselors" 
+                  placeholder="Search counselors..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-10 bg-[#F1F5F9] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl"
+                  className="pl-10 h-11 bg-[#F1F5F9] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl text-xs font-bold"
                 />
               </div>
             </div>
@@ -135,24 +185,44 @@ export default function StudentMessages() {
                   <div 
                     key={counselor.id}
                     onClick={() => setActiveCounselor(counselor)}
-                    className={`p-4 rounded-xl cursor-pointer transition-all ${
+                    className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
                       activeCounselor?.id === counselor.id 
                         ? 'bg-primary/5 ring-1 ring-primary/20 shadow-sm' 
                         : 'hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex gap-3">
-                      <Avatar className="h-10 w-10">
+                    <div className="relative">
+                      <Avatar className="h-10 w-10 ring-2 ring-white">
                         <AvatarImage src={`https://picsum.photos/seed/${counselor.id}/64/64`} />
                         <AvatarFallback className="font-bold text-primary bg-primary/5">{counselor.name[0]}</AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-[#1E293B]">{counselor.name}</h4>
-                        <p className="text-xs truncate text-muted-foreground">Wellness Counselor</p>
+                      {counselor.unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black text-white animate-in zoom-in shadow-sm">
+                          {counselor.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <h4 className={`text-sm ${counselor.unreadCount > 0 ? 'font-black text-slate-900' : 'font-bold text-slate-700'} truncate`}>
+                          {counselor.name}
+                        </h4>
+                        {counselor.lastMessage && (
+                          <span className="text-[9px] text-slate-300 font-bold uppercase">{counselor.lastMessage.time}</span>
+                        )}
                       </div>
+                      <p className={`text-[11px] truncate ${counselor.unreadCount > 0 ? 'font-bold text-slate-600' : 'text-slate-400'}`}>
+                        {counselor.lastMessage 
+                          ? (counselor.lastMessage.text === '[BOOKING_REQUEST]' ? '📅 Session Invitation' : counselor.lastMessage.text)
+                          : 'Wellness Counselor'
+                        }
+                      </p>
                     </div>
                   </div>
                 ))}
+                {filteredCounselors.length === 0 && (
+                  <div className="p-10 text-center text-slate-400 text-xs italic">No counselors found.</div>
+                )}
               </div>
             </ScrollArea>
           </div>
@@ -161,21 +231,21 @@ export default function StudentMessages() {
           <div className="flex-1 flex flex-col bg-white">
             {activeCounselor ? (
               <>
-                <header className="h-20 border-b px-8 flex items-center justify-between shrink-0">
+                <header className="h-20 border-b px-8 flex items-center justify-between shrink-0 bg-white/50 backdrop-blur-md">
                   <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12">
+                    <Avatar className="h-11 w-11 ring-2 ring-primary/5">
                       <AvatarImage src={`https://picsum.photos/seed/${activeCounselor.id}/64/64`} />
                       <AvatarFallback className="font-bold text-primary bg-primary/5">{activeCounselor.name[0]}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="font-bold text-lg">{activeCounselor.name}</h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <h3 className="font-black text-slate-900 text-lg">{activeCounselor.name}</h3>
+                      <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                        Synchronized • Wellness Counselor
+                        Synchronized Support Channel
                       </p>
                     </div>
                   </div>
-                  <div className="hidden md:flex items-center gap-2 bg-[#F1F5F9] px-4 py-2 rounded-full text-xs font-bold text-[#334155]">
+                  <div className="hidden md:flex items-center gap-2 bg-[#F1F5F9] px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-[#334155]">
                     <Clock className="h-3.5 w-3.5 text-primary" />
                     University Support Line
                   </div>
@@ -189,7 +259,7 @@ export default function StudentMessages() {
                         className={`flex items-start gap-4 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}
                       >
                         {msg.senderId !== user?.id && (
-                          <Avatar className="h-8 w-8 border">
+                          <Avatar className="h-8 w-8 border border-white shadow-sm shrink-0">
                             <AvatarImage src={`https://picsum.photos/seed/${msg.senderId}/64/64`} />
                             <AvatarFallback>{msg.senderRole === 'student' ? 'S' : 'C'}</AvatarFallback>
                           </Avatar>
@@ -216,15 +286,15 @@ export default function StudentMessages() {
                               </CardContent>
                             </Card>
                           ) : (
-                            <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                            <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
                               msg.senderId === user?.id 
-                                ? 'bg-primary text-white rounded-tr-none' 
-                                : 'bg-white border text-[#334155] rounded-tl-none'
+                                ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                                : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                             }`}>
                               {msg.text}
                             </div>
                           )}
-                          <span className="text-[10px] text-muted-foreground mt-2 font-medium">{msg.time}</span>
+                          <span className="text-[9px] text-slate-300 font-bold mt-2 uppercase tracking-widest">{msg.time}</span>
                         </div>
                       </div>
                     ))}
@@ -234,23 +304,23 @@ export default function StudentMessages() {
 
                 <div className="p-8 border-t bg-white">
                   <div className="max-w-4xl mx-auto">
-                    <div className="mb-6 bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3 text-red-700">
+                    <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 text-red-700">
                       <AlertCircle className="h-5 w-5 shrink-0" />
-                      <div className="text-xs">
-                        <p className="font-bold">This is not for emergencies</p>
-                        <p className="opacity-80">Call 988 (Suicide & Crisis Lifeline) or 911 if in danger.</p>
+                      <div className="text-[10px] font-bold uppercase tracking-wide">
+                        <p className="font-black">Emergency Protocol</p>
+                        <p className="opacity-80">This channel is not for crises. Call 988 or 911 if in immediate danger.</p>
                       </div>
                     </div>
-                    <form onSubmit={handleSend} className="flex items-center gap-3">
+                    <form onSubmit={handleSend} className="flex items-center gap-4">
                       <div className="flex-1 relative">
                         <Input 
-                          placeholder="Type a message..." 
+                          placeholder="Type a message to your counselor..." 
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
-                          className="h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-12 pr-4"
+                          className="h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-4 text-sm font-medium"
                         />
                       </div>
-                      <Button type="submit" className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20" disabled={!inputValue.trim()}>
+                      <Button type="submit" className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95" disabled={!inputValue.trim()}>
                         <Send className="h-5 w-5" />
                       </Button>
                     </form>
@@ -259,8 +329,10 @@ export default function StudentMessages() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
-                <MessageSquare className="h-12 w-12 opacity-20" />
-                <p className="font-bold text-sm italic">Select a counselor to begin your consultation</p>
+                <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
+                   <MessageSquare className="h-8 w-8 opacity-20" />
+                </div>
+                <p className="font-black text-sm italic uppercase tracking-widest">Select a counselor to begin</p>
               </div>
             )}
           </div>
