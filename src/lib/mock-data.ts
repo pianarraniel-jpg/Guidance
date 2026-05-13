@@ -11,11 +11,10 @@ export const MOCK_USERS = [
   },
   {
     id: 'c1',
-    name: 'Dr. Maria Santos',
+    name: 'USPF Counselor',
     email: 'counselor@uspf.edu.ph',
     password: 'password123',
     role: USER_ROLES.COUNSELOR,
-    specialization: 'Academic Stress & Career Guidance',
   },
   {
     id: 'a1',
@@ -31,10 +30,13 @@ export const MOCK_APPOINTMENTS = [
     id: 'app1',
     studentId: 's1',
     counselorId: 'c1',
+    counselorName: 'USPF Counselor',
+    studentName: 'Juan Dela Cruz',
     date: '2024-06-15',
     time: '10:00 AM',
     status: APPOINTMENT_STATUS.CONFIRMED,
     type: 'Wellness Check-in',
+    createdAt: new Date().toISOString(),
   },
 ];
 

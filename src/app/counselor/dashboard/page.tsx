@@ -10,26 +10,22 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Calendar, 
-  MessageSquare, 
-  Users, 
   Clock, 
   CheckCircle2, 
   AlertCircle, 
   ChevronRight,
   Plus,
   Play,
-  ClipboardList
+  ClipboardList,
+  Users
 } from 'lucide-react';
-import { format, isThisWeek, parseISO } from 'date-fns';
+import { format, isThisWeek } from 'date-fns';
 import Link from 'next/link';
 
 export default function CounselorDashboard() {
-  const { user } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
   
-  const lastName = user?.name.split(' ').pop() || 'Counselor';
-
   useEffect(() => {
     const loadData = () => {
       const allApts = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
@@ -44,13 +40,12 @@ export default function CounselorDashboard() {
 
   const todaySessions = appointments.filter(a => a.date === format(new Date(), 'yyyy-MM-dd'));
   const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;
-  const weeklyAssessments = assessments.filter(a => isThisWeek(a.timestamp)).length;
 
   const stats = [
     { label: "Today's Sessions", value: todaySessions.length.toString(), icon: Calendar, color: "text-emerald-600", bg: "bg-emerald-50", badge: "Today" },
-    { label: "Pending Confirmations", value: pendingCount.toString(), icon: CheckCircle2, color: "text-amber-600", bg: "bg-amber-50", badge: "Action Req." },
-    { label: "Weekly Assessments", value: assessments.length.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50", badge: "Total" },
-    { label: "Critical Cases", value: assessments.filter(a => a.stressLevel > 75).length.toString(), icon: AlertCircle, color: "text-red-600", bg: "bg-red-50", badge: "High Risk" },
+    { label: "Pending Requests", value: pendingCount.toString(), icon: CheckCircle2, color: "text-amber-600", bg: "bg-amber-50", badge: "Queue" },
+    { label: "Total Assessments", value: assessments.length.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50", badge: "History" },
+    { label: "Priority Cases", value: assessments.filter(a => a.stressLevel > 75).length.toString(), icon: AlertCircle, color: "text-red-600", bg: "bg-red-50", badge: "Review" },
   ];
 
   const incomingQueue = appointments
@@ -61,10 +56,10 @@ export default function CounselorDashboard() {
     <div className="p-8 max-w-7xl mx-auto w-full">
       <header className="mb-10">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-          Good morning, Dr. {lastName}
+          Maayong Adlaw, Guidance Office
         </h1>
         <p className="text-muted-foreground font-medium">
-          Welcome to your wellness support queue for {format(new Date(), 'EEEE, MMM do')}.
+          Managing campus wellness and student synchronize schedules for {format(new Date(), 'EEEE, MMM do')}.
         </p>
       </header>
 
@@ -98,7 +93,7 @@ export default function CounselorDashboard() {
                 <CardTitle className="text-lg font-black text-slate-900">Today's Schedule</CardTitle>
               </div>
               <Button asChild variant="ghost" size="sm" className="text-xs font-bold text-primary hover:bg-primary/5">
-                <Link href="/counselor/appointments">View Queue</Link>
+                <Link href="/counselor/appointments">View Full Queue</Link>
               </Button>
             </CardHeader>
             <CardContent className="p-0">
@@ -163,8 +158,8 @@ export default function CounselorDashboard() {
 
           <Card className="border-0 shadow-lg shadow-slate-200/40 bg-primary rounded-3xl p-6 text-white relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-black text-lg mb-2">Review Assessments</h3>
-              <p className="text-white/70 text-xs mb-6">Analyze {assessments.length} student wellness profiles to prepare for upcoming sessions.</p>
+              <h3 className="font-black text-lg mb-2">Clinical Insights</h3>
+              <p className="text-white/70 text-xs mb-6">Analyze {assessments.length} student wellness profiles to prepare for professional consultations.</p>
               <Button asChild variant="secondary" className="w-full bg-white text-primary font-black rounded-xl">
                 <Link href="/counselor/assessments">Go to Assessments</Link>
               </Button>

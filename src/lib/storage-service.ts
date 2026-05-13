@@ -57,7 +57,12 @@ export const storageService = {
       // Migration check: Ensure the student mock user has a studentId
       const student = users.find((u: any) => u.email === 'student@uspf.edu.ph');
       if (student && !student.studentId) {
-        shouldInitUsers = true; // Force refresh to include new Student ID field
+        shouldInitUsers = true; 
+      }
+      // Migration check: Ensure counselor name is updated to unified identity
+      const hasOldCounselor = users.some((u: any) => u.role === 'counselor' && u.name !== 'USPF Counselor');
+      if (hasOldCounselor) {
+        shouldInitUsers = true;
       }
     }
 

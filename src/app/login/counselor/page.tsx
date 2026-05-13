@@ -1,46 +1,37 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   ShieldCheck, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff,
   ChevronLeft,
-  Briefcase
+  Briefcase,
+  Play
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CounselorLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleQuickEntry = async () => {
     setError('');
     setIsSubmitting(true);
 
     try {
-      const success = await login(email, password);
+      // Hardcoded unified counselor credentials
+      const success = await login('counselor@uspf.edu.ph', 'password123');
       if (success) {
         window.location.href = '/counselor/dashboard';
       } else {
-        setError('Invalid staff credentials. Use your USPF staff email or password.');
+        setError('Staff portal configuration error. Please contact IT.');
       }
     } catch (err) {
-      setError('An unexpected error occurred.');
+      setError('An unexpected error occurred during portal access.');
     } finally {
       setIsSubmitting(false);
     }
@@ -59,82 +50,45 @@ export default function CounselorLoginPage() {
             <ShieldCheck className="h-10 w-10" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Staff Portal</h1>
-          <p className="text-slate-500 font-medium mt-2">Professional Access for USPF Counselors</p>
+          <p className="text-slate-500 font-medium mt-2">Unified Guidance Office Access</p>
         </div>
 
         <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
-          <CardHeader className="p-8 pb-0">
-             <div className="flex items-center gap-3 mb-2">
+          <CardHeader className="p-8 pb-0 text-center">
+             <div className="flex items-center justify-center gap-3 mb-2">
                 <Briefcase className="h-4 w-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Secure Authentication</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">University Access Terminal</span>
              </div>
-             <CardTitle className="text-xl font-black">Counselor Login</CardTitle>
+             <CardTitle className="text-xl font-black">USPF Counselor Login</CardTitle>
           </CardHeader>
           
-          <CardContent className="p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-slate-400">University Email</Label>
-                <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-                  <Input 
-                    id="email"
-                    type="email"
-                    placeholder="counselor@uspf.edu.ph"
-                    className="h-14 pl-12 rounded-2xl border-slate-100 bg-slate-50 focus-visible:ring-primary/20 font-medium"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+          <CardContent className="p-8 space-y-6">
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Identity</p>
+              <h3 className="text-lg font-black text-primary">USPF Counselor</h3>
+              <p className="text-[10px] text-slate-400 font-medium italic">Professional access restricted to authorized Guidance Office personnel.</p>
+            </div>
+
+            {error && (
+              <Alert variant="destructive" className="rounded-xl border-none bg-red-50 text-red-600 py-3">
+                <AlertDescription className="text-xs font-bold text-center">{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button 
+              onClick={handleQuickEntry}
+              className="w-full h-20 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group" 
+              disabled={isSubmitting}
+            >
+              <div className="flex items-center gap-2">
+                <Play className="h-5 w-5 fill-current" />
+                <span className="text-lg">Launch Staff Dashboard</span>
               </div>
+              <span className="text-[10px] opacity-70 group-hover:opacity-100 uppercase tracking-widest">Enter Guidance Workspace</span>
+            </Button>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="password" className="text-xs font-black uppercase tracking-widest text-slate-400">Password</Label>
-                </div>
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-                  <Input 
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    className="h-14 pl-12 pr-12 rounded-2xl border-slate-100 bg-slate-50 focus-visible:ring-primary/20 font-medium"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <Alert variant="destructive" className="rounded-xl border-none bg-red-50 text-red-600 py-3">
-                  <AlertDescription className="text-xs font-bold">{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button 
-                type="submit" 
-                className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98]" 
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Authenticating..." : "Sign In to Portal"}
-              </Button>
-            </form>
-
-            <div className="mt-8 pt-8 border-t border-slate-50 text-center">
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">Staff Support</p>
-               <div className="flex justify-center gap-6">
-                  <button className="text-xs font-bold text-slate-600 hover:text-primary transition-colors">Reset Password</button>
-                  <button className="text-xs font-bold text-slate-600 hover:text-primary transition-colors">IT Helpdesk</button>
-               </div>
+            <div className="pt-6 border-t border-slate-50 text-center">
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Terminal ID: GS-ADMIN-01</p>
             </div>
           </CardContent>
         </Card>

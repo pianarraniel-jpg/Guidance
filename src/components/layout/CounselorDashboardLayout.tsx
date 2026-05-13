@@ -15,7 +15,6 @@ import {
   Search,
   Calendar,
   MessageSquare,
-  Plus,
   ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
@@ -31,7 +30,6 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
   const { user, logout } = useAuth();
   const { notifications } = useNotifications();
   const pathname = usePathname();
-  const firstName = user?.name.split(' ')[0] || 'Counselor';
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
@@ -57,7 +55,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             </div>
             <h2 className="text-xl font-bold text-slate-900 font-headline">GuidanceSync</h2>
           </div>
-          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] pl-10">Supportive Wellness</p>
+          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] pl-10 text-primary/80">Guidance Office</p>
         </div>
 
         <nav className="flex-1 px-4 space-y-1.5">
@@ -71,14 +69,14 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all relative group ${
                   isActive 
-                    ? 'bg-primary/5 text-primary' 
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                     : 'text-slate-400 hover:text-primary hover:bg-primary/5'
                 }`}
               >
-                <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
+                <item.icon className={`h-5 w-5 ${isActive ? 'text-white' : ''}`} />
                 <span className="flex-1">{item.label}</span>
                 {unreadCount > 0 && (
-                  <span className="h-5 w-5 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-black animate-pulse shadow-sm">
+                  <span className={`h-5 w-5 rounded-full text-[10px] flex items-center justify-center font-black animate-pulse shadow-sm ${isActive ? 'bg-white text-primary' : 'bg-red-500 text-white'}`}>
                     {unreadCount}
                   </span>
                 )}
@@ -87,29 +85,18 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
           })}
         </nav>
 
-        <div className="px-4 mt-auto space-y-3">
-          <div className="space-y-2">
-            <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white font-black rounded-xl h-12 shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-              <Link href="/counselor/students">
-                <Plus className="h-4 w-4" />
-                Enroll Student
-              </Link>
-            </Button>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 space-y-1">
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-primary transition-all text-left">
-              <HelpCircle className="h-4 w-4" />
-              Help Center
-            </button>
-            <button 
-              onClick={logout}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-red-500 transition-all text-left"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
-          </div>
+        <div className="px-4 mt-auto space-y-1 pt-6 border-t border-slate-50">
+          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-primary transition-all text-left">
+            <HelpCircle className="h-4 w-4" />
+            Support Help
+          </button>
+          <button 
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-red-500 transition-all text-left"
+          >
+            <LogOut className="h-4 w-4" />
+            Exit Portal
+          </button>
         </div>
       </aside>
 
@@ -120,16 +107,13 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
           <div className="relative w-96 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
             <Input
-              placeholder="Search student records..."
+              placeholder="Search clinical records..."
               className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-xs font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-primary transition-colors">
-              <HelpCircle className="h-5 w-5" />
-            </Button>
             <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-primary transition-colors" asChild>
               <Link href="/counselor/settings">
                 <Settings className="h-5 w-5" />
@@ -137,16 +121,15 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             </Button>
             
             <div className="pl-4 border-l border-slate-100 ml-2">
-              <Link href="/counselor/settings" className="flex items-center gap-3 group">
+              <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-black leading-none group-hover:text-primary transition-colors">{user?.name}</p>
-                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Counseling Staff</p>
+                  <p className="text-xs font-black leading-none text-slate-900">USPF Counselor</p>
+                  <p className="text-[9px] text-primary uppercase font-bold tracking-tighter mt-0.5">Staff Account</p>
                 </div>
-                <Avatar className="h-9 w-9 ring-2 ring-primary/5 cursor-pointer">
-                  <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
+                <Avatar className="h-9 w-9 ring-2 ring-primary/5">
+                  <AvatarFallback className="bg-primary/5 text-primary font-bold">C</AvatarFallback>
                 </Avatar>
-              </Link>
+              </div>
             </div>
           </div>
         </header>
