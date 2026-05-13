@@ -16,8 +16,7 @@ import {
   Calendar,
   MessageSquare,
   Plus,
-  ShieldCheck,
-  UserPlus
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -94,12 +93,6 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
               <Link href="/counselor/students">
                 <Plus className="h-4 w-4" />
                 Enroll Student
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full border-primary/20 text-primary hover:bg-primary/5 font-black rounded-xl h-11 flex items-center justify-center gap-2">
-              <Link href="/register/counselor">
-                <UserPlus className="h-4 w-4" />
-                Register Staff
               </Link>
             </Button>
           </div>

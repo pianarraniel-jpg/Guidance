@@ -15,8 +15,7 @@ import {
   Eye, 
   EyeOff,
   ChevronLeft,
-  Briefcase,
-  UserPlus
+  Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -131,11 +130,6 @@ export default function CounselorLoginPage() {
             </form>
 
             <div className="mt-8 pt-8 border-t border-slate-50 text-center">
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">New to GuidanceSync?</p>
-               <Link href="/register/counselor" className="text-sm font-black text-primary hover:underline flex items-center justify-center gap-2 mb-8">
-                 <UserPlus className="h-4 w-4" /> Register as Staff
-               </Link>
-
                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">Staff Support</p>
                <div className="flex justify-center gap-6">
                   <button className="text-xs font-bold text-slate-600 hover:text-primary transition-colors">Reset Password</button>
