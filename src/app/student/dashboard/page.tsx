@@ -5,7 +5,8 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { APPOINTMENT_STATUS } from '@/lib/constants';
+import { storageService } from '@/lib/storage-service';
+import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -68,68 +69,52 @@ export default function StudentDashboard() {
     if (!user) return;
     setIsLoading(true);
 
-    const [
-      { data: assessments },
-      { data: insightRow },
-      { data: profileRow },
-      { data: appointments },
-    ] = await Promise.all([
-      supabase
-        .from('assessments')
-        .select('id, stress_level, timestamp, emotional_state, summary, date')
-        .eq('student_id', user.id)
-        .order('timestamp', { ascending: false })
-        .limit(7),
-      supabase
-        .from('ai_insights')
-        .select('insight')
-        .eq('student_id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('profiles')
-        .select('wellness_score')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('appointments')
-        .select('*')
-        .eq('student_id', user.id)
-        .eq('status', APPOINTMENT_STATUS.CONFIRMED)
-        .order('date', { ascending: true }),
+    const [allAssessments, allAppointments, { data: insightRow }, { data: profileRow }] = await Promise.all([
+      storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
+      storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
+      supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle(),
+      supabase.from('profiles').select('wellness_score').eq('id', user.id).maybeSingle(),
     ]);
 
-    const chart: ChartPoint[] = (assessments ?? [])
+    const assessments = allAssessments.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 7);
+    const appointments = allAppointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED);
+
+    const chart: ChartPoint[] = assessments
       .slice()
       .reverse()
-      .map(a => ({
-        day: a.timestamp
-          ? format(new Date(a.timestamp), 'EEE')
-          : (a.date ? format(parseISO(a.date), 'EEE') : '—'),
-        stress: a.stress_level ?? 5,
-        mood: 10 - (a.stress_level ?? 5),
-      }));
+      .map(a => {
+        const stress = a.stressLevel ?? a.stress_level ?? 5;
+        return {
+          day: a.timestamp
+            ? format(new Date(a.timestamp), 'EEE')
+            : (a.date ? format(parseISO(a.date), 'EEE') : '—'),
+          stress: stress,
+          mood: 10 - stress,
+        };
+      });
     setChartData(chart);
 
-    const sessions: RecentSession[] = (assessments ?? []).slice(0, 3).map(a => ({
+    const sessions: RecentSession[] = assessments.slice(0, 3).map(a => ({
       id: a.id,
       date: a.timestamp
         ? format(new Date(a.timestamp), 'MMM d')
         : (a.date ?? '—'),
       timestamp: a.timestamp,
-      stressLevel: a.stress_level,
-      emotionalState: a.emotional_state,
-      summary: a.summary,
+      stressLevel: a.stressLevel ?? a.stress_level ?? null,
+      emotionalState: a.emotionalState ?? a.emotional_state ?? null,
+      summary: a.summary ?? null,
     }));
     setRecentSessions(sessions);
 
     setAiInsight(insightRow?.insight ?? null);
     setWellnessScore(profileRow?.wellness_score ?? null);
 
-    const upcoming = (appointments ?? []).find(a => isAfter(parseISO(a.date), new Date()));
+    const upcoming = appointments.find(a => isAfter(parseISO(a.date), new Date()));
     setNextAppointment(upcoming ?? null);
 
     setIsLoading(false);
   }, [user]);
+
 
   useEffect(() => {
     loadDashboardData();
