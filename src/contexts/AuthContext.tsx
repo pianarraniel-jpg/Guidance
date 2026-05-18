@@ -28,20 +28,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function fetchProfile(userId: string): Promise<User | null> {
+  console.log(`[AuthContext] Fetching profile for user: ${userId}`);
   try {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, name, email, role, student_id')
       .eq('id', userId)
       .maybeSingle();
+    
     if (error || !data) {
+      console.warn(`[AuthContext] Profile fetch failed or not found:`, error?.message || 'No data');
       if (error?.message?.includes('JWT') || error?.message?.includes('token') || error?.code === 'PGRST301') {
-        // Corrupted or expired auth token detected: force clean session reset
+        console.warn(`[AuthContext] Token error detected. Forcing clean logout.`);
         await supabase.auth.signOut();
         if (typeof window !== 'undefined') localStorage.clear();
       }
       return null;
     }
+    console.log(`[AuthContext] Profile successfully fetched:`, data.email, data.role);
     return {
       id: data.id,
       name: data.name,
@@ -49,7 +53,8 @@ async function fetchProfile(userId: string): Promise<User | null> {
       role: data.role as UserRole,
       studentId: data.student_id ?? undefined,
     };
-  } catch (err) {
+  } catch (err: any) {
+    console.error(`[AuthContext] Unexpected error during fetchProfile:`, err?.message || err);
     return null;
   }
 }
@@ -60,9 +65,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter();
 
   useEffect(() => {
+    console.log(`[AuthContext] Initializing auth session check on mount...`);
     let isMounted = true;
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+
+    // Fail-safe timeout: if Supabase takes more than 4 seconds to resolve, force stop spinner
+    const timer = setTimeout(() => {
+      if (isMounted && isLoading) {
+        console.warn(`[AuthContext] getSession timed out after 4s. Forcing isLoading = false.`);
+        setIsLoading(false);
+      }
+    }, 4000);
+
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (!isMounted) return;
+      if (error) {
+        console.error(`[AuthContext] getSession error:`, error.message);
+        setIsLoading(false);
+        return;
+      }
+      console.log(`[AuthContext] getSession completed. Session present:`, !!session);
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
         if (isMounted) {
@@ -72,25 +93,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setIsLoading(false);
       }
+    }).catch(err => {
+      console.error(`[AuthContext] Unhandled rejection in getSession:`, err);
+      if (isMounted) setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`[AuthContext] onAuthStateChange event triggered:`, event, `Session present:`, !!session);
       if (!isMounted) return;
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
         if (isMounted && profile) {
           setUser(profile);
+          setIsLoading(false);
         }
       } else {
-        if (isMounted) setUser(null);
+        if (isMounted) {
+          setUser(null);
+          setIsLoading(false);
+        }
       }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isLoading]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
