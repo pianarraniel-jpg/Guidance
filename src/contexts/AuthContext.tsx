@@ -45,14 +45,18 @@ async function fetchProfile(userId: string): Promise<User | null> {
       }
       return null;
     }
-    console.log(`[AuthContext] Profile successfully fetched:`, data.email, data.role);
-    return {
+    const userObj: User = {
       id: data.id,
       name: data.name,
       email: data.email,
       role: data.role as UserRole,
       studentId: data.student_id ?? undefined,
     };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('guidance_cached_profile', JSON.stringify(userObj));
+    }
+    console.log(`[AuthContext] Profile successfully fetched & cached:`, data.email, data.role);
+    return userObj;
   } catch (err: any) {
     console.error(`[AuthContext] Unexpected error during fetchProfile:`, err?.message || err);
     return null;
@@ -60,9 +64,31 @@ async function fetchProfile(userId: string): Promise<User | null> {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('guidance_cached_profile');
+        if (cached) {
+          console.log(`[AuthContext] Restored user instantly from cache!`);
+          return JSON.parse(cached);
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+    return null;
+  });
+
+  // If we restored a cached user, we don't need to block the UI behind a spinner
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('guidance_cached_profile');
+    }
+    return true;
+  });
+
   const router = useRouter();
+  const activeFetchRef = useRef<string | null>(null);
 
   useEffect(() => {
     console.log(`[AuthContext] Initializing auth session check on mount...`);
@@ -70,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Fail-safe timeout: if Supabase takes more than 4 seconds to resolve, force stop spinner
     const timer = setTimeout(() => {
-      if (isMounted && isLoading) {
+      if (isMounted) {
         console.warn(`[AuthContext] getSession timed out after 4s. Forcing isLoading = false.`);
         setIsLoading(false);
       }
@@ -85,13 +111,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       console.log(`[AuthContext] getSession completed. Session present:`, !!session);
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
+        if (activeFetchRef.current !== session.user.id) {
+          activeFetchRef.current = session.user.id;
+          const profile = await fetchProfile(session.user.id);
+          if (isMounted && profile) {
+            setUser(profile);
+          }
+        }
+        if (isMounted) setIsLoading(false);
+      } else {
+        if (typeof window !== 'undefined') localStorage.removeItem('guidance_cached_profile');
         if (isMounted) {
-          setUser(profile);
+          setUser(null);
           setIsLoading(false);
         }
-      } else {
-        setIsLoading(false);
       }
     }).catch(err => {
       console.error(`[AuthContext] Unhandled rejection in getSession:`, err);
@@ -102,12 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log(`[AuthContext] onAuthStateChange event triggered:`, event, `Session present:`, !!session);
       if (!isMounted) return;
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        if (isMounted && profile) {
-          setUser(profile);
-          setIsLoading(false);
+        if (activeFetchRef.current !== session.user.id) {
+          activeFetchRef.current = session.user.id;
+          const profile = await fetchProfile(session.user.id);
+          if (isMounted && profile) {
+            setUser(profile);
+            setIsLoading(false);
+          }
         }
       } else {
+        if (typeof window !== 'undefined') localStorage.removeItem('guidance_cached_profile');
         if (isMounted) {
           setUser(null);
           setIsLoading(false);
@@ -120,14 +157,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timer);
       subscription.unsubscribe();
     };
-  }, [isLoading]);
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error || !data.user) return false;
       const profile = await fetchProfile(data.user.id);
-      if (profile) { setUser(profile); return true; }
+      if (profile) {
+        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(profile));
+        setUser(profile);
+        return true;
+      }
       return false;
     } catch {
       return false;
@@ -148,14 +189,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refresh_token: refreshToken,
       });
       if (error || !data.user) return false;
-      if (apiProfile) { setUser(apiProfile); return true; }
+      if (apiProfile) {
+        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(apiProfile));
+        setUser(apiProfile);
+        return true;
+      }
       const profile = await fetchProfile(data.user.id);
-      if (profile) { setUser(profile); return true; }
+      if (profile) {
+        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(profile));
+        setUser(profile);
+        return true;
+      }
       return false;
     } catch {
       return false;
     }
   };
+
 
   const logout = async () => {
     await supabase.auth.signOut();
