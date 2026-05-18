@@ -64,35 +64,30 @@ async function fetchProfile(userId: string): Promise<User | null> {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('guidance_cached_profile');
-        if (cached) {
-          console.log(`[AuthContext] Restored user instantly from cache!`);
-          return JSON.parse(cached);
-        }
-      } catch {
-        // ignore JSON parse error
-      }
-    }
-    return null;
-  });
-
-  // If we restored a cached user, we don't need to block the UI behind a spinner
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return !localStorage.getItem('guidance_cached_profile');
-    }
-    return true;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const router = useRouter();
   const activeFetchRef = useRef<string | null>(null);
 
   useEffect(() => {
-    console.log(`[AuthContext] Initializing auth session check on mount...`);
+    console.log(`[AuthContext] Initializing auth session check on client mount...`);
     let isMounted = true;
+
+    // Instantly hydrate from cache after SSR hydration passes
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('guidance_cached_profile');
+        if (cached) {
+          console.log(`[AuthContext] Hydrated user instantly from local cache!`);
+          setUser(JSON.parse(cached));
+          setIsLoading(false);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
 
     // Fail-safe timeout: if Supabase takes more than 4 seconds to resolve, force stop spinner
     const timer = setTimeout(() => {
