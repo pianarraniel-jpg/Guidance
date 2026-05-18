@@ -35,6 +35,8 @@ import {
 import Link from 'next/link';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useLiveSync } from '@/hooks/useLiveSync';
+
 
 type TabKey = 'upcoming' | 'history' | 'all';
 
@@ -66,34 +68,14 @@ export default function StudentAppointments() {
   useEffect(() => {
     if (!user) return;
     loadAppointments();
-
-    const channel = supabase
-      .channel(`student-apts-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'appointments',
-        filter: `student_id=eq.${user.id}`,
-      }, (payload) => {
-        // Flash the live indicator briefly
-        setIsLive(true);
-        setTimeout(() => setIsLive(false), 3000);
-
-        // Show toast when counselor confirms or cancels
-        const row = (payload.new ?? payload.old) as any;
-        if (payload.eventType === 'UPDATE' && row?.status === APPOINTMENT_STATUS.CONFIRMED) {
-          toast({ title: '✅ Session Confirmed!', description: `Your session on ${row.date} at ${row.time} has been accepted.` });
-        }
-        if (payload.eventType === 'UPDATE' && row?.status === 'cancelled') {
-          toast({ variant: 'destructive', title: 'Session Cancelled', description: `Your session on ${row.date} has been cancelled.` });
-        }
-
-        loadRef.current();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [user, loadAppointments]);
+
+  useLiveSync(() => {
+    setIsLive(true);
+    setTimeout(() => setIsLive(false), 3000);
+    loadRef.current();
+  });
+
 
   // Auto-clear appointment notifications when viewing this page
   useEffect(() => {

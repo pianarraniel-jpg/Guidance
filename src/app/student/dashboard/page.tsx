@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter } from 'date-fns';
+import { useLiveSync } from '@/hooks/useLiveSync';
 
 interface ChartPoint {
   day: string;
@@ -63,80 +64,80 @@ export default function StudentDashboard() {
   const [wellnessScore, setWellnessScore] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const loadDashboardData = React.useCallback(async () => {
     if (!user) return;
+    setIsLoading(true);
 
-    const load = async () => {
-      setIsLoading(true);
+    const [
+      { data: assessments },
+      { data: insightRow },
+      { data: profileRow },
+      { data: appointments },
+    ] = await Promise.all([
+      supabase
+        .from('assessments')
+        .select('id, stress_level, timestamp, emotional_state, summary, date')
+        .eq('student_id', user.id)
+        .order('timestamp', { ascending: false })
+        .limit(7),
+      supabase
+        .from('ai_insights')
+        .select('insight')
+        .eq('student_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('profiles')
+        .select('wellness_score')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('appointments')
+        .select('*')
+        .eq('student_id', user.id)
+        .eq('status', APPOINTMENT_STATUS.CONFIRMED)
+        .order('date', { ascending: true }),
+    ]);
 
-      const [
-        { data: assessments },
-        { data: insightRow },
-        { data: profileRow },
-        { data: appointments },
-      ] = await Promise.all([
-        supabase
-          .from('assessments')
-          .select('id, stress_level, timestamp, emotional_state, summary, date')
-          .eq('student_id', user.id)
-          .order('timestamp', { ascending: false })
-          .limit(7),
-        supabase
-          .from('ai_insights')
-          .select('insight')
-          .eq('student_id', user.id)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('wellness_score')
-          .eq('id', user.id)
-          .maybeSingle(),
-        supabase
-          .from('appointments')
-          .select('*')
-          .eq('student_id', user.id)
-          .eq('status', APPOINTMENT_STATUS.CONFIRMED)
-          .order('date', { ascending: true }),
-      ]);
-
-      // Chart — reverse so oldest is on the left
-      const chart: ChartPoint[] = (assessments ?? [])
-        .slice()
-        .reverse()
-        .map(a => ({
-          day: a.timestamp
-            ? format(new Date(a.timestamp), 'EEE')
-            : (a.date ? format(parseISO(a.date), 'EEE') : '—'),
-          stress: a.stress_level ?? 5,
-          mood: 10 - (a.stress_level ?? 5),
-        }));
-      setChartData(chart);
-
-      // Recent sessions for the sidebar card (last 3)
-      const sessions: RecentSession[] = (assessments ?? []).slice(0, 3).map(a => ({
-        id: a.id,
-        date: a.timestamp
-          ? format(new Date(a.timestamp), 'MMM d')
-          : (a.date ?? '—'),
-        timestamp: a.timestamp,
-        stressLevel: a.stress_level,
-        emotionalState: a.emotional_state,
-        summary: a.summary,
+    const chart: ChartPoint[] = (assessments ?? [])
+      .slice()
+      .reverse()
+      .map(a => ({
+        day: a.timestamp
+          ? format(new Date(a.timestamp), 'EEE')
+          : (a.date ? format(parseISO(a.date), 'EEE') : '—'),
+        stress: a.stress_level ?? 5,
+        mood: 10 - (a.stress_level ?? 5),
       }));
-      setRecentSessions(sessions);
+    setChartData(chart);
 
-      setAiInsight(insightRow?.insight ?? null);
-      setWellnessScore(profileRow?.wellness_score ?? null);
+    const sessions: RecentSession[] = (assessments ?? []).slice(0, 3).map(a => ({
+      id: a.id,
+      date: a.timestamp
+        ? format(new Date(a.timestamp), 'MMM d')
+        : (a.date ?? '—'),
+      timestamp: a.timestamp,
+      stressLevel: a.stress_level,
+      emotionalState: a.emotional_state,
+      summary: a.summary,
+    }));
+    setRecentSessions(sessions);
 
-      // Next upcoming confirmed appointment
-      const upcoming = (appointments ?? []).find(a => isAfter(parseISO(a.date), new Date()));
-      setNextAppointment(upcoming ?? null);
+    setAiInsight(insightRow?.insight ?? null);
+    setWellnessScore(profileRow?.wellness_score ?? null);
 
-      setIsLoading(false);
-    };
+    const upcoming = (appointments ?? []).find(a => isAfter(parseISO(a.date), new Date()));
+    setNextAppointment(upcoming ?? null);
 
-    load();
+    setIsLoading(false);
   }, [user]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  useLiveSync(() => {
+    loadDashboardData();
+  });
 
   // Computed stats from real chart data
   const avgMood = chartData.length

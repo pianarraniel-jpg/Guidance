@@ -21,24 +21,28 @@ import {
 } from 'lucide-react';
 import { format, isThisWeek } from 'date-fns';
 import Link from 'next/link';
+import { useLiveSync } from '@/hooks/useLiveSync';
 
 export default function CounselorDashboard() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
   
-  useEffect(() => {
-    const loadData = async () => {
-      const [allApts, allAssessments] = await Promise.all([
-        storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
-        storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
-      ]);
-      setAppointments(allApts);
-      setAssessments(allAssessments);
-    };
-    loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
+  const loadData = React.useCallback(async () => {
+    const [allApts, allAssessments] = await Promise.all([
+      storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
+      storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
+    ]);
+    setAppointments(allApts);
+    setAssessments(allAssessments);
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useLiveSync(() => {
+    loadData();
+  });
 
   const todaySessions = appointments.filter(a => a.date === format(new Date(), 'yyyy-MM-dd'));
   const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;

@@ -28,64 +28,83 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function fetchProfile(userId: string): Promise<User | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, email, role, student_id')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return {
-    id: data.id,
-    name: data.name,
-    email: data.email,
-    role: data.role as UserRole,
-    studentId: data.student_id ?? undefined,
-  };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, email, role, student_id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error || !data) {
+      if (error?.message?.includes('JWT') || error?.message?.includes('token') || error?.code === 'PGRST301') {
+        // Corrupted or expired auth token detected: force clean session reset
+        await supabase.auth.signOut();
+        if (typeof window !== 'undefined') localStorage.clear();
+      }
+      return null;
+    }
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      role: data.role as UserRole,
+      studentId: data.student_id ?? undefined,
+    };
+  } catch (err) {
+    return null;
+  }
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const loginInProgress = useRef(false);
 
   useEffect(() => {
+    let isMounted = true;
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
-        setUser(profile);
+        if (isMounted) {
+          setUser(profile);
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (loginInProgress.current) return;
+      if (!isMounted) return;
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
-        setUser(profile);
+        if (isMounted && profile) {
+          setUser(profile);
+        }
       } else {
-        setUser(null);
+        if (isMounted) setUser(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    loginInProgress.current = true;
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error || !data.user) return false;
       const profile = await fetchProfile(data.user.id);
       if (profile) { setUser(profile); return true; }
       return false;
-    } finally {
-      loginInProgress.current = false;
+    } catch {
+      return false;
     }
   };
 
   const loginWithId = async (studentId: string): Promise<boolean> => {
-    loginInProgress.current = true;
     try {
       const res = await fetch('/api/auth/student-login', {
         method: 'POST',
@@ -105,13 +124,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } catch {
       return false;
-    } finally {
-      loginInProgress.current = false;
     }
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
+    if (typeof window !== 'undefined') localStorage.clear();
     setUser(null);
     router.push('/login');
   };

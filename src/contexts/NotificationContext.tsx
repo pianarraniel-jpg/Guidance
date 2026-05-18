@@ -27,6 +27,7 @@ interface NotificationContextType {
   markAllAsRead: () => void;
   clearNotifications: () => void;
   refreshNotifications: () => void;
+  lastUpdate: number;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -35,9 +36,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user, isCounselor, isStudent } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const shownBrowserIds = useRef<Set<string>>(new Set());
-  // Stable ref so the realtime channel callback always calls the latest version
-  const refreshRef = useRef<() => void>(() => {});
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showBrowserNotification = useCallback((title: string, body: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -55,49 +56,43 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setReadIds(new Set((data ?? []).map((r: any) => r.notification_id)));
   }, [user]);
 
-  const refreshNotifications = useCallback(async () => {
+  const fetchNotificationsData = useCallback(async () => {
     if (!user) { setNotifications([]); return; }
 
     const alerts: AppNotification[] = [];
     const readSet = readIds;
-    const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
 
     if (isCounselor) {
-      const appointments = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      appointments
-        .filter(a => a.status === APPOINTMENT_STATUS.PENDING)
-        .forEach(a => {
-          const id = `apt-${a.id}`;
-          alerts.push({
-            id, type: 'appointment',
-            title: 'New Booking Request',
-            description: `${a.studentName} requested a session for ${a.date}`,
-            timestamp: new Date(a.createdAt || Date.now()).getTime(),
-            link: '/counselor/appointments',
-            studentName: a.studentName,
-            isRead: readSet.has(id),
-          });
+      const appointments = await storageService.getCounselorPendingAppointments();
+      appointments.forEach(a => {
+        const id = `apt-${a.id}`;
+        alerts.push({
+          id, type: 'appointment',
+          title: 'New Booking Request',
+          description: `${a.studentName} requested a session for ${a.date}`,
+          timestamp: new Date(a.createdAt || Date.now()).getTime(),
+          link: '/counselor/appointments',
+          studentName: a.studentName,
+          isRead: readSet.has(id),
         });
+      });
 
-      const assessments = await storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
-      assessments
-        .filter(a => a.status === 'submitted')
-        .forEach(a => {
-          const id = `asmt-${a.id}`;
-          alerts.push({
-            id, type: 'assessment',
-            title: 'Assessment Submitted',
-            description: `${a.studentName} completed a clinical form`,
-            timestamp: a.timestamp || Date.now(),
-            link: '/counselor/assessments',
-            studentName: a.studentName,
-            isRead: readSet.has(id),
-          });
+      const assessments = await storageService.getSubmittedAssessments();
+      assessments.forEach(a => {
+        const id = `asmt-${a.id}`;
+        alerts.push({
+          id, type: 'assessment',
+          title: 'Assessment Submitted',
+          description: `${a.studentName || 'A student'} completed a clinical form`,
+          timestamp: a.timestamp || Date.now(),
+          link: '/counselor/assessments',
+          studentName: a.studentName || 'Student',
+          isRead: readSet.has(id),
         });
+      });
 
-      const messages = await storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
-      const counselorReceived = messages.filter(m => m.receiverId === user.id);
-      const groupedBySender = counselorReceived.reduce((acc, m) => {
+      const messages = await storageService.getUserMessages(user.id);
+      const groupedBySender = messages.reduce((acc, m) => {
         if (!acc[m.senderId]) acc[m.senderId] = [];
         acc[m.senderId].push(m);
         return acc;
@@ -110,15 +105,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
         const isGroupRead = readSet.has(groupId);
         if (unreadInGroup.length > 0 || isGroupRead) {
-          const sender = allUsers.find((u: any) => u.id === senderId);
-          const name = sender?.name || 'Student';
           alerts.push({
             id: groupId, type: 'message',
-            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages from ${name}` : `New Message from ${name}`,
-            description: lastMsg.text.startsWith('[BOOKING_REQUEST]') ? 'Sent session invitation' : lastMsg.text,
-            timestamp: lastMsg.timestamp,
+            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
+            description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Sent session invitation' : (lastMsg.text || 'Message received'),
+            timestamp: lastMsg.timestamp || Date.now(),
             link: '/counselor/messages',
-            studentName: name,
+            studentName: 'Student',
             isRead: isGroupRead,
           });
         }
@@ -172,9 +165,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
         });
 
-      const messages = await storageService.getAll<any>(STORAGE_KEYS.MESSAGES);
-      const studentReceived = messages.filter(m => m.receiverId === user.id);
-      const groupedBySender = studentReceived.reduce((acc, m) => {
+      const messages = await storageService.getUserMessages(user.id);
+      const groupedBySender = messages.reduce((acc, m) => {
         if (!acc[m.senderId]) acc[m.senderId] = [];
         acc[m.senderId].push(m);
         return acc;
@@ -187,15 +179,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
         const isGroupRead = readSet.has(groupId);
         if (unreadInGroup.length > 0 || isGroupRead) {
-          const sender = allUsers.find((u: any) => u.id === senderId);
-          const name = sender?.name || 'Counselor';
           alerts.push({
             id: groupId, type: 'message',
-            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages from ${name}` : `New Message from ${name}`,
-            description: lastMsg.text.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : lastMsg.text,
-            timestamp: lastMsg.timestamp,
+            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
+            description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : (lastMsg.text || 'Message received'),
+            timestamp: lastMsg.timestamp || Date.now(),
             link: '/student/messages',
-            studentName: name,
+            studentName: 'Counselor',
             isRead: isGroupRead,
           });
         }
@@ -204,7 +194,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const sorted = alerts.sort((a, b) => b.timestamp - a.timestamp);
 
-    // Fire browser push notifications only for newly seen unread items
     sorted
       .filter(n => !n.isRead && !shownBrowserIds.current.has(n.id))
       .forEach(n => {
@@ -215,42 +204,49 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications(sorted);
   }, [isCounselor, isStudent, user, readIds, showBrowserNotification]);
 
-  // Keep refreshRef current so the realtime channel can always call the latest version
-  useEffect(() => { refreshRef.current = refreshNotifications; }, [refreshNotifications]);
+  const refreshNotifications = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchNotificationsData();
+    }, 400);
+  }, [fetchNotificationsData]);
+
+  const handleRealtimeUpdate = useCallback(() => {
+    setLastUpdate(Date.now());
+    refreshNotifications();
+  }, [refreshNotifications]);
 
   useEffect(() => { loadReadIds(); }, [loadReadIds]);
 
-  // Request browser notification permission once on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // Realtime subscriptions — channel is tied to user identity only, not readIds
   useEffect(() => {
     if (!user) return;
 
-    refreshRef.current();
+    fetchNotificationsData();
 
     const channel = supabase.channel(`notif-${user.id}`);
 
     if (isStudent) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, () => refreshRef.current())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => refreshRef.current())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, () => refreshRef.current())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, () => refreshRef.current());
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate);
     } else if (isCounselor) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => refreshRef.current())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => refreshRef.current())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => refreshRef.current());
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, handleRealtimeUpdate);
     }
 
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, isStudent, isCounselor]);
+  }, [user, isStudent, isCounselor, fetchNotificationsData, handleRealtimeUpdate]);
 
   const persistReadIds = useCallback(async (ids: string[]) => {
     if (!user || ids.length === 0) return;
@@ -277,6 +273,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       markAllAsRead,
       clearNotifications,
       refreshNotifications,
+      lastUpdate,
     }}>
       {children}
     </NotificationContext.Provider>

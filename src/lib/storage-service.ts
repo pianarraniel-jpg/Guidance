@@ -57,4 +57,34 @@ export const storageService = {
     if (error) { console.error(`storageService.getByField(${table}):`, error.message); return []; }
     return (data ?? []).map(row => toCamelCase<T>(row));
   },
+
+  // Optimized targeted queries to prevent memory/storage overload
+  getCounselorPendingAppointments: async () => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('status', 'pending');
+    if (error) { console.error('getCounselorPendingAppointments:', error.message); return []; }
+    return (data ?? []).map(row => toCamelCase<any>(row));
+  },
+
+  getSubmittedAssessments: async () => {
+    const { data, error } = await supabase
+      .from('assessments')
+      .select('*')
+      .eq('status', 'submitted');
+    if (error) { console.error('getSubmittedAssessments:', error.message); return []; }
+    return (data ?? []).map(row => toCamelCase<any>(row));
+  },
+
+  getUserMessages: async (userId: string) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('receiver_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(100);
+    if (error) { console.error('getUserMessages:', error.message); return []; }
+    return (data ?? []).map(row => toCamelCase<any>(row));
+  },
 };
