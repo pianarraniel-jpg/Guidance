@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  ShieldCheck, 
+import {
+  ShieldCheck,
   ChevronLeft,
   Briefcase,
   Play
@@ -17,16 +18,16 @@ export default function CounselorLoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
+  const router = useRouter();
 
   const handleQuickEntry = async () => {
     setError('');
     setIsSubmitting(true);
 
     try {
-      // Hardcoded unified counselor credentials
       const success = await login('counselor@uspf.edu.ph', 'password123');
       if (success) {
-        window.location.href = '/counselor/dashboard';
+        router.push('/counselor/dashboard');
       } else {
         setError('Staff portal configuration error. Please contact IT.');
       }
@@ -55,13 +56,13 @@ export default function CounselorLoginPage() {
 
         <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="p-8 pb-0 text-center">
-             <div className="flex items-center justify-center gap-3 mb-2">
-                <Briefcase className="h-4 w-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary">University Access Terminal</span>
-             </div>
-             <CardTitle className="text-xl font-black">USPF Counselor Login</CardTitle>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary">University Access Terminal</span>
+            </div>
+            <CardTitle className="text-xl font-black">USPF Counselor Login</CardTitle>
           </CardHeader>
-          
+
           <CardContent className="p-8 space-y-6">
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-2">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Identity</p>
@@ -75,20 +76,20 @@ export default function CounselorLoginPage() {
               </Alert>
             )}
 
-            <Button 
+            <Button
               onClick={handleQuickEntry}
-              className="w-full h-20 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group" 
+              className="w-full h-20 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group"
               disabled={isSubmitting}
             >
               <div className="flex items-center gap-2">
                 <Play className="h-5 w-5 fill-current" />
-                <span className="text-lg">Launch Staff Dashboard</span>
+                <span className="text-lg">{isSubmitting ? 'Launching...' : 'Launch Staff Dashboard'}</span>
               </div>
               <span className="text-[10px] opacity-70 group-hover:opacity-100 uppercase tracking-widest">Enter Guidance Workspace</span>
             </Button>
 
             <div className="pt-6 border-t border-slate-50 text-center">
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Terminal ID: GS-ADMIN-01</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Terminal ID: GS-ADMIN-01</p>
             </div>
           </CardContent>
         </Card>

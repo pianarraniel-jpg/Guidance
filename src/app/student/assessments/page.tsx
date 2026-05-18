@@ -7,50 +7,39 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Send,
-  ShieldCheck,
-  Zap,
-  Activity,
-  Meh,
-  Smile,
-  ChevronRight,
-  Brain,
-  CheckCircle2,
-  ClipboardList,
-  MessageSquare,
-  Sparkles,
-  ArrowRight,
-  Clock,
-  Target,
-  FileText,
-  User,
-  Star
+import {
+  Send, ShieldCheck, Zap, Activity, Meh, Smile,
+  ArrowRight, Clock, FileText, User, CheckCircle2,
+  ClipboardList, MessageSquare
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
+import { generateAiInsights } from '@/ai/flows/generate-ai-insights';
+import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isAfter, parseISO } from 'date-fns';
 
 type Message = {
   role: 'user' | 'model';
   text: string;
   time: string;
+};
+
+type SystemContext = {
+  studentName: string;
+  counselorName?: string;
+  upcomingAppointment?: { date: string; time: string; type: string };
 };
 
 export default function StudentAssessments() {
@@ -59,57 +48,60 @@ export default function StudentAssessments() {
   const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
-  
-  // Chatbot State
+  const sessionIdRef = useRef<string | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [systemContext, setSystemContext] = useState<SystemContext | null>(null);
 
-  // Assessment Tasks State
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTask, setActiveTask] = useState<any>(null);
   const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
 
-  const loadTasks = () => {
+  const loadTasks = async () => {
     if (user) {
-      const allTasks = storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
+      const allTasks = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
     }
   };
 
   useEffect(() => {
-    // Initialize welcome message
-    setMessages([
-      {
-        role: 'model',
-        text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+    if (!user) return;
 
-    loadTasks();
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.ASSESSMENT_TASKS) loadTasks();
+    // Build system context from real data
+    const loadContext = async () => {
+      const apts = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
+      const next = apts
+        .filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), new Date()))
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+      setSystemContext({
+        studentName: user.name,
+        counselorName: next?.counselorName,
+        upcomingAppointment: next ? { date: next.date, time: next.time, type: next.type } : undefined,
+      });
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+
+    setMessages([{
+      role: 'model',
+      text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+
+    loadContext();
+    loadTasks();
   }, [user, firstName]);
 
-  // AUTOMATIC READ: Clear assessment notifications when viewing this portal
   useEffect(() => {
-    const unreadAsmts = notifications.filter(n => n.type === 'assessment' && !n.isRead);
-    if (unreadAsmts.length > 0) {
-      unreadAsmts.forEach(n => markAsRead(n.id));
-    }
+    const unread = notifications.filter(n => n.type === 'assessment' && !n.isRead);
+    if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
   }, [notifications, markAsRead]);
 
-  // Reliable Auto-scroll
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
   const handleSendMessage = async (text: string) => {
@@ -117,10 +109,32 @@ export default function StudentAssessments() {
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newUserMessage: Message = { role: 'user', text, time: currentTime };
-    
+
     setMessages(prev => [...prev, newUserMessage]);
     setInputValue('');
     setIsLoading(true);
+
+    // Create session on first user message
+    if (!sessionIdRef.current && user) {
+      try {
+        const session = await storageService.create<{ id: string; studentId: string }>(
+          STORAGE_KEYS.AI_CHAT_SESSIONS,
+          { studentId: user.id }
+        );
+        sessionIdRef.current = session.id;
+      } catch (e) {
+        console.error('Failed to create chat session:', e);
+      }
+    }
+
+    // Persist user message
+    if (sessionIdRef.current) {
+      storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
+        sessionId: sessionIdRef.current,
+        role: 'user',
+        content: text,
+      }).catch(console.error);
+    }
 
     try {
       const history = messages.map(m => ({
@@ -130,7 +144,8 @@ export default function StudentAssessments() {
 
       const result = await studentStressAssessment({
         currentMessage: text,
-        history
+        history,
+        systemContext: systemContext ?? { studentName: firstName },
       });
 
       const botResponse: Message = {
@@ -141,26 +156,99 @@ export default function StudentAssessments() {
 
       setMessages(prev => [...prev, botResponse]);
 
+      if (sessionIdRef.current) {
+        storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
+          sessionId: sessionIdRef.current,
+          role: 'assistant',
+          content: result.response,
+        }).catch(console.error);
+      }
+
       if (result.assessmentComplete && result.assessmentSummary) {
         setIsComplete(true);
-        
-        const transcript = [...messages, newUserMessage, botResponse].map(m => m.text).join(' ');
-        const focusAreas = [];
-        if (transcript.toLowerCase().includes('academic')) focusAreas.push('Academic');
-        if (transcript.toLowerCase().includes('family')) focusAreas.push('Personal');
-        if (transcript.toLowerCase().includes('social')) focusAreas.push('Social');
+
+        const allMsgs = [...messages, newUserMessage, botResponse];
+        const transcript = allMsgs.map(m => `${m.role === 'user' ? 'Student' : 'Guidi'}: ${m.text}`).join('\n');
+
+        const focusAreas: string[] = [];
+        const tLow = transcript.toLowerCase();
+        if (tLow.includes('academic') || tLow.includes('study') || tLow.includes('exam')) focusAreas.push('Academic');
+        if (tLow.includes('family') || tLow.includes('parent') || tLow.includes('home')) focusAreas.push('Personal');
+        if (tLow.includes('social') || tLow.includes('friend') || tLow.includes('relationship')) focusAreas.push('Social');
+        if (tLow.includes('sleep') || tLow.includes('tired') || tLow.includes('energy')) focusAreas.push('Physical');
         if (focusAreas.length === 0) focusAreas.push('General Wellness');
 
-        storageService.create(STORAGE_KEYS.ASSESSMENTS, {
+        const stressLevel = Math.floor(Math.random() * (90 - 40 + 1)) + 40;
+
+        // Get deeper analysis via summarization
+        let mainConcerns: string[] = [];
+        let emotionalState = '';
+        try {
+          const analysis = await summarizeAssessmentConversation({ assessmentConversation: transcript });
+          mainConcerns = analysis.mainConcerns;
+          emotionalState = analysis.emotionalState;
+        } catch (e) {
+          console.error('Analysis error:', e);
+        }
+
+        await storageService.create(STORAGE_KEYS.ASSESSMENTS, {
           studentId: user?.id,
           studentName: user?.name,
           date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
           summary: result.assessmentSummary,
-          stressLevel: Math.floor(Math.random() * (90 - 40 + 1)) + 40,
-          focusAreas: focusAreas,
+          stressLevel,
+          focusAreas,
+          mainConcerns,
+          emotionalState,
           timestamp: Date.now(),
           type: 'AI_CHAT'
         });
+
+        // Update session with completion data
+        if (sessionIdRef.current) {
+          storageService.update(STORAGE_KEYS.AI_CHAT_SESSIONS, sessionIdRef.current, {
+            summary: result.assessmentSummary,
+            stressLevel,
+            focusAreas,
+            completedAt: new Date().toISOString(),
+          }).catch(console.error);
+        }
+
+        // Update student profile analytics
+        if (user) {
+          supabase.from('profiles').update({
+            latest_stress_level: stressLevel,
+            last_assessment_at: new Date().toISOString(),
+            wellness_score: Math.round(100 - stressLevel),
+          }).eq('id', user.id).then(() => {});
+        }
+
+        // Generate and cache AI insights
+        if (user) {
+          try {
+            const allAssessments = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);
+            allAssessments.sort((a: any, b: any) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+            const recent5 = allAssessments.slice(0, 5);
+
+            const insightResult = await generateAiInsights({
+              studentName: user.name,
+              recentAssessments: recent5.map((a: any) => ({
+                date: a.date ?? '',
+                summary: a.summary ?? '',
+                stressLevel: a.stressLevel ?? 50,
+                focusAreas: a.focusAreas ?? [],
+              })),
+            });
+
+            await supabase.from('ai_insights').upsert({
+              student_id: user.id,
+              insight: insightResult.insight,
+              created_at: new Date().toISOString(),
+            }, { onConflict: 'student_id' });
+          } catch (e) {
+            console.error('Failed to generate AI insights:', e);
+          }
+        }
 
         toast({
           title: "Assessment Complete",
@@ -186,12 +274,12 @@ export default function StudentAssessments() {
     markAsRead(`asmt-eval-${task.id}`);
   };
 
-  const handleSubmitTask = () => {
+  const handleSubmitTask = async () => {
     if (!activeTask || !user) return;
 
     const questions = activeTask.questions || ['Please describe your current stress level.'];
-    const unanswered = questions.some((_, i: number) => !taskAnswers[i]);
-    
+    const unanswered = questions.some((_: string, i: number) => !taskAnswers[i]);
+
     if (unanswered) {
       toast({
         variant: "destructive",
@@ -202,14 +290,14 @@ export default function StudentAssessments() {
     }
 
     const submissionDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    
-    storageService.create(STORAGE_KEYS.ASSESSMENTS, {
+
+    await storageService.create(STORAGE_KEYS.ASSESSMENTS, {
       studentId: user.id,
       studentName: user.name,
       date: submissionDate,
       summary: `Clinical Response to: ${activeTask.title}`,
       answers: taskAnswers,
-      questions: questions,
+      questions,
       stressLevel: 50,
       focusAreas: ['Clinical Assignment'],
       timestamp: Date.now(),
@@ -218,10 +306,15 @@ export default function StudentAssessments() {
       status: 'submitted'
     });
 
-    storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, activeTask.id, { 
+    await storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, activeTask.id, {
       status: 'submitted',
       lastUpdate: Date.now()
     });
+
+    // Update profile last assessment timestamp
+    supabase.from('profiles').update({
+      last_assessment_at: new Date().toISOString(),
+    }).eq('id', user.id).then(() => {});
 
     toast({
       title: "Task Submitted",
@@ -277,10 +370,16 @@ export default function StudentAssessments() {
                     </Avatar>
                     <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"></span>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h4 className="font-black text-slate-900 text-lg">Guidi</h4>
                     <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
                   </div>
+                  {systemContext?.upcomingAppointment && (
+                    <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50 px-3 py-2 rounded-xl">
+                      <Clock className="h-3 w-3" />
+                      Next session: {systemContext.upcomingAppointment.date} at {systemContext.upcomingAppointment.time}
+                    </div>
+                  )}
                 </div>
 
                 <ScrollArea className="flex-1 p-4 md:p-8 bg-slate-50/10">
@@ -294,8 +393,8 @@ export default function StudentAssessments() {
                         )}
                         <div className={`max-w-[85%] md:max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                           <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
-                            msg.role === 'user' 
-                              ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                            msg.role === 'user'
+                              ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                               : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
                           }`}>
                             {msg.text}
@@ -319,7 +418,7 @@ export default function StudentAssessments() {
                     {isComplete && (
                       <div className="flex flex-col items-center py-16 space-y-6 bg-emerald-50/30 rounded-[3rem] border border-emerald-100 mt-10">
                         <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
-                           <CheckCircle2 className="h-10 w-10" />
+                          <CheckCircle2 className="h-10 w-10" />
                         </div>
                         <div className="text-center">
                           <h4 className="font-black text-2xl text-slate-900">Weekly Kamustahan Complete</h4>
@@ -354,16 +453,14 @@ export default function StudentAssessments() {
                           ))}
                         </div>
                       )}
-                      
                       {isLoading && (
                         <div className="pb-6 px-4">
                           <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Guidi is analyzing your response...</p>
                         </div>
                       )}
-
                       <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-5">
-                        <Input 
-                          placeholder="Type your wellness response..." 
+                        <Input
+                          placeholder="Type your wellness response..."
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
                           className="h-14 md:h-16 bg-slate-50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl pl-6 md:pl-8 pr-6 md:pr-8 text-base font-medium"
@@ -399,9 +496,7 @@ export default function StudentAssessments() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="p-8 pt-0 flex-1 flex flex-col">
-                      <p className="text-sm text-slate-500 font-medium mb-8 leading-relaxed">
-                        {task.description}
-                      </p>
+                      <p className="text-sm text-slate-500 font-medium mb-8 leading-relaxed">{task.description}</p>
                       <div className="mt-auto space-y-4">
                         <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                           <Clock className="h-3 w-3" /> Assigned: {task.date}
@@ -443,7 +538,6 @@ export default function StudentAssessments() {
             </TabsContent>
           </Tabs>
 
-          {/* Clinical Task Form Dialog */}
           <Dialog open={!!activeTask} onOpenChange={(open) => !open && setActiveTask(null)}>
             <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
               <DialogHeader className="p-8 bg-slate-50 border-b">
@@ -461,7 +555,6 @@ export default function StudentAssessments() {
                 <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100/50 text-xs font-medium text-blue-700 leading-relaxed italic">
                   "{activeTask?.description}"
                 </div>
-
                 <div className="space-y-8">
                   {(activeTask?.questions || ['Please describe your current state.']).map((q: string, i: number) => (
                     <div key={i} className="space-y-3">
@@ -469,7 +562,7 @@ export default function StudentAssessments() {
                         <span className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px]">{i + 1}</span>
                         {q}
                       </Label>
-                      <Textarea 
+                      <Textarea
                         placeholder="Your clinical response..."
                         className="min-h-[120px] rounded-2xl bg-slate-50 border-none p-4 text-sm font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
                         value={taskAnswers[i] || ''}

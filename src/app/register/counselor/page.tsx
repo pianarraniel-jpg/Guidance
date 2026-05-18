@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS, USER_ROLES } from '@/lib/constants';
+import { USER_ROLES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,42 +49,39 @@ export default function CounselorRegisterPage() {
       return;
     }
 
-    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
-    
-    // Check if email or staffId already exists
-    const emailExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
-    const idExists = allUsers.some(u => u.staffId === staffId || u.studentId === staffId);
-
-    if (emailExists) {
-      setError('This email is already registered. Please sign in instead.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (idExists) {
-      setError('This Staff ID is already registered in our system.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const newCounselor = {
-      name,
-      email,
-      staffId,
-      password,
-      role: USER_ROLES.COUNSELOR,
-      createdAt: new Date().toISOString()
-    };
-
     try {
-      storageService.create(STORAGE_KEYS.USERS, newCounselor);
-      
+      const { supabase } = await import('@/lib/supabase');
+
+      // Check for duplicate staff_id in profiles
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('staff_id', staffId)
+        .maybeSingle();
+      if (existing) {
+        setError('This Staff ID is already registered in our system.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Create auth user
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError || !data.user) {
+        setError(signUpError?.message || 'Registration failed. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Update the auto-created profile with role + identifiers
+      await supabase
+        .from('profiles')
+        .update({ name, role: USER_ROLES.COUNSELOR, staff_id: staffId })
+        .eq('id', data.user.id);
+
       toast({
         title: "Registration Successful",
         description: `Welcome to the team, Dr. ${name.split(' ').pop()}! Redirecting to login...`,
       });
-
-      // Redirect to login after a short delay
       setTimeout(() => router.push('/login/counselor'), 2000);
     } catch (err) {
       setError('An error occurred while creating your account. Please try again.');

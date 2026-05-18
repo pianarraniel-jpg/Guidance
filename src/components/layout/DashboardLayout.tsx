@@ -5,13 +5,14 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  ClipboardCheck, 
-  MessageSquare, 
-  FileText, 
-  HelpCircle, 
+import {
+  LayoutDashboard,
+  Calendar,
+  CalendarPlus,
+  ClipboardCheck,
+  MessageSquare,
+  FileText,
+  HelpCircle,
   LogOut,
   Settings,
   Sparkles,
@@ -38,6 +39,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       return [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/student/dashboard' },
         { icon: Calendar, label: 'Appointments', href: '/student/appointments', type: 'appointment' },
+        { icon: CalendarPlus, label: 'Book Session', href: '/student/book' },
         { icon: ClipboardCheck, label: 'Assessments', href: '/student/assessments', type: 'assessment' },
         { icon: MessageSquare, label: 'Messages', href: '/student/messages', type: 'message' },
         { icon: FileText, label: 'Resources', href: '/student/resources' },
@@ -46,6 +48,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (isCounselor) {
       return [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
+        { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
         { icon: Users, label: 'Students', href: '/counselor/students' },
         { icon: ClipboardCheck, label: 'Session Notes', href: '/counselor/session-notes' },
       ];
@@ -84,14 +87,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {sidebarItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             const unreadCount = getUnreadCount((item as any).type);
-            
+
             return (
-              <Link 
-                key={item.label} 
+              <Link
+                key={item.label}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all relative group ${
-                  isActive 
-                    ? 'bg-primary text-white shadow-md' 
+                  isActive
+                    ? 'bg-primary text-white shadow-md'
                     : 'text-muted-foreground hover:bg-muted hover:text-primary'
                 }`}
               >
@@ -123,7 +126,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <HelpCircle className="h-5 w-5" />
               Help Center
             </button>
-            <button 
+            <button
               onClick={logout}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all text-left"
             >
@@ -139,10 +142,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Header */}
         <header className="h-16 bg-white border-b px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
           <div className="flex items-center gap-4">
-             <h1 className="lg:hidden font-bold text-primary">GuidanceSync</h1>
-             <h2 className="hidden lg:block text-lg font-bold text-[#1E293B]">
-               {sidebarItems.find(i => pathname.startsWith(i.href))?.label || 'Dashboard'}
-             </h2>
+            <h1 className="lg:hidden font-bold text-primary">GuidanceSync</h1>
+            <h2 className="hidden lg:block text-lg font-bold text-[#1E293B]">
+              {sidebarItems.find(i => pathname.startsWith(i.href))?.label || 'Dashboard'}
+            </h2>
           </div>
 
           <div className="flex items-center gap-3">

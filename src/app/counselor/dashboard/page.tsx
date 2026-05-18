@@ -27,15 +27,17 @@ export default function CounselorDashboard() {
   const [assessments, setAssessments] = useState<any[]>([]);
   
   useEffect(() => {
-    const loadData = () => {
-      const allApts = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      const allAssessments = storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS);
+    const loadData = async () => {
+      const [allApts, allAssessments] = await Promise.all([
+        storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
+        storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
+      ]);
       setAppointments(allApts);
       setAssessments(allAssessments);
     };
     loadData();
-    window.addEventListener('storage', loadData);
-    return () => window.removeEventListener('storage', loadData);
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const todaySessions = appointments.filter(a => a.date === format(new Date(), 'yyyy-MM-dd'));

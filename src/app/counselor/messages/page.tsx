@@ -52,40 +52,32 @@ export default function CounselorMessagesPage() {
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
 
-    const readIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-    const readSet = new Set(readIds);
+    const { data: readData } = await (await import('@/lib/supabase')).supabase
+      .from('notifications_read')
+      .select('notification_id')
+      .eq('user_id', user.id);
+    const readSet = new Set((readData ?? []).map((r: any) => r.notification_id));
 
-    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    const [allUsers, allMessages] = await Promise.all([
+      storageService.getAll<any>(STORAGE_KEYS.USERS),
+      storageService.getAll<Message>(STORAGE_KEYS.MESSAGES),
+    ]);
     const students = allUsers.filter(u => u.role === 'student');
-    const allMessages = storageService.getAll<Message>(STORAGE_KEYS.MESSAGES);
 
     const studentsWithMetadata = students.map(student => {
-      const studentMessages = allMessages.filter(m => 
+      const studentMessages = allMessages.filter(m =>
         (m.senderId === user.id && m.receiverId === student.id) ||
         (m.senderId === student.id && m.receiverId === user.id)
       ).sort((a, b) => b.timestamp - a.timestamp);
-      
       const lastMsg = studentMessages[0];
-      const isUnread = lastMsg && 
-                       lastMsg.senderId === student.id && 
-                       !readSet.has(`msg-${lastMsg.id}`);
-
-      return {
-        ...student,
-        lastMessage: lastMsg,
-        isUnread
-      };
+      const isUnread = lastMsg && lastMsg.senderId === student.id && !readSet.has(`msg-${lastMsg.id}`);
+      return { ...student, lastMessage: lastMsg, isUnread };
     });
 
-    studentsWithMetadata.sort((a, b) => {
-      const timeA = a.lastMessage?.timestamp || 0;
-      const timeB = b.lastMessage?.timestamp || 0;
-      return timeB - timeA;
-    });
-
+    studentsWithMetadata.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
     setContacts(studentsWithMetadata);
 
     if (!activeStudent && studentsWithMetadata.length > 0) {
@@ -93,12 +85,11 @@ export default function CounselorMessagesPage() {
     }
 
     if (activeStudent) {
-      const filtered = allMessages.filter(m => 
+      const filtered = allMessages.filter(m =>
         (m.senderId === user.id && m.receiverId === activeStudent.id) ||
         (m.senderId === activeStudent.id && m.receiverId === user.id)
       ).sort((a, b) => a.timestamp - b.timestamp);
       setMessages(filtered);
-      
       const currentActive = studentsWithMetadata.find(s => s.id === activeStudent.id);
       if (currentActive && currentActive.lastMessage?.id !== activeStudent.lastMessage?.id) {
         setActiveStudent(currentActive);
@@ -108,13 +99,8 @@ export default function CounselorMessagesPage() {
 
   useEffect(() => {
     loadData();
-    const handleStorage = (e: StorageEvent) => {
-      if ([STORAGE_KEYS.MESSAGES, STORAGE_KEYS.USERS, STORAGE_KEYS.NOTIFICATIONS_READ].includes(e.key as any)) {
-        loadData();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    const interval = setInterval(loadData, 3000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   // Mark active chat as read - SEEN Logic
@@ -123,27 +109,14 @@ export default function CounselorMessagesPage() {
       const incomingFromActive = messages
         .filter(m => m.senderId === activeStudent.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
-      
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
-        const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-        
-        const idsToMark = [];
-        // Mark all incoming messages read
-        incomingFromActive.forEach(m => {
-          if (!currentReadIds.includes(`msg-${m.id}`)) idsToMark.push(`msg-${m.id}`);
-        });
-        // Mark grouped bell notification read
-        const groupId = `group-msg-${activeStudent.id}-${latestIncoming.id}`;
-        if (!currentReadIds.includes(groupId)) idsToMark.push(groupId);
-
-        if (idsToMark.length > 0) {
-          markIdsAsRead(idsToMark);
-          loadData();
-        }
+        const idsToMark = incomingFromActive.map(m => `msg-${m.id}`);
+        idsToMark.push(`group-msg-${activeStudent.id}-${latestIncoming.id}`);
+        markIdsAsRead(idsToMark);
       }
     }
-  }, [activeStudent?.id, messages, markIdsAsRead, user?.id, loadData]);
+  }, [activeStudent?.id, messages, markIdsAsRead, user?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -155,10 +128,9 @@ export default function CounselorMessagesPage() {
     setActiveStudent(student);
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() || !user || !activeStudent) return;
-
     const newMessage: Omit<Message, 'id'> = {
       senderId: user.id,
       receiverId: activeStudent.id,
@@ -167,15 +139,13 @@ export default function CounselorMessagesPage() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now()
     };
-
-    storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
+    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
     loadData();
   };
 
-  const handleSendBookingForm = () => {
+  const handleSendBookingForm = async () => {
     if (!user || !activeStudent) return;
-    
     const newMessage: Omit<Message, 'id'> = {
       senderId: user.id,
       receiverId: activeStudent.id,
@@ -184,13 +154,9 @@ export default function CounselorMessagesPage() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now()
     };
-
-    storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
+    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     loadData();
-    toast({
-      title: "Invitation Sent",
-      description: `A session booking request has been sent to ${activeStudent.name}.`,
-    });
+    toast({ title: "Invitation Sent", description: `A session booking request has been sent to ${activeStudent.name}.` });
   };
 
   const handleAISummarize = async () => {

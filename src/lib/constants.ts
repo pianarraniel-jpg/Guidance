@@ -15,14 +15,17 @@ export const APPOINTMENT_STATUS = {
 
 export type AppointmentStatus = typeof APPOINTMENT_STATUS[keyof typeof APPOINTMENT_STATUS];
 
+// Values are Supabase table names
 export const STORAGE_KEYS = {
-  AUTH_USER: 'guidancesync_auth_user',
-  USERS: 'guidancesync_users',
-  APPOINTMENTS: 'guidancesync_appointments',
-  ASSESSMENTS: 'guidancesync_assessments',
-  MESSAGES: 'guidancesync_messages',
-  SESSION_NOTES: 'guidancesync_session_notes',
-  AVAILABILITY: 'guidancesync_availability',
-  ASSESSMENT_TASKS: 'guidancesync_assessment_tasks',
-  NOTIFICATIONS_READ: 'guidancesync_notifications_read',
+  USERS: 'profiles',
+  APPOINTMENTS: 'appointments',
+  ASSESSMENTS: 'assessments',
+  MESSAGES: 'messages',
+  SESSION_NOTES: 'session_notes',
+  AVAILABILITY: 'availability',
+  ASSESSMENT_TASKS: 'assessment_tasks',
+  NOTIFICATIONS_READ: 'notifications_read',
+  AI_CHAT_SESSIONS: 'ai_chat_sessions',
+  AI_CHAT_MESSAGES: 'ai_chat_messages',
+  AI_INSIGHTS: 'ai_insights',
 } as const;

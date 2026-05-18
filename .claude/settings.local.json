@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\supabase\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\app\\\\api\\\\auth\\\\student-login\")",
+      "Bash(npx tsc *)",
+      "Bash(npm uninstall *)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\ai\\\\genkit.ts\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\ai\\\\dev.ts\" -Force)",
+      "Bash(Write-Host \"Deleted\")"
+    ]
+  }
+}

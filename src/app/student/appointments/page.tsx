@@ -1,286 +1,335 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { storageService } from '@/lib/storage-service';
+import { supabase } from '@/lib/supabase';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { 
-  Search, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MoreHorizontal, 
-  Filter,
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Calendar as CalendarIcon,
+  Clock,
   Plus,
   CheckCircle2,
   XCircle,
   Timer,
-  Info
+  MapPin,
+  FileText,
+  Target,
+  Radio,
+  AlertTriangle,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import Link from 'next/link';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isAfter, startOfDay } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+
+type TabKey = 'upcoming' | 'history' | 'all';
 
 export default function StudentAppointments() {
   const { user } = useAuth();
   const { notifications, markAsRead } = useNotifications();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const { toast } = useToast();
+
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<TabKey>('upcoming');
+  const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isLive, setIsLive] = useState(false);
 
-  const loadAppointments = () => {
-    if (user) {
-      const data = storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
-      data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setAppointments(data);
-    }
-  };
+  // Use a ref so the realtime callback always calls the latest version
+  const loadRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
-    loadAppointments();
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.APPOINTMENTS) {
-        loadAppointments();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+  const loadAppointments = useCallback(async () => {
+    if (!user) return;
+    const data = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
+    data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAppointments(data);
   }, [user]);
 
-  // AUTOMATIC READ: Clear appointment notifications when viewing this page
+  useEffect(() => { loadRef.current = loadAppointments; }, [loadAppointments]);
+
   useEffect(() => {
-    const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
-    if (unreadApts.length > 0) {
-      unreadApts.forEach(n => markAsRead(n.id));
-    }
+    if (!user) return;
+    loadAppointments();
+
+    const channel = supabase
+      .channel(`student-apts-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `student_id=eq.${user.id}`,
+      }, (payload) => {
+        // Flash the live indicator briefly
+        setIsLive(true);
+        setTimeout(() => setIsLive(false), 3000);
+
+        // Show toast when counselor confirms or cancels
+        const row = (payload.new ?? payload.old) as any;
+        if (payload.eventType === 'UPDATE' && row?.status === APPOINTMENT_STATUS.CONFIRMED) {
+          toast({ title: '✅ Session Confirmed!', description: `Your session on ${row.date} at ${row.time} has been accepted.` });
+        }
+        if (payload.eventType === 'UPDATE' && row?.status === 'cancelled') {
+          toast({ variant: 'destructive', title: 'Session Cancelled', description: `Your session on ${row.date} has been cancelled.` });
+        }
+
+        loadRef.current();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, loadAppointments]);
+
+  // Auto-clear appointment notifications when viewing this page
+  useEffect(() => {
+    const unread = notifications.filter(n => n.type === 'appointment' && !n.isRead);
+    if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
   }, [notifications, markAsRead]);
 
-  const filteredAppointments = appointments.filter(app => {
-    const matchesSearch = app.counselorName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         app.type?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || app.status?.toLowerCase() === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
-  });
+  const today = startOfDay(new Date());
 
-  const confirmedDates = appointments
-    .filter(app => app.status === APPOINTMENT_STATUS.CONFIRMED)
-    .map(app => parseISO(app.date));
-
-  const targetDate = new Date(2026, 4, 13);
-  const displayDates = [...confirmedDates, targetDate];
+  const filtered = (() => {
+    switch (activeTab) {
+      case 'upcoming':
+        return appointments.filter(a =>
+          (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) &&
+          isAfter(parseISO(a.date), today)
+        );
+      case 'history':
+        return appointments.filter(a =>
+          a.status === 'completed' || a.status === 'cancelled' || !isAfter(parseISO(a.date), today)
+        );
+      default:
+        return appointments;
+    }
+  })();
 
   const stats = [
-    { label: 'Total Sessions', value: appointments.length, icon: CalendarIcon, color: 'text-primary' },
-    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED).length, icon: Timer, color: 'text-blue-500' },
-    { label: 'Completed', value: appointments.filter(a => a.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500' },
-    { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length, icon: Clock, color: 'text-amber-500' },
+    { label: 'Total', value: appointments.length, color: 'text-primary', bg: 'bg-primary/5' },
+    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), today)).length, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Completed', value: appointments.filter(a => a.status === 'completed').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
+  const confirmedDates = appointments
+    .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED)
+    .map(a => { try { return parseISO(a.date); } catch { return null; } })
+    .filter(Boolean) as Date[];
+
   const getStatusBadge = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'confirmed':
-      case 'upcoming':
-        return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase tracking-wider px-3">Confirmed</Badge>;
-      case 'completed':
-        return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase tracking-wider px-3">Completed</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase tracking-wider px-3">Cancelled</Badge>;
-      case 'pending':
-        return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase tracking-wider px-3">Pending</Badge>;
-      default:
-        return <Badge variant="outline" className="text-[9px] font-black uppercase tracking-wider">{status}</Badge>;
+    switch (status) {
+      case 'confirmed': return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase px-3">Confirmed</Badge>;
+      case 'completed': return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase px-3">Completed</Badge>;
+      case 'cancelled': return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase px-3">Cancelled</Badge>;
+      case 'pending': return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase px-3">Pending Approval</Badge>;
+      default: return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
     }
   };
 
-  const handleViewInfo = (app: any) => {
-    markAsRead(`apt-status-${app.id}-confirmed`);
-    markAsRead(`apt-status-${app.id}-cancelled`);
-    markAsRead(`apt-${app.id}`);
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    try {
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, cancelTarget.id, { status: 'cancelled' });
+      toast({ title: 'Session Cancelled', description: 'Your appointment has been cancelled.' });
+      setCancelTarget(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed', description: 'Could not cancel the appointment.' });
+    } finally {
+      setIsCancelling(false);
+    }
   };
+
+  const tabs: { key: TabKey; label: string; count: number }[] = [
+    { key: 'upcoming', label: 'Upcoming', count: appointments.filter(a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && isAfter(parseISO(a.date), today)).length },
+    { key: 'history', label: 'History', count: appointments.filter(a => a.status === 'completed' || a.status === 'cancelled').length },
+    { key: 'all', label: 'All', count: appointments.length },
+  ];
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="p-8 max-w-7xl mx-auto w-full">
+
+          {/* Header */}
           <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">My Appointments</h1>
-              <p className="text-muted-foreground font-medium">Manage your wellness journey and synchronized schedules.</p>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">My Appointments</h1>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                  <Radio className={`h-3 w-3 text-emerald-500 ${isLive ? 'animate-ping' : 'animate-pulse'}`} />
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Live</span>
+                </div>
+              </div>
+              <p className="text-muted-foreground font-medium">Track and manage your wellness sessions.</p>
             </div>
-            <Button asChild className="bg-primary hover:bg-primary/90 text-white font-black rounded-2xl h-14 px-8 shadow-xl shadow-primary/20">
+            <Button asChild className="bg-primary hover:bg-primary/90 text-white font-black rounded-2xl h-12 px-8 shadow-lg shadow-primary/20">
               <Link href="/student/book" className="flex items-center gap-2">
                 <Plus className="h-5 w-5" /> Book New Session
               </Link>
             </Button>
           </header>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-            {stats.map((stat) => (
-              <Card key={stat.label} className="border-none shadow-sm bg-white rounded-2xl">
-                <CardContent className="pt-6">
-                  <div className={`p-2 w-fit rounded-lg bg-slate-50 ${stat.color} mb-3`}>
-                    <stat.icon className="h-5 w-5" />
-                  </div>
-                  <p className="text-3xl font-black text-slate-900">{stat.value}</p>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+            {stats.map(s => (
+              <Card key={s.label} className="border-none shadow-sm bg-white rounded-2xl">
+                <CardContent className="pt-5 pb-4 px-6">
+                  <p className="text-3xl font-black text-slate-900">{s.value}</p>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${s.color}`}>{s.label}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Main list */}
             <div className="lg:col-span-8">
               <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
-                <CardHeader className="p-8 border-b">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <CardTitle className="text-lg font-black flex items-center gap-2">
-                      <Filter className="h-5 w-5 text-primary" /> Session Records
-                    </CardTitle>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input 
-                          placeholder="Search counselor..." 
-                          className="pl-10 w-full sm:w-[220px] h-11 bg-slate-50 border-none rounded-xl text-xs font-bold"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-[130px] h-11 bg-slate-50 border-none rounded-xl text-xs font-bold">
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader className="bg-slate-50/50">
-                      <TableRow className="border-b border-slate-100 h-14">
-                        <TableHead className="pl-8 font-black text-[10px] uppercase tracking-widest text-slate-400">Reference</TableHead>
-                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Schedule</TableHead>
-                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Counselor</TableHead>
-                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400">Status</TableHead>
-                        <TableHead className="pr-8 text-right font-black text-[10px] uppercase tracking-widest text-slate-400">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAppointments.map((app) => (
-                        <TableRow key={app.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all py-4">
-                          <TableCell className="pl-8 font-mono text-[10px] text-slate-400 font-bold">#{app.id.slice(-4).toUpperCase()}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-black text-slate-900 text-xs">{format(parseISO(app.date), 'MMM dd, yyyy')}</span>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">{app.time}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-black text-slate-700">{app.counselorName}</TableCell>
-                          <TableCell>{getStatusBadge(app.status)}</TableCell>
-                          <TableCell className="pr-8 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-primary">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="rounded-xl p-1 border-slate-100 shadow-xl">
-                                <DropdownMenuItem onClick={() => handleViewInfo(app)} className="font-bold text-xs p-2.5 rounded-lg cursor-pointer">
-                                  <Info className="h-3.5 w-3.5 mr-2" /> View Info
-                                </DropdownMenuItem>
-                                {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
-                                  <DropdownMenuItem className="font-bold text-xs p-2.5 rounded-lg cursor-pointer text-red-600 hover:bg-red-50">
-                                    <XCircle className="h-3.5 w-3.5 mr-2" /> Cancel Session
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {filteredAppointments.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-32 text-center text-slate-300 font-bold text-sm italic">
-                            No appointment records found.
-                          </TableCell>
-                        </TableRow>
+                {/* Tab bar */}
+                <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1">
+                  {tabs.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setActiveTab(t.key)}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                        activeTab === t.key
+                          ? 'bg-primary text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t.label}
+                      {t.count > 0 && (
+                        <span className={`h-4 min-w-[16px] rounded-full text-[9px] flex items-center justify-center px-1 ${
+                          activeTab === t.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                        }`}>{t.count}</span>
                       )}
-                    </TableBody>
-                  </Table>
+                    </button>
+                  ))}
+                </div>
+
+                <CardContent className="p-0">
+                  {filtered.length === 0 ? (
+                    <div className="h-48 flex flex-col items-center justify-center gap-3 text-center px-8">
+                      <CalendarIcon className="h-8 w-8 text-slate-100" />
+                      <p className="text-sm font-bold text-slate-300">
+                        {activeTab === 'upcoming' ? 'No upcoming sessions.' : 'No records found.'}
+                      </p>
+                      {activeTab === 'upcoming' && (
+                        <Button asChild size="sm" className="mt-1 font-bold rounded-xl">
+                          <Link href="/student/book">Book a Session</Link>
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-50">
+                      {filtered.map(app => (
+                        <div
+                          key={app.id}
+                          className={`flex items-center gap-4 px-6 py-5 hover:bg-slate-50/50 transition-all group ${
+                            app.status === APPOINTMENT_STATUS.PENDING ? 'bg-amber-50/20' : ''
+                          }`}
+                        >
+                          {/* Date block */}
+                          <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center shrink-0">
+                            <span className="text-[10px] font-black uppercase tracking-tighter text-primary">
+                              {format(parseISO(app.date), 'MMM')}
+                            </span>
+                            <span className="text-xl font-black text-slate-900 leading-none">
+                              {format(parseISO(app.date), 'dd')}
+                            </span>
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-black text-slate-900 truncate">{app.type}</p>
+                              {getStatusBadge(app.status)}
+                            </div>
+                            <p className="text-xs text-slate-400 font-medium flex items-center gap-3">
+                              <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{app.time}</span>
+                              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{app.location || 'Room 302'}</span>
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-bold mt-1">
+                              with {app.counselorName}
+                            </p>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedApp(app); setIsDetailsOpen(true); markAsRead(`apt-${app.id}`); markAsRead(`apt-status-${app.id}-confirmed`); }}
+                              className="h-8 text-[10px] font-black text-slate-400 hover:text-primary rounded-xl"
+                            >
+                              View
+                            </Button>
+                            {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCancelTarget(app)}
+                                className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
 
+            {/* Right sidebar */}
             <div className="lg:col-span-4 space-y-6">
+              {/* Calendar */}
               <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2.5rem] overflow-hidden">
-                <CardHeader className="p-8 pb-4">
+                <CardHeader className="p-6 pb-3">
                   <CardTitle className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-primary" />
-                    Wellness Schedule
+                    <CalendarIcon className="h-4 w-4 text-primary" /> Schedule View
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-8 pb-8 flex flex-col items-center">
-                  <div className="w-full">
-                    <Calendar
-                      mode="multiple"
-                      selected={displayDates}
-                      defaultMonth={new Date(2026, 4)}
-                      className="w-full"
-                      modifiers={{ confirmed: displayDates }}
-                      modifiersClassNames={{
-                        confirmed: "bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 focus:bg-emerald-500 shadow-md shadow-emerald-200"
-                      }}
-                    />
-                  </div>
-                  <div className="w-full mt-8 pt-6 border-t border-slate-100 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-4 w-4 rounded-lg bg-emerald-500 shadow-sm" />
-                      <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Confirmed Session</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
-                      Dates marked in green have been approved by your counselor. Ensure you arrive at the designated location on time.
-                    </p>
+                <CardContent className="px-6 pb-6 flex flex-col items-center">
+                  <Calendar
+                    mode="multiple"
+                    selected={confirmedDates}
+                    className="w-full"
+                    modifiers={{ confirmed: confirmedDates }}
+                    modifiersClassNames={{
+                      confirmed: 'bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 shadow-sm'
+                    }}
+                  />
+                  <div className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+                    <div className="h-3 w-3 rounded bg-emerald-500 shrink-0" />
+                    <p className="text-[10px] text-slate-400 font-medium">Confirmed sessions are highlighted in green.</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-none shadow-lg shadow-slate-200/30 bg-primary rounded-[2rem] p-6 text-white overflow-hidden relative group">
+              {/* CTA card */}
+              <Card className="border-none shadow-lg bg-primary rounded-[2rem] p-6 text-white overflow-hidden relative group">
                 <div className="relative z-10">
-                  <h3 className="font-black text-lg mb-2">Need Help?</h3>
-                  <p className="text-xs text-white/80 font-medium mb-4">Talk to Guidi, our AI companion, if you're feeling overwhelmed before your session.</p>
+                  <h3 className="font-black text-lg mb-2">Need Support?</h3>
+                  <p className="text-xs text-white/80 font-medium mb-4">Chat with Guidi AI before your session to clarify your thoughts.</p>
                   <Button asChild variant="secondary" className="w-full bg-white text-primary hover:bg-white/90 rounded-xl font-black">
                     <Link href="/student/assessments">Launch Guidi</Link>
                   </Button>
@@ -290,6 +339,79 @@ export default function StudentAppointments() {
             </div>
           </div>
         </div>
+
+        {/* Details Dialog */}
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="max-w-lg rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="p-6 bg-slate-50 border-b">
+              <DialogTitle className="text-xl font-black">{selectedApp?.type}</DialogTitle>
+              <DialogDescription className="flex items-center gap-2 mt-1">
+                {getStatusBadge(selectedApp?.status)}
+                <span className="text-[10px] font-bold text-slate-400 uppercase">#{selectedApp?.id?.slice(-6).toUpperCase()}</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> Date</p>
+                  <p className="text-sm font-bold text-slate-900">{selectedApp?.date}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> Time</p>
+                  <p className="text-sm font-bold text-slate-900">{selectedApp?.time}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FileText className="h-3 w-3" /> Counselor</p>
+                  <p className="text-sm font-bold text-slate-900">{selectedApp?.counselorName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> Location</p>
+                  <p className="text-sm font-bold text-slate-900">{selectedApp?.location || 'Room 302'}</p>
+                </div>
+              </div>
+              {selectedApp?.reason && (
+                <div className="p-4 rounded-2xl bg-slate-50">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Target className="h-3 w-3" /> Your Reason</p>
+                  <p className="text-sm font-medium text-slate-600 italic">"{selectedApp.reason}"</p>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                {(selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => { setIsDetailsOpen(false); setCancelTarget(selectedApp); }}
+                    className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-100 hover:bg-red-50"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" /> Cancel
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="flex-1 h-11 rounded-xl font-bold border-slate-200">
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cancel Confirmation Dialog */}
+        <Dialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
+          <DialogContent className="max-w-sm rounded-[2rem] border-none shadow-2xl p-8 text-center">
+            <div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="h-7 w-7 text-red-500" />
+            </div>
+            <DialogTitle className="text-xl font-black mb-2">Cancel Session?</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500 font-medium mb-6">
+              This will cancel your <strong>{cancelTarget?.type}</strong> on <strong>{cancelTarget?.date}</strong> at <strong>{cancelTarget?.time}</strong>. This action cannot be undone.
+            </DialogDescription>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setCancelTarget(null)} className="flex-1 h-11 rounded-xl font-bold">Keep it</Button>
+              <Button onClick={handleCancel} disabled={isCancelling} className="flex-1 h-11 rounded-xl font-black bg-red-500 hover:bg-red-600 text-white">
+                {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </DashboardLayout>
     </ProtectedRoute>
   );

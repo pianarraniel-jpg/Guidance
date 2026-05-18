@@ -49,39 +49,30 @@ export default function StudentMessages() {
   const [searchTerm, setSearchTerm] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
 
-    const readIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-    const readSet = new Set(readIds);
-    const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    const { data: readData } = await (await import('@/lib/supabase')).supabase
+      .from('notifications_read')
+      .select('notification_id')
+      .eq('user_id', user.id);
+    const readSet = new Set((readData ?? []).map((r: any) => r.notification_id));
+
+    const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
     const counselorList = allUsers.filter(u => u.role === 'counselor');
-    const allMessages = storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
+    const allMessages = await storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
 
     const counselorsWithMetadata = counselorList.map(counselor => {
-      const convMessages = allMessages.filter(m => 
+      const convMessages = allMessages.filter(m =>
         (m.senderId === user.id && m.receiverId === counselor.id) ||
         (m.senderId === counselor.id && m.receiverId === user.id)
       ).sort((a, b) => b.timestamp - a.timestamp);
-      
       const lastMsg = convMessages[0];
-      const hasUnread = lastMsg && 
-                       lastMsg.senderId === counselor.id && 
-                       !readSet.has(`msg-${lastMsg.id}`);
-
-      return {
-        ...counselor,
-        lastMessage: lastMsg,
-        isUnread: !!hasUnread
-      };
+      const hasUnread = lastMsg && lastMsg.senderId === counselor.id && !readSet.has(`msg-${lastMsg.id}`);
+      return { ...counselor, lastMessage: lastMsg, isUnread: !!hasUnread };
     });
 
-    counselorsWithMetadata.sort((a, b) => {
-      const timeA = a.lastMessage?.timestamp || 0;
-      const timeB = b.lastMessage?.timestamp || 0;
-      return timeB - timeA;
-    });
-
+    counselorsWithMetadata.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
     setCounselors(counselorsWithMetadata);
 
     if (!activeCounselor && counselorsWithMetadata.length > 0) {
@@ -89,12 +80,11 @@ export default function StudentMessages() {
     }
 
     if (activeCounselor) {
-      const filtered = allMessages.filter(m => 
+      const filtered = allMessages.filter(m =>
         (m.senderId === user.id && m.receiverId === activeCounselor.id) ||
         (m.senderId === activeCounselor.id && m.receiverId === user.id)
       ).sort((a, b) => a.timestamp - b.timestamp);
       setChatHistory(filtered);
-      
       const currentActive = counselorsWithMetadata.find(c => c.id === activeCounselor.id);
       if (currentActive && currentActive.lastMessage?.id !== activeCounselor.lastMessage?.id) {
         setActiveCounselor(currentActive);
@@ -104,13 +94,8 @@ export default function StudentMessages() {
 
   useEffect(() => {
     loadData();
-    const handleStorage = (e: StorageEvent) => {
-      if ([STORAGE_KEYS.MESSAGES, STORAGE_KEYS.USERS, STORAGE_KEYS.NOTIFICATIONS_READ].includes(e.key as any)) {
-        loadData();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    const interval = setInterval(loadData, 3000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   // Mark active chat as read - SEEN Logic
@@ -119,27 +104,14 @@ export default function StudentMessages() {
       const incomingFromActive = chatHistory
         .filter(m => m.senderId === activeCounselor.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
-      
       if (incomingFromActive.length > 0) {
         const latestIncoming = incomingFromActive[0];
-        const currentReadIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS_READ) || '[]');
-        
-        const idsToMark = [];
-        // Mark all incoming messages as read
-        incomingFromActive.forEach(m => {
-          if (!currentReadIds.includes(`msg-${m.id}`)) idsToMark.push(`msg-${m.id}`);
-        });
-        // Mark the grouped bell notification as read
-        const groupId = `group-msg-${activeCounselor.id}-${latestIncoming.id}`;
-        if (!currentReadIds.includes(groupId)) idsToMark.push(groupId);
-
-        if (idsToMark.length > 0) {
-          markIdsAsRead(idsToMark);
-          loadData();
-        }
+        const idsToMark = incomingFromActive.map(m => `msg-${m.id}`);
+        idsToMark.push(`group-msg-${activeCounselor.id}-${latestIncoming.id}`);
+        markIdsAsRead(idsToMark);
       }
     }
-  }, [activeCounselor?.id, chatHistory, markIdsAsRead, user?.id, loadData]);
+  }, [activeCounselor?.id, chatHistory, markIdsAsRead, user?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -151,7 +123,7 @@ export default function StudentMessages() {
     setActiveCounselor(counselor);
   };
 
-  const handleSend = (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() || !user || !activeCounselor) return;
 
@@ -164,7 +136,7 @@ export default function StudentMessages() {
       timestamp: Date.now()
     };
 
-    storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
+    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
     loadData();
   };

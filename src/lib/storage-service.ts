@@ -1,80 +1,60 @@
-import { STORAGE_KEYS } from './constants';
-import { MOCK_USERS, MOCK_APPOINTMENTS, MOCK_AVAILABILITY } from './mock-data';
+import { supabase } from './supabase';
+
+// camelCase ↔ snake_case converters
+const toSnake = (s: string) => s.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
+const fromSnake = (s: string) => s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
+
+function toSnakeCase(obj: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of Object.keys(obj)) {
+    out[toSnake(k)] = obj[k];
+  }
+  return out;
+}
+
+function toCamelCase<T>(obj: Record<string, any>): T {
+  const out: Record<string, any> = {};
+  for (const k of Object.keys(obj)) {
+    out[fromSnake(k)] = obj[k];
+  }
+  return out as T;
+}
 
 export const storageService = {
-  // Generic CRUD
-  getAll: <T>(key: string): T[] => {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
+  getAll: async <T>(table: string): Promise<T[]> => {
+    const { data, error } = await supabase.from(table).select('*');
+    if (error) { console.error(`storageService.getAll(${table}):`, error.message); return []; }
+    return (data ?? []).map(row => toCamelCase<T>(row));
   },
 
-  getById: <T extends { id: string }>(key: string, id: string): T | undefined => {
-    const items = storageService.getAll<T>(key);
-    return items.find(item => item.id === id);
+  getById: async <T extends { id: string }>(table: string, id: string): Promise<T | undefined> => {
+    const { data, error } = await supabase.from(table).select('*').eq('id', id).maybeSingle();
+    if (error) { console.error(`storageService.getById(${table}):`, error.message); return undefined; }
+    return data ? toCamelCase<T>(data) : undefined;
   },
 
-  create: <T extends { id: string }>(key: string, item: Omit<T, 'id'>): T => {
-    const items = storageService.getAll<T>(key);
-    const newItem = { ...item, id: Math.random().toString(36).substr(2, 9) } as T;
-    localStorage.setItem(key, JSON.stringify([...items, newItem]));
-    return newItem;
+  create: async <T extends { id: string }>(table: string, item: Omit<T, 'id'>): Promise<T> => {
+    const { data, error } = await supabase.from(table).insert(toSnakeCase(item as any)).select().single();
+    if (error) { console.error(`storageService.create(${table}):`, error.message); throw error; }
+    return toCamelCase<T>(data);
   },
 
-  update: <T extends { id: string }>(key: string, id: string, updates: Partial<T>): T | undefined => {
-    const items = storageService.getAll<T>(key);
-    const index = items.findIndex(item => item.id === id);
-    if (index === -1) return undefined;
-    const updatedItem = { ...items[index], ...updates };
-    items[index] = updatedItem;
-    localStorage.setItem(key, JSON.stringify(items));
-    return updatedItem;
+  update: async <T = any>(table: string, id: string, updates: Partial<T>): Promise<T | undefined> => {
+    const { data, error } = await supabase.from(table).update(toSnakeCase(updates as any)).eq('id', id).select().single();
+    if (error) { console.error(`storageService.update(${table}):`, error.message); return undefined; }
+    return data ? toCamelCase<T>(data) : undefined;
   },
 
-  delete: (key: string, id: string): boolean => {
-    const items = storageService.getAll<{ id: string }>(key);
-    const newItems = items.filter(item => item.id !== id);
-    localStorage.setItem(key, JSON.stringify(newItems));
+  delete: async (table: string, id: string): Promise<boolean> => {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) { console.error(`storageService.delete(${table}):`, error.message); return false; }
     return true;
   },
 
-  // Specialized queries
-  getByField: <T>(key: string, field: keyof T, value: any): T[] => {
-    const items = storageService.getAll<T>(key);
-    return items.filter(item => item[field] === value);
+  getByField: async <T>(table: string, field: keyof T, value: any): Promise<T[]> => {
+    const col = toSnake(field as string);
+    const { data, error } = await supabase.from(table).select('*').eq(col, value);
+    if (error) { console.error(`storageService.getByField(${table}):`, error.message); return []; }
+    return (data ?? []).map(row => toCamelCase<T>(row));
   },
-
-  // Initialization
-  init: () => {
-    if (typeof window === 'undefined') return;
-    
-    // Smart initialization: Check if users exist and if they have required new fields
-    const existingUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-    let shouldInitUsers = !existingUsers;
-    
-    if (existingUsers) {
-      const users = JSON.parse(existingUsers);
-      // Migration check: Ensure the student mock user has a studentId
-      const student = users.find((u: any) => u.email === 'student@uspf.edu.ph');
-      if (student && !student.studentId) {
-        shouldInitUsers = true; 
-      }
-      // Migration check: Ensure counselor name is updated to unified identity
-      const hasOldCounselor = users.some((u: any) => u.role === 'counselor' && u.name !== 'USPF Counselor');
-      if (hasOldCounselor) {
-        shouldInitUsers = true;
-      }
-    }
-
-    if (shouldInitUsers) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(MOCK_USERS));
-    }
-
-    if (!localStorage.getItem(STORAGE_KEYS.APPOINTMENTS)) {
-      localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(MOCK_APPOINTMENTS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.AVAILABILITY)) {
-      localStorage.setItem(STORAGE_KEYS.AVAILABILITY, JSON.stringify(MOCK_AVAILABILITY));
-    }
-  }
 };

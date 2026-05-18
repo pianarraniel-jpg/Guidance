@@ -2,17 +2,18 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  ShieldCheck, 
-  Mail, 
-  Lock, 
-  Eye, 
+import {
+  ShieldCheck,
+  Mail,
+  Lock,
+  Eye,
   EyeOff,
   CheckCircle2,
   Scan,
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, loginWithId } = useAuth();
+  const router = useRouter();
 
   const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +39,7 @@ export default function LoginPage() {
     try {
       const success = await login(email, password);
       if (success) {
-        window.location.href = '/'; 
+        router.push('/');
       } else {
         setError('Invalid credentials. Use student@uspf.edu.ph / password123');
       }
@@ -56,7 +58,7 @@ export default function LoginPage() {
     try {
       const success = await loginWithId(studentId);
       if (success) {
-        window.location.href = '/';
+        router.push('/');
       } else {
         setError('Student ID not found. Try: 2024-0001');
       }
@@ -94,9 +96,9 @@ export default function LoginPage() {
               <div className="flex -space-x-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-8 w-8 rounded-full border-2 border-primary bg-muted overflow-hidden">
-                    <img 
-                      src={`https://picsum.photos/seed/${i + 50}/64/64`} 
-                      alt="Student" 
+                    <img
+                      src={`https://picsum.photos/seed/${i + 50}/64/64`}
+                      alt="Student"
                       className="h-full w-full object-cover"
                     />
                   </div>
@@ -130,8 +132,8 @@ export default function LoginPage() {
               <h1 className="text-3xl font-bold font-headline mb-2">Welcome back</h1>
               <p className="text-muted-foreground text-sm">Sign in to your student wellness account</p>
             </div>
-            <Link 
-              href="/login/counselor" 
+            <Link
+              href="/login/counselor"
               className="flex flex-col items-center gap-1 group"
             >
               <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
@@ -157,10 +159,10 @@ export default function LoginPage() {
                   <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">University Email</Label>
                   <div className="relative group">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="name@uspf.edu.ph" 
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@uspf.edu.ph"
                       className="pl-10 h-11 border-muted"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -176,16 +178,16 @@ export default function LoginPage() {
                   </div>
                   <div className="relative group">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input 
-                      id="password" 
-                      type={showPassword ? "text" : "password"} 
-                      placeholder="••••••••" 
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
                       className="pl-10 pr-10 h-11 border-muted"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary transition-colors"
@@ -220,9 +222,9 @@ export default function LoginPage() {
                   <Label htmlFor="studentId" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Student ID Number</Label>
                   <div className="relative group">
                     <Scan className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input 
-                      id="studentId" 
-                      placeholder="e.g. 2024-0001" 
+                    <Input
+                      id="studentId"
+                      placeholder="e.g. 2024-0001"
                       className="pl-10 h-11 border-muted"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}

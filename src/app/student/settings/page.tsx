@@ -34,8 +34,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 
 export default function StudentSettings() {
   const { user, logout } = useAuth();
@@ -64,7 +63,7 @@ export default function StudentSettings() {
     });
   };
 
-  const handlePasswordUpdate = () => {
+  const handlePasswordUpdate = async () => {
     // Validation
     if (!newPassword || newPassword.length < 6) {
       toast({
@@ -94,13 +93,13 @@ export default function StudentSettings() {
       return;
     }
 
-    // Update in Storage
     if (user) {
-      storageService.update(STORAGE_KEYS.USERS, user.id, { password: newPassword });
-      toast({
-        title: "Password Updated",
-        description: "Your security credentials have been refreshed.",
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast({ variant: "destructive", title: "Update Failed", description: error.message });
+        return;
+      }
+      toast({ title: "Password Updated", description: "Your security credentials have been refreshed." });
       setIsPasswordModalOpen(false);
       resetForm();
     }

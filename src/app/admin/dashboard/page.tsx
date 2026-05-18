@@ -31,31 +31,23 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadData = () => {
-      const allApts = storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      const allUsers = storageService.getAll<any>(STORAGE_KEYS.USERS);
+    const loadData = async () => {
+      const [allApts, allUsers] = await Promise.all([
+        storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
+        storageService.getAll<any>(STORAGE_KEYS.USERS),
+      ]);
       setAppointments(allApts);
       setUsers(allUsers);
 
-      // Generate last 7 days chart data
-      const last7Days = eachDayOfInterval({
-        start: subDays(new Date(), 6),
-        end: new Date(),
-      });
-
-      const data = last7Days.map(day => {
+      const last7Days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() });
+      setChartData(last7Days.map(day => {
         const dateStr = format(day, 'yyyy-MM-dd');
-        const count = allApts.filter(a => a.date === dateStr).length;
-        return {
-          name: format(day, 'EEE'),
-          sessions: count
-        };
-      });
-      setChartData(data);
+        return { name: format(day, 'EEE'), sessions: allApts.filter(a => a.date === dateStr).length };
+      }));
     };
     loadData();
-    window.addEventListener('storage', loadData);
-    return () => window.removeEventListener('storage', loadData);
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const totalStudents = users.filter(u => u.role === 'student').length;
