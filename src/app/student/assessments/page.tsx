@@ -1,60 +1,69 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Send, ShieldCheck, Zap, Activity, Meh, Smile,
-  ArrowRight, Clock, FileText, User, CheckCircle2,
-  ClipboardList, MessageSquare
+  ShieldCheck, FileText, User, CheckCircle2,
+  ClipboardList, ArrowRight, Clock, TrendingUp, History, Sparkles
 } from 'lucide-react';
-import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
-import { generateAiInsights } from '@/ai/flows/generate-ai-insights';
-import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { STORAGE_KEYS } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { isAfter, parseISO } from 'date-fns';
 
-type Message = {
-  role: 'user' | 'model';
-  text: string;
-  time: string;
-};
-
-type SystemContext = {
-  studentName: string;
-  counselorName?: string;
-  upcomingAppointment?: { date: string; time: string; type: string };
-};
+const HISTORICAL_FEEDBACKS = [
+  {
+    id: 'fb-1',
+    academicYear: '2024-2025 (Previous Year)',
+    date: 'November 14, 2024',
+    counselor: 'Dr. Elena Rivera',
+    stressRating: 78,
+    clinicalScore: 6.4,
+    focus: 'Midterm Anxiety & Sleep Deprivation',
+    notes: 'Student reported acute academic burnout and sleep deprivation during midterm examinations. Prescribed progressive muscle relaxation and structured study intervals.',
+    badgeColor: 'bg-red-50 text-red-700 border-red-200',
+    icon: '📉'
+  },
+  {
+    id: 'fb-2',
+    academicYear: '2024-2025 (Previous Year)',
+    date: 'March 22, 2025',
+    counselor: 'Dr. Elena Rivera',
+    stressRating: 68,
+    clinicalScore: 7.1,
+    focus: 'Exam Preparation & Resilience',
+    notes: 'Follow-up evaluation. Coping strategies showing moderate effectiveness. Student successfully managing exam schedule with reduced panic symptoms.',
+    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: '⚖️'
+  },
+  {
+    id: 'fb-3',
+    academicYear: '2025-2026 (Current Year)',
+    date: 'October 05, 2025',
+    counselor: 'Dr. Marcus Santos',
+    stressRating: 42,
+    clinicalScore: 8.9,
+    focus: 'Thesis Resilience & Normalization',
+    notes: 'Excellent emotional regulation and proactive communication demonstrated during thesis preparation. Sleep patterns have normalized. Resiliency protocols fully effective.',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon: '🌟'
+  },
+];
 
 export default function StudentAssessments() {
   const { user } = useAuth();
   const { notifications, markAsRead } = useNotifications();
   const { toast } = useToast();
-  const firstName = user?.name.split(' ')[0] || 'Student';
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const sessionIdRef = useRef<string | null>(null);
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
-  const [systemContext, setSystemContext] = useState<SystemContext | null>(null);
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTask, setActiveTask] = useState<any>(null);
@@ -70,202 +79,13 @@ export default function StudentAssessments() {
 
   useEffect(() => {
     if (!user) return;
-
-    // Build system context from real data
-    const loadContext = async () => {
-      const apts = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
-      const next = apts
-        .filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), new Date()))
-        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-
-      setSystemContext({
-        studentName: user.name,
-        counselorName: next?.counselorName,
-        upcomingAppointment: next ? { date: next.date, time: next.time, type: next.type } : undefined,
-      });
-    };
-
-    setMessages([{
-      role: 'model',
-      text: `Maayong adlaw, ${firstName}! I'm Guidi, your wellness companion. How have things been going with your classes this week?`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }]);
-
-    loadContext();
     loadTasks();
-  }, [user, firstName]);
+  }, [user]);
 
   useEffect(() => {
     const unread = notifications.filter(n => n.type === 'assessment' && !n.isRead);
     if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
   }, [notifications, markAsRead]);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
-
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim() || isLoading || isComplete) return;
-
-    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newUserMessage: Message = { role: 'user', text, time: currentTime };
-
-    setMessages(prev => [...prev, newUserMessage]);
-    setInputValue('');
-    setIsLoading(true);
-
-    // Create session on first user message
-    if (!sessionIdRef.current && user) {
-      try {
-        const session = await storageService.create<{ id: string; studentId: string }>(
-          STORAGE_KEYS.AI_CHAT_SESSIONS,
-          { studentId: user.id }
-        );
-        sessionIdRef.current = session.id;
-      } catch (e) {
-        console.error('Failed to create chat session:', e);
-      }
-    }
-
-    // Persist user message
-    if (sessionIdRef.current) {
-      storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
-        sessionId: sessionIdRef.current,
-        role: 'user',
-        content: text,
-      }).catch(console.error);
-    }
-
-    try {
-      const history = messages.map(m => ({
-        role: m.role,
-        content: [{ text: m.text }]
-      }));
-
-      const result = await studentStressAssessment({
-        currentMessage: text,
-        history,
-        systemContext: systemContext ?? { studentName: firstName },
-      });
-
-      const botResponse: Message = {
-        role: 'model',
-        text: result.response,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      setMessages(prev => [...prev, botResponse]);
-
-      if (sessionIdRef.current) {
-        storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
-          sessionId: sessionIdRef.current,
-          role: 'assistant',
-          content: result.response,
-        }).catch(console.error);
-      }
-
-      if (result.assessmentComplete && result.assessmentSummary) {
-        setIsComplete(true);
-
-        const allMsgs = [...messages, newUserMessage, botResponse];
-        const transcript = allMsgs.map(m => `${m.role === 'user' ? 'Student' : 'Guidi'}: ${m.text}`).join('\n');
-
-        const focusAreas: string[] = [];
-        const tLow = transcript.toLowerCase();
-        if (tLow.includes('academic') || tLow.includes('study') || tLow.includes('exam')) focusAreas.push('Academic');
-        if (tLow.includes('family') || tLow.includes('parent') || tLow.includes('home')) focusAreas.push('Personal');
-        if (tLow.includes('social') || tLow.includes('friend') || tLow.includes('relationship')) focusAreas.push('Social');
-        if (tLow.includes('sleep') || tLow.includes('tired') || tLow.includes('energy')) focusAreas.push('Physical');
-        if (focusAreas.length === 0) focusAreas.push('General Wellness');
-
-        const stressLevel = Math.floor(Math.random() * (90 - 40 + 1)) + 40;
-
-        // Get deeper analysis via summarization
-        let mainConcerns: string[] = [];
-        let emotionalState = '';
-        try {
-          const analysis = await summarizeAssessmentConversation({ assessmentConversation: transcript });
-          mainConcerns = analysis.mainConcerns;
-          emotionalState = analysis.emotionalState;
-        } catch (e) {
-          console.error('Analysis error:', e);
-        }
-
-        await storageService.create(STORAGE_KEYS.ASSESSMENTS, {
-          studentId: user?.id,
-          studentName: user?.name,
-          date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-          summary: result.assessmentSummary,
-          stressLevel,
-          focusAreas,
-          mainConcerns,
-          emotionalState,
-          timestamp: Date.now(),
-          type: 'AI_CHAT'
-        });
-
-        // Update session with completion data
-        if (sessionIdRef.current) {
-          storageService.update(STORAGE_KEYS.AI_CHAT_SESSIONS, sessionIdRef.current, {
-            summary: result.assessmentSummary,
-            stressLevel,
-            focusAreas,
-            completedAt: new Date().toISOString(),
-          }).catch(console.error);
-        }
-
-        // Update student profile analytics
-        if (user) {
-          supabase.from('profiles').update({
-            latest_stress_level: stressLevel,
-            last_assessment_at: new Date().toISOString(),
-            wellness_score: Math.round(100 - stressLevel),
-          }).eq('id', user.id).then(() => {});
-        }
-
-        // Generate and cache AI insights
-        if (user) {
-          try {
-            const allAssessments = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);
-            allAssessments.sort((a: any, b: any) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
-            const recent5 = allAssessments.slice(0, 5);
-
-            const insightResult = await generateAiInsights({
-              studentName: user.name,
-              recentAssessments: recent5.map((a: any) => ({
-                date: a.date ?? '',
-                summary: a.summary ?? '',
-                stressLevel: a.stressLevel ?? 50,
-                focusAreas: a.focusAreas ?? [],
-              })),
-            });
-
-            await supabase.from('ai_insights').upsert({
-              student_id: user.id,
-              insight: insightResult.insight,
-              created_at: new Date().toISOString(),
-            }, { onConflict: 'student_id' });
-          } catch (e) {
-            console.error('Failed to generate AI insights:', e);
-          }
-        }
-
-        toast({
-          title: "Assessment Complete",
-          description: "Your wellness check-in has been synchronized with your counselor.",
-        });
-      }
-    } catch (error) {
-      console.error('Chat error:', error);
-      toast({
-        variant: "destructive",
-        title: "Connection Issue",
-        description: "I'm having trouble connecting right now. Please try again in a moment.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
@@ -311,7 +131,6 @@ export default function StudentAssessments() {
       lastUpdate: Date.now()
     });
 
-    // Update profile last assessment timestamp
     supabase.from('profiles').update({
       last_assessment_at: new Date().toISOString(),
     }).eq('id', user.id).then(() => {});
@@ -325,173 +144,55 @@ export default function StudentAssessments() {
     loadTasks();
   };
 
-  const emotionReplies = [
-    { label: 'Stressed', icon: Zap, color: 'text-red-500' },
-    { label: 'Anxious', icon: Activity, color: 'text-orange-500' },
-    { label: 'Okay', icon: Meh, color: 'text-slate-500' },
-    { label: 'Good', icon: Smile, color: 'text-emerald-500' },
-  ];
+  const pastYearFeedbacks = HISTORICAL_FEEDBACKS.filter(f => f.academicYear.includes('2024'));
+  const currentYearFeedbacks = HISTORICAL_FEEDBACKS.filter(f => f.academicYear.includes('2025'));
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <main className="p-8 max-w-7xl mx-auto w-full min-h-screen">
-          <header className="mb-4 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Weekly Wellness</h1>
-              <p className="text-sm text-muted-foreground font-medium">Synchronize your emotional health with professional clinical oversight.</p>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Clinical Oversight & Growth</h1>
+              <p className="text-sm text-muted-foreground font-medium">Review your assigned clinical forms and compare historical counselor feedback across academic years.</p>
             </div>
-            <Badge variant="outline" className="h-9 px-5 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[9px] tracking-widest flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" /> University Security Active
+            <Badge variant="outline" className="h-9 px-5 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[9px] tracking-widest flex items-center gap-2 shadow-sm">
+              <ShieldCheck className="h-4 w-4" /> Professional Clinical Space
             </Badge>
           </header>
 
-          <Tabs defaultValue="chatbot" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-sm mb-4 bg-slate-100/50 p-1 h-12 rounded-2xl">
-              <TabsTrigger value="chatbot" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <MessageSquare className="h-4 w-4" /> Guidi AI Chat
-              </TabsTrigger>
-              <TabsTrigger value="forms" className="rounded-xl font-black text-xs gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm relative">
+          <Tabs defaultValue="tasks" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 max-w-md mb-8 bg-slate-100/60 p-1.5 h-14 rounded-2xl shadow-inner">
+              <TabsTrigger value="tasks" className="rounded-xl font-black text-sm gap-2 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all relative">
                 <ClipboardList className="h-4 w-4" /> Clinical Tasks
                 {tasks.filter(t => t.status === 'pending').length > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-[9px] text-white rounded-full flex items-center justify-center border-2 border-white">
+                  <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-red-500 text-[10px] text-white font-black rounded-full flex items-center justify-center shadow-md animate-pulse">
                     {tasks.filter(t => t.status === 'pending').length}
                   </span>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="feedback" className="rounded-xl font-black text-sm gap-2 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all">
+                <History className="h-4 w-4" /> YoY Growth & Feedback
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="chatbot">
-              <div className="flex flex-col h-[calc(100vh-140px)] w-full bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                <div className="p-5 border-b flex items-center gap-4 bg-white/80 backdrop-blur-md">
-                  <div className="relative">
-                    <Avatar className="h-12 w-12 ring-4 ring-primary/5">
-                      <AvatarFallback className="bg-primary text-white text-lg font-black">🤖</AvatarFallback>
-                    </Avatar>
-                    <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"></span>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-black text-slate-900 text-lg">Guidi</h4>
-                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Wellness Analysis</p>
-                  </div>
-                  {systemContext?.upcomingAppointment && (
-                    <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50 px-3 py-2 rounded-xl">
-                      <Clock className="h-3 w-3" />
-                      Next session: {systemContext.upcomingAppointment.date} at {systemContext.upcomingAppointment.time}
-                    </div>
-                  )}
-                </div>
-
-                <ScrollArea className="flex-1 p-4 md:p-8 bg-slate-50/10">
-                  <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
-                    {messages.map((msg, idx) => (
-                      <div key={idx} className={`flex items-start gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-3`}>
-                        {msg.role === 'model' && (
-                          <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0 mt-1">
-                            <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
-                          </Avatar>
-                        )}
-                        <div className={`max-w-[85%] md:max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
-                            msg.role === 'user'
-                              ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
-                              : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
-                          }`}>
-                            {msg.text}
-                          </div>
-                          <span className="text-[10px] text-slate-300 font-bold mt-2 uppercase tracking-widest px-1">{msg.time}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {isLoading && (
-                      <div className="flex justify-start items-start gap-4">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0">
-                          <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
-                        </Avatar>
-                        <div className="bg-white border border-slate-50 p-6 rounded-3xl rounded-tl-none shadow-sm flex gap-2.5 items-center">
-                          <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce"></span>
-                          <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                        </div>
-                      </div>
-                    )}
-                    {isComplete && (
-                      <div className="flex flex-col items-center py-16 space-y-6 bg-emerald-50/30 rounded-[3rem] border border-emerald-100 mt-10">
-                        <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
-                          <CheckCircle2 className="h-10 w-10" />
-                        </div>
-                        <div className="text-center">
-                          <h4 className="font-black text-2xl text-slate-900">Weekly Kamustahan Complete</h4>
-                          <p className="text-sm text-slate-500 max-w-md mx-auto mt-3 leading-relaxed font-medium">
-                            Guidi has synchronized your wellness data with your counselor's records. Thank you for your openness.
-                          </p>
-                        </div>
-                        <Button asChild className="rounded-2xl font-black bg-primary h-14 px-10 mt-6 shadow-xl shadow-primary/20">
-                          <Link href="/student/dashboard">Return to Dashboard</Link>
-                        </Button>
-                      </div>
-                    )}
-                    <div ref={scrollRef} />
-                  </div>
-                </ScrollArea>
-
-                {!isComplete && (
-                  <div className="p-6 md:p-8 border-t bg-white">
-                    <div className="max-w-5xl mx-auto">
-                      {!isLoading && (
-                        <div className="flex gap-3 overflow-x-auto pb-4 md:pb-6 no-scrollbar">
-                          {emotionReplies.map((qr) => (
-                            <Button
-                              key={qr.label}
-                              variant="outline"
-                              onClick={() => handleSendMessage(qr.label)}
-                              className="rounded-full px-8 h-12 text-sm font-black border-slate-100 hover:border-primary hover:bg-primary/5 shrink-0 transition-all active:scale-95 shadow-sm"
-                            >
-                              <qr.icon className={`h-4 w-4 mr-2.5 ${qr.color}`} />
-                              {qr.label}
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                      {isLoading && (
-                        <div className="pb-6 px-4">
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Guidi is analyzing your response...</p>
-                        </div>
-                      )}
-                      <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputValue); }} className="relative flex items-center gap-5">
-                        <Input
-                          placeholder="Type your wellness response..."
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          className="h-14 md:h-16 bg-slate-50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl pl-6 md:pl-8 pr-6 md:pr-8 text-base font-medium"
-                          disabled={isLoading}
-                        />
-                        <Button type="submit" disabled={!inputValue.trim() || isLoading} className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-primary shadow-xl shadow-primary/20 transition-all active:scale-95 flex items-center justify-center shrink-0">
-                          <Send className="h-6 w-6" />
-                        </Button>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="forms">
+            {/* Tab 1: Clinical Tasks */}
+            <TabsContent value="tasks" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tasks.map(task => (
-                  <Card key={task.id} className="border-none shadow-lg shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col group">
-                    <div className={`h-2 w-full ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-500' : 'bg-primary'}`} />
+                  <Card key={task.id} className="border-none shadow-xl shadow-slate-200/40 bg-white rounded-[2rem] overflow-hidden flex flex-col group hover:shadow-2xl transition-all">
+                    <div className={`h-2.5 w-full ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-500' : 'bg-primary'}`} />
                     <CardHeader className="p-8 pb-4">
                       <div className="flex items-center justify-between mb-4">
-                        <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
-                          <FileText className="h-5 w-5" />
+                        <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-bold">
+                          📋
                         </div>
-                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
+                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none px-3 py-1 ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
                           {task.status === 'completed' ? 'Evaluated' : task.status === 'submitted' ? 'Awaiting Review' : 'New Assignment'}
                         </Badge>
                       </div>
                       <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors">{task.title}</CardTitle>
-                      <CardDescription className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest pt-2">
+                      <CardDescription className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest pt-2 text-slate-400">
                         <User className="h-3 w-3" /> Dr. {task.counselorName?.split(' ').pop()}
                       </CardDescription>
                     </CardHeader>
@@ -502,8 +203,8 @@ export default function StudentAssessments() {
                           <Clock className="h-3 w-3" /> Assigned: {task.date}
                         </div>
                         {task.status === 'pending' ? (
-                          <Button onClick={() => handleOpenTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/10">
-                            Complete Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
+                          <Button onClick={() => handleOpenTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/20">
+                            Complete Clinical Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
                           </Button>
                         ) : task.status === 'submitted' ? (
                           <div className="flex items-center gap-2 text-emerald-600 font-black text-xs pt-2">
@@ -518,7 +219,7 @@ export default function StudentAssessments() {
                                 <span className="text-[10px] font-bold text-slate-300">/10</span>
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg bg-slate-50 text-[11px] font-medium text-slate-500 italic">
+                            <div className="p-3.5 rounded-xl bg-slate-50 text-xs font-medium text-slate-600 italic border border-slate-100">
                               "{task.counselorComments || 'Reviewed by counselor.'}"
                             </div>
                           </div>
@@ -528,13 +229,174 @@ export default function StudentAssessments() {
                   </Card>
                 ))}
                 {tasks.length === 0 && (
-                  <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[2rem] border-2 border-dashed border-slate-100">
-                    <ClipboardList className="h-16 w-16 opacity-10 mb-4" />
-                    <p className="font-black text-lg">No assigned tasks found</p>
-                    <p className="text-sm font-medium">Your counselor hasn't assigned any clinical forms to you yet.</p>
+                  <div className="col-span-full py-24 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200/60 shadow-sm">
+                    <div className="h-16 w-16 rounded-3xl bg-slate-50 flex items-center justify-center mb-4 text-slate-300">
+                      <ClipboardList className="h-8 w-8" />
+                    </div>
+                    <p className="font-black text-xl text-slate-700 mb-1">No assigned tasks currently</p>
+                    <p className="text-sm font-medium text-slate-400">Your counselor has not assigned any clinical intake forms or follow-up questionnaires.</p>
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Tab 2: YoY Growth & Historical Feedback Comparison */}
+            <TabsContent value="feedback" className="space-y-10 animate-in fade-in-50 duration-300">
+              {/* Year-over-Year Summary Header */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="border-none shadow-xl bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[2rem] overflow-hidden p-8 flex flex-col justify-between relative">
+                  <div className="absolute top-0 right-0 p-8 opacity-10 font-black text-8xl">2024</div>
+                  <div>
+                    <Badge className="bg-white/10 hover:bg-white/20 text-white border-none font-black text-[10px] uppercase tracking-widest px-3 py-1 mb-6">
+                      Previous Year Baseline
+                    </Badge>
+                    <h3 className="text-2xl font-black mb-1">2024 — 2025</h3>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed">Academic stress baseline recorded during freshman/sophomore transitions.</p>
+                  </div>
+                  <div className="pt-8 border-t border-white/10 mt-6 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Avg Stress</p>
+                      <p className="text-3xl font-black text-red-400">73 <span className="text-xs text-slate-400 font-bold">/100</span></p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Clinical Score</p>
+                      <p className="text-3xl font-black text-amber-400">6.7 <span className="text-xs text-slate-400 font-bold">/10</span></p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="border-none shadow-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-[2rem] overflow-hidden p-8 flex flex-col justify-between relative">
+                  <div className="absolute top-0 right-0 p-8 opacity-10 font-black text-8xl">2025</div>
+                  <div>
+                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none font-black text-[10px] uppercase tracking-widest px-3 py-1 mb-6">
+                      Current Year Growth
+                    </Badge>
+                    <h3 className="text-2xl font-black mb-1">2025 — 2026</h3>
+                    <p className="text-xs text-emerald-100 font-medium leading-relaxed">Substantial emotional resilience and normalized coping mechanisms achieved.</p>
+                  </div>
+                  <div className="pt-8 border-t border-white/20 mt-6 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Avg Stress</p>
+                      <p className="text-3xl font-black text-white">42 <span className="text-xs text-emerald-200 font-bold">/100</span></p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Clinical Score</p>
+                      <p className="text-3xl font-black text-white">8.9 <span className="text-xs text-emerald-200 font-bold">/10</span></p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden p-8 flex flex-col justify-between border border-slate-100">
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-black text-[10px] uppercase tracking-widest px-3 py-1">
+                        YoY Improvement
+                      </Badge>
+                      <div className="h-10 w-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600">
+                        <TrendingUp className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <h3 className="text-3xl font-black text-slate-900 mb-2">-42% Stress Drop</h3>
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                      Your clinical progression indicates highly successful stress management adaptation and improved academic coping capacity.
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3 mt-6 border border-slate-100">
+                    <Sparkles className="h-5 w-5 text-primary shrink-0" />
+                    <p className="text-xs font-bold text-slate-700">Counselor status: Ready for independent graduation transition.</p>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Side-by-Side Evaluation Timeline */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Past Year Column */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 p-4 bg-slate-100/80 rounded-2xl border border-slate-200">
+                    <div className="h-8 w-8 rounded-xl bg-slate-300 text-slate-700 flex items-center justify-center font-black text-xs">24</div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-base">2024 — 2025 Evaluations</h4>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Historical Baseline Records</p>
+                    </div>
+                  </div>
+
+                  {pastYearFeedbacks.map(fb => (
+                    <Card key={fb.id} className="border-none shadow-lg bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border border-slate-100">
+                      <CardHeader className="p-6 pb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-2xl">{fb.icon}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${fb.badgeColor}`}>
+                            Stress Rating: {fb.stressRating}/100
+                          </span>
+                        </div>
+                        <CardTitle className="text-lg font-black text-slate-900">{fb.focus}</CardTitle>
+                        <CardDescription className="flex items-center gap-2 font-bold text-xs pt-1 text-slate-400">
+                          <Clock className="h-3 w-3" /> {fb.date} — {fb.counselor}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-6 pt-2">
+                        <div className="p-4 bg-slate-50 rounded-2xl text-xs font-medium text-slate-600 leading-relaxed italic border border-slate-100">
+                          "{fb.notes}"
+                        </div>
+                        <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span>Clinical Resilience Score</span>
+                          <span className="font-black text-slate-700 text-sm">{fb.clinicalScore} / 10</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Current Year Column */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                    <div className="h-8 w-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-xs">25</div>
+                    <div>
+                      <h4 className="font-black text-emerald-950 text-base">2025 — 2026 Evaluations</h4>
+                      <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Current Active Progress</p>
+                    </div>
+                  </div>
+
+                  {currentYearFeedbacks.map(fb => (
+                    <Card key={fb.id} className="border-none shadow-lg bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border-2 border-emerald-100">
+                      <CardHeader className="p-6 pb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-2xl">{fb.icon}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${fb.badgeColor}`}>
+                            Stress Rating: {fb.stressRating}/100
+                          </span>
+                        </div>
+                        <CardTitle className="text-lg font-black text-slate-900">{fb.focus}</CardTitle>
+                        <CardDescription className="flex items-center gap-2 font-bold text-xs pt-1 text-slate-400">
+                          <Clock className="h-3 w-3" /> {fb.date} — {fb.counselor}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-6 pt-2">
+                        <div className="p-4 bg-emerald-50/50 rounded-2xl text-xs font-medium text-emerald-900 leading-relaxed italic border border-emerald-100/50">
+                          "{fb.notes}"
+                        </div>
+                        <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span>Clinical Resilience Score</span>
+                          <span className="font-black text-emerald-600 text-sm">{fb.clinicalScore} / 10</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Glowing AI Summary Growth Card */}
+              <Card className="border-none shadow-2xl bg-gradient-to-r from-primary/10 via-emerald-500/10 to-teal-500/10 p-8 rounded-[2.5rem] border border-primary/20 flex flex-col md:flex-row items-center gap-6">
+                <div className="h-16 w-16 rounded-3xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xl shadow-primary/30">
+                  <Sparkles className="h-8 w-8" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-slate-900 mb-2">Guidi AI Growth Insight</h4>
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                    "Comparing your historical clinical intake records from November 2024 with recent evaluations shows exceptional growth. You have successfully replaced exam panic responses with structured study breaks and open counselor communication. Your overall emotional stability score ranks in the top 15% of university progress cohorts."
+                  </p>
+                </div>
+              </Card>
             </TabsContent>
           </Tabs>
 
@@ -559,7 +421,7 @@ export default function StudentAssessments() {
                   {(activeTask?.questions || ['Please describe your current state.']).map((q: string, i: number) => (
                     <div key={i} className="space-y-3">
                       <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
-                        <span className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px]">{i + 1}</span>
+                        <span className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold">{i + 1}</span>
                         {q}
                       </Label>
                       <Textarea
@@ -574,7 +436,7 @@ export default function StudentAssessments() {
               </div>
               <div className="p-8 pt-4 bg-white border-t flex gap-3">
                 <Button variant="outline" onClick={() => setActiveTask(null)} className="flex-1 h-14 rounded-2xl font-bold border-slate-200">Cancel</Button>
-                <Button onClick={handleSubmitTask} className="flex-1 h-14 rounded-2xl font-black bg-primary">Submit Analysis</Button>
+                <Button onClick={handleSubmitTask} className="flex-1 h-14 rounded-2xl font-black bg-primary text-white shadow-lg shadow-primary/20">Submit Analysis</Button>
               </div>
             </DialogContent>
           </Dialog>

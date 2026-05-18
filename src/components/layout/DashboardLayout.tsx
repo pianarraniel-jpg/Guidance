@@ -40,7 +40,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: LayoutDashboard, label: 'Dashboard', href: '/student/dashboard' },
         { icon: Calendar, label: 'Appointments', href: '/student/appointments', type: 'appointment' },
         { icon: CalendarPlus, label: 'Book Session', href: '/student/book' },
-        { icon: ClipboardCheck, label: 'Assessments', href: '/student/assessments', type: 'assessment' },
+        { icon: ClipboardCheck, label: 'Clinical Tasks', href: '/student/assessments', type: 'assessment' },
+        { icon: Sparkles, label: 'Guidi AI Chat', href: '/student/chat' },
         { icon: MessageSquare, label: 'Messages', href: '/student/messages', type: 'message' },
         { icon: FileText, label: 'Resources', href: '/student/resources' },
       ];
@@ -89,7 +90,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             const unreadCount = getUnreadCount((item as any).type);
 
             return (
-              <Link
+               <Link
                 key={item.label}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all relative group ${
@@ -114,10 +115,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <div className="px-3 space-y-2 mt-auto">
           {isStudent && (
-            <Button asChild className="w-full bg-[#B45309] hover:bg-[#92400E] text-white font-bold rounded-lg flex items-center justify-start gap-3 h-11 mb-2 shadow-md">
-              <Link href="/student/assessments">
-                <Sparkles className="h-5 w-5" />
-                New Assessment
+            <Button asChild className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg flex items-center justify-start gap-3 h-11 mb-2 shadow-md">
+              <Link href="/student/chat">
+                <Sparkles className="h-5 w-5 animate-spin" />
+                Guidi AI Companion
               </Link>
             </Button>
           )}
