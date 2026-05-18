@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS session_notes (
 );
 
 -- ============================================================
+-- APPOINTMENT FEEDBACK
+-- ============================================================
+CREATE TABLE IF NOT EXISTS appointment_feedback (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  appointment_id UUID REFERENCES appointments(id) ON DELETE CASCADE NOT NULL,
+  counselor_id   UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  counselor_name TEXT NOT NULL,
+  student_id     UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  feedback       TEXT NOT NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- NOTIFICATIONS READ STATE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notifications_read (
@@ -211,6 +224,14 @@ CREATE POLICY "assessment_tasks_update" ON assessment_tasks FOR UPDATE TO authen
 CREATE POLICY "session_notes_select" ON session_notes FOR SELECT TO authenticated
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "session_notes_manage" ON session_notes FOR ALL TO authenticated
+  USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- appointment_feedback: counselors can submit feedback, students and admins may read their own feedback
+CREATE POLICY "appointment_feedback_select" ON appointment_feedback FOR SELECT TO authenticated
+  USING (counselor_id = auth.uid() OR student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "appointment_feedback_insert" ON appointment_feedback FOR INSERT TO authenticated
+  WITH CHECK (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "appointment_feedback_update" ON appointment_feedback FOR UPDATE TO authenticated
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- notifications_read: users manage their own read state
