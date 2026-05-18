@@ -172,9 +172,47 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24 lg:pb-0">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Students) */}
+        {isStudent && (
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/90 backdrop-blur-lg border-t border-slate-200/60 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] z-50 px-2 flex items-center justify-around">
+            {sidebarItems.slice(0, 5).map(item => {
+              const isActive = pathname.startsWith(item.href);
+              const unreadCount = getUnreadCount((item as any).type);
+              const isAiChat = item.href === '/student/chat';
+
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`flex flex-col items-center justify-center gap-1 flex-1 h-full relative transition-all ${
+                    isActive 
+                      ? 'text-primary scale-105' 
+                      : isAiChat 
+                        ? 'text-emerald-600 hover:text-emerald-700' 
+                        : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <div className="relative">
+                    <item.icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : ''} ${isAiChat ? 'animate-pulse' : ''}`} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 h-4 w-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-md animate-pulse">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold tracking-tight line-clamp-1">
+                    {isAiChat ? 'Guidi AI' : item.label}
+                  </span>
+                  {isActive && <div className="absolute top-0 w-8 h-1 bg-primary rounded-full shadow-sm" />}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
       </div>
     </div>
   );
