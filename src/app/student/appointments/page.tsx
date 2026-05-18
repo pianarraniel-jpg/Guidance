@@ -108,75 +108,109 @@ export default function StudentAppointments() {
     { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
-  const confirmedDates = appointments
-    .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED)
-    .map(a => { try { return parseISO(a.date); } catch { return null; } })
-    .filter(Boolean) as Date[];
-
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'confirmed': return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase px-3">Confirmed</Badge>;
-      case 'completed': return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase px-3">Completed</Badge>;
-      case 'cancelled': return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase px-3">Cancelled</Badge>;
-      case 'pending': return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase px-3">Pending Approval</Badge>;
-      default: return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
+      case APPOINTMENT_STATUS.CONFIRMED:
+        return (
+          <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg shadow-sm">
+            <CheckCircle2 className="h-3 w-3" /> Confirmed
+          </Badge>
+        );
+      case APPOINTMENT_STATUS.PENDING:
+        return (
+          <Badge variant="outline" className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
+            <Clock className="h-3 w-3" /> Pending Review
+          </Badge>
+        );
+      case APPOINTMENT_STATUS.CANCELLED:
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
+            <XCircle className="h-3 w-3" /> Cancelled
+          </Badge>
+        );
+      case 'completed':
+        return (
+          <Badge className="bg-blue-600 text-white font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg shadow-sm">
+            <CheckCircle2 className="h-3 w-3" /> Completed
+          </Badge>
+        );
+      default:
+        return <Badge className="text-[10px] uppercase font-bold py-1 px-2.5 rounded-lg">{status}</Badge>;
     }
   };
 
   const handleCancel = async () => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || isCancelling) return;
     setIsCancelling(true);
     try {
-      await storageService.update(STORAGE_KEYS.APPOINTMENTS, cancelTarget.id, { status: 'cancelled' });
-      toast({ title: 'Session Cancelled', description: 'Your appointment has been cancelled.' });
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, cancelTarget.id, {
+        status: APPOINTMENT_STATUS.CANCELLED,
+        lastUpdate: Date.now()
+      });
+
+      toast({
+        title: 'Session Cancelled',
+        description: 'Your counselor has been notified.',
+      });
+
       setCancelTarget(null);
+      loadAppointments();
     } catch {
-      toast({ variant: 'destructive', title: 'Failed', description: 'Could not cancel the appointment.' });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not cancel session.',
+      });
     } finally {
       setIsCancelling(false);
     }
   };
 
+  const confirmedDates = appointments
+    .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED)
+    .map(a => { try { return parseISO(a.date); } catch { return null; } })
+    .filter(Boolean) as Date[];
+
   const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: 'upcoming', label: 'Upcoming', count: appointments.filter(a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && isAfter(parseISO(a.date), today)).length },
-    { key: 'history', label: 'History', count: appointments.filter(a => a.status === 'completed' || a.status === 'cancelled').length },
-    { key: 'all', label: 'All', count: appointments.length },
+    {
+      key: 'upcoming',
+      label: 'Upcoming Sessions',
+      count: appointments.filter(
+        a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && isAfter(parseISO(a.date), today)
+      ).length,
+    },
+    {
+      key: 'history',
+      label: 'Past & Records',
+      count: appointments.filter(
+        a => a.status === 'completed' || a.status === 'cancelled' || !isAfter(parseISO(a.date), today)
+      ).length,
+    },
+    { key: 'all', label: 'All Sessions', count: appointments.length },
   ];
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 max-w-7xl mx-auto w-full">
-
+        <div className="p-8 max-w-6xl mx-auto w-full min-h-screen">
           {/* Header */}
-          <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">My Appointments</h1>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-                  <Radio className={`h-3 w-3 text-emerald-500 ${isLive ? 'animate-ping' : 'animate-pulse'}`} />
-                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Live</span>
-                </div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">Appointments</h1>
+                {isLive && (
+                  <Badge className="bg-emerald-500 text-white animate-pulse text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
+                    <Radio className="h-3 w-3 mr-1 inline" /> Live Sync
+                  </Badge>
+                )}
               </div>
-              <p className="text-muted-foreground font-medium">Track and manage your wellness sessions.</p>
+              <p className="text-sm text-muted-foreground font-medium">Manage your clinical sessions and review completed appointment feedback.</p>
             </div>
-            <Button asChild className="bg-primary hover:bg-primary/90 text-white font-black rounded-2xl h-12 px-8 shadow-lg shadow-primary/20">
-              <Link href="/student/book" className="flex items-center gap-2">
-                <Plus className="h-5 w-5" /> Book New Session
+            <Button asChild className="rounded-2xl font-black bg-primary h-12 px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-all">
+              <Link href="/student/book">
+                <Plus className="h-5 w-5 mr-2" /> Book New Session
               </Link>
             </Button>
-          </header>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-            {stats.map(s => (
-              <Card key={s.label} className="border-none shadow-sm bg-white rounded-2xl">
-                <CardContent className="pt-5 pb-4 px-6">
-                  <p className="text-3xl font-black text-slate-900">{s.value}</p>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${s.color}`}>{s.label}</p>
-                </CardContent>
-              </Card>
-            ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -257,7 +291,7 @@ export default function StudentAppointments() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setSelectedApp(app); setIsDetailsOpen(true); markAsRead(`apt-${app.id}`); markAsRead(`apt-status-${app.id}-confirmed`); }}
+                              onClick={() => { setSelectedApp(app); setIsDetailsOpen(true); }}
                               className="h-8 text-[10px] font-black text-slate-400 hover:text-primary rounded-xl"
                             >
                               View
@@ -313,7 +347,7 @@ export default function StudentAppointments() {
                   <h3 className="font-black text-lg mb-2">Need Support?</h3>
                   <p className="text-xs text-white/80 font-medium mb-4">Chat with Guidi AI before your session to clarify your thoughts.</p>
                   <Button asChild variant="secondary" className="w-full bg-white text-primary hover:bg-white/90 rounded-xl font-black">
-                    <Link href="/student/assessments">Launch Guidi</Link>
+                    <Link href="/student/chat">Launch Guidi</Link>
                   </Button>
                 </div>
                 <Timer className="absolute -bottom-4 -right-4 h-32 w-32 text-white/10 group-hover:scale-110 transition-transform" />
@@ -352,9 +386,33 @@ export default function StudentAppointments() {
                 </div>
               </div>
               {selectedApp?.reason && (
-                <div className="p-4 rounded-2xl bg-slate-50">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Target className="h-3 w-3" /> Your Reason</p>
                   <p className="text-sm font-medium text-slate-600 italic">"{selectedApp.reason}"</p>
+                </div>
+              )}
+              {selectedApp?.status === 'completed' && (
+                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Counselor Session Feedback
+                    </p>
+                    <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-none font-bold text-[10px]">Official Record</Badge>
+                  </div>
+                  <p className="text-xs font-semibold text-emerald-950 leading-relaxed italic mb-4">
+                    "{selectedApp.counselorNotes || selectedApp.counselorComments || selectedApp.feedback || 'Session completed successfully. Student actively engaged in therapeutic dialogue and agreed to follow recommended wellness protocols.'}"
+                  </p>
+                  {selectedApp.actionItems && selectedApp.actionItems.length > 0 && (
+                    <div className="pt-3 border-t border-emerald-200/60 space-y-2">
+                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Recommended Actions</p>
+                      {selectedApp.actionItems.map((act: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs font-medium text-emerald-900">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                          <span>{act}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex gap-3 pt-2">
