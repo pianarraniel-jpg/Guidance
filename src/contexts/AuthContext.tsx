@@ -38,11 +38,6 @@ async function fetchProfile(userId: string): Promise<User | null> {
     
     if (error || !data) {
       console.warn(`[AuthContext] Profile fetch failed or not found:`, error?.message || 'No data');
-      if (error?.message?.includes('JWT') || error?.message?.includes('token') || error?.code === 'PGRST301') {
-        console.warn(`[AuthContext] Token error detected. Forcing clean logout.`);
-        await supabase.auth.signOut();
-        if (typeof window !== 'undefined') localStorage.clear();
-      }
       return null;
     }
     const userObj: User = {
@@ -52,10 +47,15 @@ async function fetchProfile(userId: string): Promise<User | null> {
       role: data.role as UserRole,
       studentId: data.student_id ?? undefined,
     };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('guidance_cached_profile', JSON.stringify(userObj));
+    // Ensure Supabase session metadata has these fields for instant future reloads
+    try {
+      await supabase.auth.updateUser({
+        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId }
+      });
+    } catch {
+      // ignore non-critical update errors
     }
-    console.log(`[AuthContext] Profile successfully fetched & cached:`, data.email, data.role);
+    console.log(`[AuthContext] Profile successfully fetched:`, data.email, data.role);
     return userObj;
   } catch (err: any) {
     console.error(`[AuthContext] Unexpected error during fetchProfile:`, err?.message || err);
@@ -68,78 +68,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const router = useRouter();
-  const activeFetchRef = useRef<string | null>(null);
+  const activeUserRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    console.log(`[AuthContext] Initializing auth session check on client mount...`);
-    let isMounted = true;
-
-    // Instantly hydrate from cache after SSR hydration passes
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('guidance_cached_profile');
-        if (cached) {
-          console.log(`[AuthContext] Hydrated user instantly from local cache!`);
-          setUser(JSON.parse(cached));
-          setIsLoading(false);
-        }
-      } catch {
-        // ignore parse errors
+  const handleSessionUser = async (sessionUser: any, isMounted: boolean) => {
+    const meta = sessionUser.user_metadata || {};
+    
+    // If Supabase session metadata already has name and role, hydrate instantly without a database round-trip
+    if (meta.name && meta.role) {
+      console.log(`[AuthContext] Instantly hydrated from Supabase session metadata:`, sessionUser.email, meta.role);
+      const userObj: User = {
+        id: sessionUser.id,
+        name: meta.name,
+        email: sessionUser.email || meta.email || '',
+        role: meta.role as UserRole,
+        studentId: meta.student_id ?? undefined,
+      };
+      activeUserRef.current = sessionUser.id;
+      if (isMounted) {
+        setUser(userObj);
+        setIsLoading(false);
       }
+      return;
     }
 
+    // Fallback: fetch profile from database once if metadata is missing
+    if (activeUserRef.current !== sessionUser.id) {
+      activeUserRef.current = sessionUser.id;
+      const profile = await fetchProfile(sessionUser.id);
+      if (isMounted && profile) {
+        setUser(profile);
+        setIsLoading(false);
+      } else if (isMounted) {
+        setIsLoading(false);
+      }
+    }
+  };
 
-    // Fail-safe timeout: if Supabase takes more than 4 seconds to resolve, force stop spinner
+  useEffect(() => {
+    console.log(`[AuthContext] Initializing Supabase auth check on mount...`);
+    let isMounted = true;
+
+    // Fail-safe timeout
     const timer = setTimeout(() => {
       if (isMounted) {
-        console.warn(`[AuthContext] getSession timed out after 4s. Forcing isLoading = false.`);
+        console.warn(`[AuthContext] Supabase auth timed out after 5s. Forcing isLoading = false.`);
         setIsLoading(false);
       }
-    }, 4000);
+    }, 5000);
 
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (!isMounted) return;
-      if (error) {
-        console.error(`[AuthContext] getSession error:`, error.message);
-        setIsLoading(false);
-        return;
-      }
-      console.log(`[AuthContext] getSession completed. Session present:`, !!session);
-      if (session?.user) {
-        if (activeFetchRef.current !== session.user.id) {
-          activeFetchRef.current = session.user.id;
-          const profile = await fetchProfile(session.user.id);
-          if (isMounted && profile) {
-            setUser(profile);
-          }
-        }
-        if (isMounted) setIsLoading(false);
-      } else {
-        if (typeof window !== 'undefined') localStorage.removeItem('guidance_cached_profile');
+      if (error || !session?.user) {
         if (isMounted) {
           setUser(null);
           setIsLoading(false);
         }
+        return;
       }
+      handleSessionUser(session.user, isMounted);
     }).catch(err => {
       console.error(`[AuthContext] Unhandled rejection in getSession:`, err);
       if (isMounted) setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`[AuthContext] onAuthStateChange event triggered:`, event, `Session present:`, !!session);
+      console.log(`[AuthContext] onAuthStateChange:`, event, !!session);
       if (!isMounted) return;
       if (session?.user) {
-        if (activeFetchRef.current !== session.user.id) {
-          activeFetchRef.current = session.user.id;
-          const profile = await fetchProfile(session.user.id);
-          if (isMounted && profile) {
-            setUser(profile);
-            setIsLoading(false);
-          }
-        }
+        handleSessionUser(session.user, isMounted);
       } else {
-        if (typeof window !== 'undefined') localStorage.removeItem('guidance_cached_profile');
+        activeUserRef.current = null;
         if (isMounted) {
           setUser(null);
           setIsLoading(false);
@@ -160,7 +158,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error || !data.user) return false;
       const profile = await fetchProfile(data.user.id);
       if (profile) {
-        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(profile));
         setUser(profile);
         return true;
       }
@@ -185,13 +182,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (error || !data.user) return false;
       if (apiProfile) {
-        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(apiProfile));
+        try {
+          await supabase.auth.updateUser({
+            data: { name: apiProfile.name, role: apiProfile.role, student_id: apiProfile.studentId }
+          });
+        } catch {}
         setUser(apiProfile);
         return true;
       }
       const profile = await fetchProfile(data.user.id);
       if (profile) {
-        if (typeof window !== 'undefined') localStorage.setItem('guidance_cached_profile', JSON.stringify(profile));
         setUser(profile);
         return true;
       }
@@ -201,10 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-
   const logout = async () => {
     await supabase.auth.signOut();
-    if (typeof window !== 'undefined') localStorage.clear();
     setUser(null);
     router.push('/login');
   };
