@@ -5,31 +5,42 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   ShieldCheck,
   ChevronLeft,
   Briefcase,
-  Play
+  Play,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CounselorLoginPage() {
   const [error, setError] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
-  const handleQuickEntry = async () => {
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     try {
-      const success = await login('counselor@uspf.edu.ph', 'password123');
+      const success = await login('counselor@uspf.edu.ph', password.trim());
       if (success) {
+        setIsPasswordDialogOpen(false);
         router.push('/counselor/dashboard');
       } else {
-        setError('Staff portal configuration error. Please contact IT.');
+        setError('Invalid staff password. Please try again.');
       }
     } catch (err) {
       setError('An unexpected error occurred during portal access.');
@@ -70,23 +81,66 @@ export default function CounselorLoginPage() {
               <p className="text-[10px] text-slate-400 font-medium italic">Professional access restricted to authorized Guidance Office personnel.</p>
             </div>
 
-            {error && (
-              <Alert variant="destructive" className="rounded-xl border-none bg-red-50 text-red-600 py-3">
-                <AlertDescription className="text-xs font-bold text-center">{error}</AlertDescription>
-              </Alert>
-            )}
+            <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  className="w-full h-20 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group"
+                  disabled={isSubmitting}
+                >
+                  <div className="flex items-center gap-2">
+                    <Play className="h-5 w-5 fill-current" />
+                    <span className="text-lg">Launch Staff Dashboard</span>
+                  </div>
+                  <span className="text-[10px] opacity-70 group-hover:opacity-100 uppercase tracking-widest">Enter Guidance Workspace</span>
+                </Button>
+              </DialogTrigger>
 
-            <Button
-              onClick={handleQuickEntry}
-              className="w-full h-20 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group"
-              disabled={isSubmitting}
-            >
-              <div className="flex items-center gap-2">
-                <Play className="h-5 w-5 fill-current" />
-                <span className="text-lg">{isSubmitting ? 'Launching...' : 'Launch Staff Dashboard'}</span>
-              </div>
-              <span className="text-[10px] opacity-70 group-hover:opacity-100 uppercase tracking-widest">Enter Guidance Workspace</span>
-            </Button>
+              <DialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-black">Staff Portal Access</DialogTitle>
+                  <DialogDescription className="mt-1 text-sm text-slate-500">Enter the staff portal password to continue.</DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+                  {error && (
+                    <Alert variant="destructive" className="rounded-xl border-none bg-red-50 text-red-600 py-3">
+                      <AlertDescription className="text-xs font-bold text-center">{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-3">
+                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Password</Label>
+                    <div className="relative group">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="USPF-2026"
+                        className="pl-4 pr-10 h-14 border-muted"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl transition-all active:scale-[0.98]"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Authenticating...' : 'Confirm Password'}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
 
             <div className="pt-6 border-t border-slate-50 text-center">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Terminal ID: GS-ADMIN-01</p>

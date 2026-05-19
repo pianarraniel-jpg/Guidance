@@ -3,7 +3,7 @@
 --
 -- Credentials:
 --   Student   → email: student@uspf.edu.ph    password: 2024-0001   (also the Student ID login)
---   Counselor → email: counselor@uspf.edu.ph   password: password123
+--   Counselor → email: counselor@uspf.edu.ph   password: USPF-2026
 --   Admin     → email: admin@uspf.edu.ph        password: password123
 
 DO $$
@@ -49,7 +49,7 @@ VALUES
     v_counselor_id,
     'authenticated', 'authenticated',
     'counselor@uspf.edu.ph',
-    crypt('password123', gen_salt('bf')),
+    crypt('USPF-2026', gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
     '{"name":"USPF Counselor","role":"counselor"}'::jsonb,

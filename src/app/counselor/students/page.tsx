@@ -13,12 +13,13 @@ import { Search, MoreVertical, Trash2, ExternalLink, Users, Brain, TrendingUp, A
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, USER_ROLES } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription,
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -28,6 +29,12 @@ export default function CounselorStudentsPage() {
   const [insightsMap, setInsightsMap] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [profileStudent, setProfileStudent] = useState<any>(null);
+  const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
+  const [enrollName, setEnrollName] = useState('');
+  const [enrollEmail, setEnrollEmail] = useState('');
+  const [enrollStudentId, setEnrollStudentId] = useState('');
+  const [enrollError, setEnrollError] = useState('');
+  const [isEnrollSubmitting, setIsEnrollSubmitting] = useState(false);
   const { toast } = useToast();
 
   const loadStudents = async () => {
@@ -58,6 +65,87 @@ export default function CounselorStudentsPage() {
   };
 
   useEffect(() => { loadStudents(); }, []);
+
+  const handleEnrollSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEnrollError('');
+    setIsEnrollSubmitting(true);
+
+    const name = enrollName.trim();
+    const email = enrollEmail.trim().toLowerCase();
+    const studentId = enrollStudentId.trim();
+
+    if (!name || !email || !studentId) {
+      setEnrollError('Please complete all enrollment fields.');
+      setIsEnrollSubmitting(false);
+      return;
+    }
+
+    if (!email.endsWith('@uspf.edu.ph')) {
+      setEnrollError('Student email must use the official @uspf.edu.ph domain.');
+      setIsEnrollSubmitting(false);
+      return;
+    }
+
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: existingEmail } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (existingEmail) {
+        setEnrollError('A profile already exists for this email.');
+        setIsEnrollSubmitting(false);
+        return;
+      }
+
+      const { data: existingStudentId } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+      if (existingStudentId) {
+        setEnrollError('This Student ID is already registered.');
+        setIsEnrollSubmitting(false);
+        return;
+      }
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: studentId,
+      });
+
+      if (signUpError || !data.user) {
+        setEnrollError(signUpError?.message || 'Enrollment failed. Please try again.');
+        setIsEnrollSubmitting(false);
+        return;
+      }
+
+      await supabase
+        .from('profiles')
+        .update({ name, role: USER_ROLES.STUDENT, student_id: studentId })
+        .eq('id', data.user.id);
+
+      toast({
+        title: 'Student Enrolled',
+        description: `${name} has been added to the student directory.`,
+      });
+
+      setIsEnrollDialogOpen(false);
+      setEnrollName('');
+      setEnrollEmail('');
+      setEnrollStudentId('');
+      loadStudents();
+    } catch (err) {
+      console.error(err);
+      setEnrollError('Unable to enroll student. Please try again.');
+    } finally {
+      setIsEnrollSubmitting(false);
+    }
+  };
 
   const handleDeleteStudent = async (id: string) => {
     await storageService.delete(STORAGE_KEYS.USERS, id);
@@ -105,6 +193,76 @@ export default function CounselorStudentsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="h-12 rounded-2xl bg-primary text-white font-black text-xs uppercase tracking-[0.25em] shadow-lg shadow-primary/10 hover:bg-primary/90">
+                Create / Enroll Student
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md rounded-[2rem] p-6 border-none shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black">Create / Enroll Student</DialogTitle>
+                <DialogDescription className="mt-2 text-sm text-slate-500">
+                  Add a new wellness student account using their official USPF credentials.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleEnrollSubmit} className="mt-6 space-y-5">
+                {enrollError && (
+                  <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-red-700 text-xs font-bold">
+                    {enrollError}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <Label htmlFor="enrollName" className="text-xs font-black uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                  <Input
+                    id="enrollName"
+                    type="text"
+                    placeholder="Juan Dela Cruz"
+                    value={enrollName}
+                    onChange={(e) => setEnrollName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="enrollEmail" className="text-xs font-black uppercase tracking-wider text-muted-foreground">University Email</Label>
+                  <Input
+                    id="enrollEmail"
+                    type="email"
+                    placeholder="student@uspf.edu.ph"
+                    value={enrollEmail}
+                    onChange={(e) => setEnrollEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="enrollStudentId" className="text-xs font-black uppercase tracking-wider text-muted-foreground">Student ID</Label>
+                  <Input
+                    id="enrollStudentId"
+                    type="text"
+                    placeholder="2024-0001"
+                    value={enrollStudentId}
+                    onChange={(e) => setEnrollStudentId(e.target.value)}
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400">The student ID will also be used as the initial login password.</p>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-black rounded-2xl transition-all active:scale-[0.98]"
+                  disabled={isEnrollSubmitting}
+                >
+                  {isEnrollSubmitting ? 'Enrolling...' : 'Enroll Student'}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
           <div className="bg-primary/5 px-4 h-12 rounded-2xl flex items-center gap-2 border border-primary/10">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-xs font-black text-primary">{students.length} Enrolled</span>

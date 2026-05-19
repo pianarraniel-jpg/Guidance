@@ -361,10 +361,10 @@ export default function StudentAppointments() {
           <DialogContent className="max-w-lg rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-slate-50 border-b">
               <DialogTitle className="text-xl font-black">{selectedApp?.type}</DialogTitle>
-              <DialogDescription className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-2">
                 {getStatusBadge(selectedApp?.status)}
                 <span className="text-[10px] font-bold text-slate-400 uppercase">#{selectedApp?.id?.slice(-6).toUpperCase()}</span>
-              </DialogDescription>
+              </div>
             </DialogHeader>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
