@@ -33,12 +33,19 @@ import {
   MapPin,
   FileText,
   Target,
-  Radio
+  Radio,
+  Plus,
+  Sparkles,
+  Brain,
+  Heart,
+  BookOpen,
+  Briefcase
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -55,16 +62,45 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useAuth } from '@/contexts/AuthContext';
+
+const SESSION_TYPES = [
+  { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
+  { value: 'Academic Stress', label: 'Academic Stress', icon: BookOpen, color: 'text-blue-500 bg-blue-50' },
+  { value: 'Personal Concerns', label: 'Personal Concerns', icon: Brain, color: 'text-purple-500 bg-purple-50' },
+  { value: 'Career Guidance', label: 'Career Guidance', icon: Briefcase, color: 'text-orange-500 bg-orange-50' },
+  { value: 'Mental Health Support', label: 'Mental Health Support', icon: Sparkles, color: 'text-pink-500 bg-pink-50' },
+];
+
+const TIME_SLOTS = [
+  '09:00 AM', '10:00 AM', '11:00 AM',
+  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+];
 
 export default function CounselorAppointmentsPage() {
+  const { user: counselor } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Counselor-to-Student booking states
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const [bookingStudentId, setBookingStudentId] = useState("");
+  const [bookingType, setBookingType] = useState("");
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingTime, setBookingTime] = useState("");
+  const [bookingReason, setBookingReason] = useState("");
+  const [bookingLocation, setBookingLocation] = useState("Room 302");
+  const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackAppointment, setFeedbackAppointment] = useState<any>(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [actionItems, setActionItems] = useState<string[]>([]);
+  const [newAction, setNewAction] = useState("");
   const [isLive, setIsLive] = useState(false);
   const { toast } = useToast();
   const { notifications, markAsRead } = useNotifications();
@@ -74,6 +110,75 @@ export default function CounselorAppointmentsPage() {
     data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setAppointments(data);
   }, []);
+
+  const loadStudents = useCallback(async () => {
+    try {
+      const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
+      setStudents(allUsers.filter(u => u.role === 'student'));
+    } catch (err) {
+      console.error("Error loading students:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  const handleCounselorBooking = async () => {
+    if (!bookingStudentId || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+      });
+      return;
+    }
+    
+    setIsBookingSubmit(true);
+    try {
+      const selectedStudent = students.find(s => s.id === bookingStudentId);
+      if (!selectedStudent) throw new Error("Student not found");
+
+      await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
+        studentId: bookingStudentId,
+        studentName: selectedStudent.name,
+        counselorId: counselor?.id,
+        counselorName: counselor?.name,
+        date: bookingDate,
+        time: bookingTime,
+        type: bookingType,
+        status: APPOINTMENT_STATUS.CONFIRMED,
+        location: bookingLocation,
+        reason: bookingReason.trim(),
+        createdAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Appointment Booked!",
+        description: `Successfully booked a confirmed session for ${selectedStudent.name}.`,
+      });
+
+      setIsBookingOpen(false);
+      // Reset form
+      setBookingStudentId("");
+      setBookingType("");
+      setBookingDate("");
+      setBookingTime("");
+      setBookingReason("");
+      setBookingLocation("Room 302");
+      
+      // Reload appointments
+      loadAppointments();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Booking Failed",
+        description: err.message || "An error occurred while booking.",
+      });
+    } finally {
+      setIsBookingSubmit(false);
+    }
+  };
 
   useEffect(() => {
     loadAppointments();
@@ -136,7 +241,9 @@ export default function CounselorAppointmentsPage() {
 
   const openFeedbackModal = (appointment: any) => {
     setFeedbackAppointment(appointment);
-    setFeedbackText("");
+    setFeedbackText(appointment.counselorNotes || "");
+    setActionItems(appointment.actionItems || ["Practice 4-7-8 breathing technique before sleep", "Limit caffeine intake after 2:00 PM"]);
+    setNewAction("");
     setIsFeedbackOpen(true);
   };
 
@@ -145,8 +252,7 @@ export default function CounselorAppointmentsPage() {
       toast({
         variant: "destructive",
         title: "Feedback required",
-        description:
-          "Please enter counselor feedback before completing the session.",
+        description: "Please enter counselor feedback before completing the session.",
       });
       return;
     }
@@ -172,17 +278,23 @@ export default function CounselorAppointmentsPage() {
     await storageService.update(
       STORAGE_KEYS.APPOINTMENTS,
       feedbackAppointment.id,
-      { status: APPOINTMENT_STATUS.COMPLETED },
+      { 
+        status: APPOINTMENT_STATUS.COMPLETED,
+        counselorNotes: feedbackText,
+        actionItems: actionItems,
+        lastUpdate: Date.now()
+      },
     );
+
     toast({
       title: "Session Completed",
-      description:
-        "Feedback has been saved and the appointment is now completed.",
+      description: "Feedback has been saved and the appointment is now completed.",
     });
+
     setIsFeedbackOpen(false);
     setSelectedApp((prev: any) =>
       prev?.id === feedbackAppointment.id
-        ? { ...prev, status: APPOINTMENT_STATUS.COMPLETED }
+        ? { ...prev, status: APPOINTMENT_STATUS.COMPLETED, counselorNotes: feedbackText, actionItems }
         : prev,
     );
     loadAppointments();
@@ -263,6 +375,12 @@ export default function CounselorAppointmentsPage() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            onClick={() => setIsBookingOpen(true)}
+            className="h-10 px-4 rounded-xl font-black bg-primary text-white hover:bg-primary/90 shadow-md flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" /> Book Session
+          </Button>
         </div>
       </header>
 
@@ -628,40 +746,213 @@ export default function CounselorAppointmentsPage() {
           <DialogHeader className="p-8 bg-slate-50 border-b">
             <div className="flex flex-col gap-2">
               <DialogTitle className="text-2xl font-black text-slate-900">
-                Session Feedback
+                Session Feedback & Actions
               </DialogTitle>
               <p className="text-sm text-slate-500">
-                Please enter counselor feedback before marking the session as
-                complete.
+                Provide clinical reflections and recommended actions for the student.
               </p>
             </div>
           </DialogHeader>
           <div className="p-8 space-y-6">
             <div className="space-y-2">
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                Appointment
+                Student Session
               </p>
               <p className="text-sm font-bold text-slate-800">
                 {feedbackAppointment?.studentName || "Unknown student"} •{" "}
                 {feedbackAppointment?.date} {feedbackAppointment?.time}
               </p>
             </div>
-            <Textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Write feedback for the student and session here..."
-              className="min-h-[140px] rounded-3xl"
-            />
+
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                Counselor Session Reflections (Visible to Student)
+              </p>
+              <Textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Write feedback for the student and session here..."
+                className="min-h-[120px] rounded-2xl p-4 bg-slate-50 border border-slate-200 text-xs"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                Recommended Action Items (Student Homework)
+              </p>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {actionItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs font-medium text-slate-800">
+                    <span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> {item}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setActionItems(prev => prev.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add new recommendation or action item..."
+                  value={newAction}
+                  onChange={e => setNewAction(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newAction.trim()) { setActionItems(prev => [...prev, newAction.trim()]); setNewAction(""); } } }}
+                  className="h-10 rounded-xl text-xs font-medium bg-white border border-slate-200"
+                />
+                <Button onClick={() => { if (newAction.trim()) { setActionItems(prev => [...prev, newAction.trim()]); setNewAction(""); } }} variant="secondary" className="h-10 px-4 rounded-xl font-black bg-primary text-white hover:bg-primary/90 shadow-md">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-3 pt-4 border-t border-slate-100">
               <Button
                 onClick={submitFeedbackAndComplete}
-                className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black"
+                className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black text-white shadow-lg shadow-emerald-600/20"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" /> Confirm Feedback
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Confirm & Complete Session
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setIsFeedbackOpen(false)}
+                className="flex-1 h-12 rounded-xl font-bold border-slate-200"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Counselor Booking Modal */}
+      <Dialog open={isBookingOpen} onOpenChange={setIsBookingOpen}>
+        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-8 bg-slate-50 border-b">
+            <div className="flex flex-col gap-2">
+              <DialogTitle className="text-2xl font-black text-slate-900">
+                Book Session for Student
+              </DialogTitle>
+              <p className="text-sm text-slate-500">
+                Create a confirmed appointment immediately for any registered student.
+              </p>
+            </div>
+          </DialogHeader>
+          <div className="p-8 max-h-[70vh] overflow-y-auto space-y-6">
+            <div className="space-y-4">
+              {/* Student Selection */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-900">Select Student *</Label>
+                <Select value={bookingStudentId} onValueChange={setBookingStudentId}>
+                  <SelectTrigger className="w-full h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-primary">
+                    <SelectValue placeholder="Choose student..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white max-h-48 overflow-y-auto">
+                    {students.map((student) => (
+                      <SelectItem key={student.id} value={student.id} className="hover:bg-slate-50 rounded-lg p-2.5 cursor-pointer text-xs font-bold text-slate-700">
+                        {student.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Session Type */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-900">Session Type *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {SESSION_TYPES.map(({ value, label, icon: Icon, color }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setBookingType(value)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                        bookingType === value
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-primary/30'
+                      }`}
+                    >
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className={`text-[11px] font-bold ${bookingType === value ? 'text-primary' : 'text-slate-700'}`}>
+                        {label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date & Time Picker */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-900">Date *</Label>
+                  <Input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-900">Time Slot *</Label>
+                  <Select value={bookingTime} onValueChange={setBookingTime}>
+                    <SelectTrigger className="w-full h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-primary">
+                      <SelectValue placeholder="Choose time slot..." />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-2xl bg-white">
+                      {TIME_SLOTS.map((slot) => (
+                        <SelectItem key={slot} value={slot} className="hover:bg-slate-50 rounded-lg p-2.5 cursor-pointer text-xs font-bold text-slate-700">
+                          {slot}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Location Input */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-900">Location</Label>
+                <Input
+                  placeholder="e.g. Guidance Office - Room 302"
+                  value={bookingLocation}
+                  onChange={(e) => setBookingLocation(e.target.value)}
+                  className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
+                />
+              </div>
+
+              {/* Consultation Reason */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-900">Consultation Reason / Goal *</Label>
+                <Textarea
+                  placeholder="Describe the primary concern or focus of this booked session..."
+                  value={bookingReason}
+                  onChange={(e) => setBookingReason(e.target.value)}
+                  className="min-h-[100px] rounded-xl text-xs font-semibold bg-white border border-slate-200 p-3 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-slate-100">
+              <Button
+                onClick={handleCounselorBooking}
+                disabled={isBookingSubmit || !bookingStudentId || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()}
+                className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black text-white shadow-lg shadow-primary/20"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" /> {isBookingSubmit ? "Scheduling..." : "Book & Confirm"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsBookingOpen(false);
+                  setBookingStudentId("");
+                  setBookingType("");
+                  setBookingDate("");
+                  setBookingTime("");
+                  setBookingReason("");
+                  setBookingLocation("Room 302");
+                }}
                 className="flex-1 h-12 rounded-xl font-bold border-slate-200"
               >
                 Cancel
