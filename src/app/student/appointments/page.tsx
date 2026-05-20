@@ -70,8 +70,13 @@ export default function StudentAppointments() {
       storageService.getByField<any>('appointment_feedback', 'studentId', user.id),
     ]);
 
+    // Sort feedback descending so we always get the latest one if there are duplicates
+    const sortedFeedback = allFeedback.sort((a: any, b: any) => 
+      new Date(b.createdAt || b.created_at || 0).getTime() - new Date(a.createdAt || a.created_at || 0).getTime()
+    );
+
     const enrichedData = data.map((app: any) => {
-      const fb = allFeedback.find((f: any) => f.appointmentId === app.id);
+      const fb = sortedFeedback.find((f: any) => f.appointmentId === app.id || f.appointment_id === app.id);
       if (fb && fb.feedback) {
         try {
           const parsed = JSON.parse(fb.feedback);

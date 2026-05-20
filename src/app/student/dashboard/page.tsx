@@ -106,9 +106,14 @@ export default function StudentDashboard() {
       supabase.from('profiles').select('wellness_score').eq('id', user.id).maybeSingle(),
     ]);
 
+    // Sort feedback descending so we always get the latest one if there are duplicates
+    const sortedFeedback = allFeedback.sort((a: any, b: any) => 
+      new Date(b.createdAt || b.created_at || 0).getTime() - new Date(a.createdAt || a.created_at || 0).getTime()
+    );
+
     // Attach feedback data (actionItems) to appointments
     const allAppointments = rawAppointments.map((app: any) => {
-      const fb = allFeedback.find((f: any) => f.appointmentId === app.id);
+      const fb = sortedFeedback.find((f: any) => f.appointmentId === app.id || f.appointment_id === app.id);
       if (fb && fb.feedback) {
         try {
           const parsed = JSON.parse(fb.feedback);
