@@ -98,12 +98,28 @@ export default function StudentDashboard() {
       setIsLoading(true);
     }
 
-    const [allAssessments, allAppointments, { data: insightRow }, { data: profileRow }] = await Promise.all([
+    const [allAssessments, rawAppointments, allFeedback, { data: insightRow }, { data: profileRow }] = await Promise.all([
       storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
       storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
+      storageService.getByField<any>('appointment_feedback', 'studentId', user.id),
       supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle(),
       supabase.from('profiles').select('wellness_score').eq('id', user.id).maybeSingle(),
     ]);
+
+    // Attach feedback data (actionItems) to appointments
+    const allAppointments = rawAppointments.map((app: any) => {
+      const fb = allFeedback.find((f: any) => f.appointmentId === app.id);
+      if (fb && fb.feedback) {
+        try {
+          const parsed = JSON.parse(fb.feedback);
+          if (parsed.actionItems) app.actionItems = parsed.actionItems;
+          if (parsed.counselorNotes) app.counselorNotes = parsed.counselorNotes;
+        } catch(e) {
+          app.counselorNotes = fb.feedback;
+        }
+      }
+      return app;
+    });
 
     const assessments = allAssessments.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 7);
     const appointments = allAppointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED);

@@ -271,7 +271,10 @@ export default function CounselorAppointmentsPage() {
       counselorId: feedbackAppointment.counselorId,
       counselorName: feedbackAppointment.counselorName,
       studentId: feedbackAppointment.studentId,
-      feedback: feedbackText,
+      feedback: JSON.stringify({
+        counselorNotes: feedbackText,
+        actionItems: actionItems
+      }),
       createdAt: new Date().toISOString(),
     });
 
@@ -280,9 +283,6 @@ export default function CounselorAppointmentsPage() {
       feedbackAppointment.id,
       { 
         status: APPOINTMENT_STATUS.COMPLETED,
-        counselorNotes: feedbackText,
-        actionItems: actionItems,
-        lastUpdate: Date.now()
       },
     );
 

@@ -65,9 +65,27 @@ export default function StudentAppointments() {
 
   const loadAppointments = useCallback(async () => {
     if (!user) return;
-    const data = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
-    data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setAppointments(data);
+    const [data, allFeedback] = await Promise.all([
+      storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
+      storageService.getByField<any>('appointment_feedback', 'studentId', user.id),
+    ]);
+
+    const enrichedData = data.map((app: any) => {
+      const fb = allFeedback.find((f: any) => f.appointmentId === app.id);
+      if (fb && fb.feedback) {
+        try {
+          const parsed = JSON.parse(fb.feedback);
+          if (parsed.actionItems) app.actionItems = parsed.actionItems;
+          if (parsed.counselorNotes) app.counselorNotes = parsed.counselorNotes;
+        } catch(e) {
+          app.counselorNotes = fb.feedback;
+        }
+      }
+      return app;
+    });
+
+    enrichedData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAppointments(enrichedData);
   }, [user]);
 
   useEffect(() => { loadRef.current = loadAppointments; }, [loadAppointments]);

@@ -109,14 +109,33 @@ export default function SessionNotesPage() {
     setIsSubmitting(true);
 
     try {
+      // 1. Update appointment status (only valid schema columns)
       await storageService.update(STORAGE_KEYS.APPOINTMENTS, selectedApt.id, {
         status: APPOINTMENT_STATUS.COMPLETED,
-        counselorNotes: reflectionsText,
-        privateNotes: privateNotesText,
-        actionItems: homework,
+      });
+
+      // 2. Save private records to session_notes
+      await storageService.create('session_notes', {
+        counselorId: selectedApt.counselorId,
+        studentId: selectedApt.studentId,
+        appointmentId: selectedApt.id,
         stressLevel: stressLevel[0],
         topics: topics,
-        lastUpdate: Date.now()
+        clientReflections: reflectionsText,
+        privateNotes: privateNotesText,
+        homework: homework,
+      });
+
+      // 3. Save student-facing notes and action items to appointment_feedback (which students can read)
+      await storageService.create('appointment_feedback', {
+        appointmentId: selectedApt.id,
+        counselorId: selectedApt.counselorId,
+        counselorName: selectedApt.counselorName,
+        studentId: selectedApt.studentId,
+        feedback: JSON.stringify({
+          counselorNotes: reflectionsText,
+          actionItems: homework
+        })
       });
 
       toast({
