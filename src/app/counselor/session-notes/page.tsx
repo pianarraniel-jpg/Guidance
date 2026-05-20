@@ -59,7 +59,16 @@ export default function SessionNotesPage() {
       activeApts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setAppointments(activeApts);
 
-      if (activeApts.length > 0) {
+      // Check query parameter
+      let queryId: string | null = null;
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        queryId = params.get('id');
+      }
+
+      if (queryId && activeApts.some(a => a.id === queryId)) {
+        handleSelectApt(queryId, activeApts);
+      } else if (activeApts.length > 0) {
         handleSelectApt(activeApts[0].id, activeApts);
       }
     };

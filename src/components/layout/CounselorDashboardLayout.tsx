@@ -15,7 +15,8 @@ import {
   Search,
   Calendar,
   MessageSquare,
-  ShieldCheck
+  ShieldCheck,
+  ClipboardList
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -36,6 +37,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
     { icon: Users, label: 'Students', href: '/counselor/students' },
     { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
     { icon: FileText, label: 'Assessments', href: '/counselor/assessments', type: 'assessment' },
+    { icon: ClipboardList, label: 'Session Records', href: '/counselor/session-records' },
     { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
   ];
 
