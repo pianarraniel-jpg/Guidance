@@ -36,14 +36,30 @@ export default function AdminDashboard() {
         storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
         storageService.getAll<any>(STORAGE_KEYS.USERS),
       ]);
-      setAppointments(allApts);
-      setUsers(allUsers);
+
+      setAppointments(prev => {
+        if (prev.length !== allApts.length) return allApts;
+        const hasDiff = prev.some((a, i) => a.id !== allApts[i].id || a.status !== allApts[i].status || a.date !== allApts[i].date);
+        return hasDiff ? allApts : prev;
+      });
+
+      setUsers(prev => {
+        if (prev.length !== allUsers.length) return allUsers;
+        const hasDiff = prev.some((u, i) => u.id !== allUsers[i].id || u.role !== allUsers[i].role || u.name !== allUsers[i].name);
+        return hasDiff ? allUsers : prev;
+      });
 
       const last7Days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() });
-      setChartData(last7Days.map(day => {
+      const nextChartData = last7Days.map(day => {
         const dateStr = format(day, 'yyyy-MM-dd');
         return { name: format(day, 'EEE'), sessions: allApts.filter(a => a.date === dateStr).length };
-      }));
+      });
+
+      setChartData(prev => {
+        if (prev.length !== nextChartData.length) return nextChartData;
+        const hasDiff = prev.some((d, i) => d.name !== nextChartData[i].name || d.sessions !== nextChartData[i].sessions);
+        return hasDiff ? nextChartData : prev;
+      });
     };
     loadData();
     const interval = setInterval(loadData, 10000);

@@ -73,7 +73,17 @@ export default function StudentMessages() {
     });
 
     counselorsWithMetadata.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
-    setCounselors(counselorsWithMetadata);
+    setCounselors(prev => {
+      if (prev.length !== counselorsWithMetadata.length) return counselorsWithMetadata;
+      const hasDiff = prev.some((c, idx) => {
+        const nextC = counselorsWithMetadata[idx];
+        return c.id !== nextC.id || 
+               c.isUnread !== nextC.isUnread || 
+               c.lastMessage?.id !== nextC.lastMessage?.id ||
+               c.lastMessage?.timestamp !== nextC.lastMessage?.timestamp;
+      });
+      return hasDiff ? counselorsWithMetadata : prev;
+    });
 
     if (!activeCounselor && counselorsWithMetadata.length > 0) {
       setActiveCounselor(counselorsWithMetadata[0]);
@@ -84,7 +94,13 @@ export default function StudentMessages() {
         (m.senderId === user.id && m.receiverId === activeCounselor.id) ||
         (m.senderId === activeCounselor.id && m.receiverId === user.id)
       ).sort((a, b) => a.timestamp - b.timestamp);
-      setChatHistory(filtered);
+      setChatHistory(prev => {
+        if (prev.length !== filtered.length || (prev.length > 0 && prev[prev.length - 1].id !== filtered[filtered.length - 1].id)) {
+          return filtered;
+        }
+        const hasDiff = prev.some((m, idx) => m.id !== filtered[idx].id || m.text !== filtered[idx].text);
+        return hasDiff ? filtered : prev;
+      });
       const currentActive = counselorsWithMetadata.find(c => c.id === activeCounselor.id);
       if (currentActive && currentActive.lastMessage?.id !== activeCounselor.lastMessage?.id) {
         setActiveCounselor(currentActive);

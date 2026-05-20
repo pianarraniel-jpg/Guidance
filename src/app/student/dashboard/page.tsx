@@ -36,7 +36,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import Link from 'next/link';
-import { format, parseISO, isAfter } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useLiveSync } from '@/hooks/useLiveSync';
 
 interface ChartPoint {
@@ -65,9 +65,11 @@ export default function StudentDashboard() {
   const [wellnessScore, setWellnessScore] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadDashboardData = React.useCallback(async () => {
+  const loadDashboardData = React.useCallback(async (isBackground = false) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!isBackground) {
+      setIsLoading(true);
+    }
 
     const [allAssessments, allAppointments, { data: insightRow }, { data: profileRow }] = await Promise.all([
       storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
@@ -109,7 +111,8 @@ export default function StudentDashboard() {
     setAiInsight(insightRow?.insight ?? null);
     setWellnessScore(profileRow?.wellness_score ?? null);
 
-    const upcoming = appointments.find(a => isAfter(parseISO(a.date), new Date()));
+    const startOfToday = startOfDay(new Date());
+    const upcoming = appointments.find(a => !isBefore(parseISO(a.date), startOfToday));
     setNextAppointment(upcoming ?? null);
 
     setIsLoading(false);
@@ -117,11 +120,11 @@ export default function StudentDashboard() {
 
 
   useEffect(() => {
-    loadDashboardData();
+    loadDashboardData(false);
   }, [loadDashboardData]);
 
   useLiveSync(() => {
-    loadDashboardData();
+    loadDashboardData(true);
   });
 
   // Computed stats from real chart data
@@ -349,7 +352,7 @@ export default function StudentDashboard() {
                   <div>
                     <p className="font-bold text-sm">{nextAppointment.type}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Clock className="h-3 w-3" /> {nextAppointment.time} • {nextAppointment.counselor_name}
+                      <Clock className="h-3 w-3" /> {nextAppointment.time} • {nextAppointment.counselorName || nextAppointment.counselor_name}
                     </p>
                   </div>
                 </div>

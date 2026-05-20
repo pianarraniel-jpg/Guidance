@@ -33,7 +33,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { format, parseISO, isAfter, startOfDay } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useLiveSync } from '@/hooks/useLiveSync';
 
@@ -90,11 +90,11 @@ export default function StudentAppointments() {
       case 'upcoming':
         return appointments.filter(a =>
           (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) &&
-          isAfter(parseISO(a.date), today)
+          !isBefore(parseISO(a.date), today)
         );
       case 'history':
         return appointments.filter(a =>
-          a.status === 'completed' || a.status === 'cancelled' || !isAfter(parseISO(a.date), today)
+          a.status === 'completed' || a.status === 'cancelled' || isBefore(parseISO(a.date), today)
         );
       default:
         return appointments;
@@ -103,7 +103,7 @@ export default function StudentAppointments() {
 
   const stats = [
     { label: 'Total', value: appointments.length, color: 'text-primary', bg: 'bg-primary/5' },
-    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), today)).length, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED && !isBefore(parseISO(a.date), today)).length, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Completed', value: appointments.filter(a => a.status === 'completed').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
@@ -176,14 +176,14 @@ export default function StudentAppointments() {
       key: 'upcoming',
       label: 'Upcoming Sessions',
       count: appointments.filter(
-        a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && isAfter(parseISO(a.date), today)
+        a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && !isBefore(parseISO(a.date), today)
       ).length,
     },
     {
       key: 'history',
       label: 'Past & Records',
       count: appointments.filter(
-        a => a.status === 'completed' || a.status === 'cancelled' || !isAfter(parseISO(a.date), today)
+        a => a.status === 'completed' || a.status === 'cancelled' || isBefore(parseISO(a.date), today)
       ).length,
     },
     { key: 'all', label: 'All Sessions', count: appointments.length },
