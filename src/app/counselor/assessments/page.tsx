@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   CheckCircle2, Brain, AlertCircle, Plus, ClipboardList,
-  FileText, Star, ChevronRight, BarChart3, Trash2, GripVertical
+  FileText, Star, ChevronRight, BarChart3, Trash2, GripVertical,
+  Search, Check, ChevronsUpDown
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
@@ -26,12 +27,90 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from '@/components/ui/slider';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { analyzeClinicalForm } from '@/ai/flows/analyze-clinical-form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const RISK_COLORS: Record<string, string> = {
   low: 'bg-emerald-50 text-emerald-600',
   moderate: 'bg-amber-50 text-amber-600',
   high: 'bg-red-50 text-red-600',
 };
+
+const FEEDBACK_TEMPLATES = [
+  {
+    label: "Stable Maintenance",
+    rating: 2,
+    comments: "Student is at a healthy mental baseline with solid wellness habits. Advise standard routine maintenance and periodic review as requested."
+  },
+  {
+    label: "Exam/Academic Stress",
+    rating: 5,
+    comments: "Student exhibits moderate situational stress related to exam workloads. Advise stress mitigation strategies, breathing exercises, and standard check-in tracking."
+  },
+  {
+    label: "Social/Peer Tension",
+    rating: 6,
+    comments: "Academic pressure exacerbated by peer environment conflicts. Recommended focus on cognitive behavioral guidelines and active workload pacing."
+  },
+  {
+    label: "Severe Clinical Risk",
+    rating: 8,
+    comments: "Student displays severe academic anxiety and chronic sleep deprivation. Recommend immediate follow-up clinical session and cognitive wellness routing."
+  },
+  {
+    label: "Sleep & Fatigue",
+    rating: 6,
+    comments: "Chronic sleep deficiency affecting focus and motivation. Recommended immediate scheduling of sleep hygiene check-in."
+  },
+  {
+    label: "Social Withdrawal",
+    rating: 7,
+    comments: "Exhibiting signs of emotional exhaustion and mild social withdrawal. Recommending regular messaging support and scheduling a group session."
+  }
+];
+
+const ASSESSMENT_TEMPLATES = [
+  {
+    title: "General Wellness Check-in",
+    description: "A routine check-in to evaluate overall emotional baseline, sleep patterns, and current coping strategies.",
+    questions: [
+      "How would you describe your overall mood over the past week?",
+      "On a scale of 1-10, how well are you sleeping?",
+      "What are the primary sources of stress in your life right now?",
+      "What activities or habits are currently helping you stay grounded?"
+    ]
+  },
+  {
+    title: "Midterm / Exam Stress Survey",
+    description: "Designed to identify academic pressure points, exam anxiety, and workload management difficulties.",
+    questions: [
+      "How confident do you feel about your upcoming exams or academic deadlines?",
+      "Are you experiencing physical symptoms of academic stress (e.g., headaches, exhaustion)?",
+      "How many hours of focused study are you managing per day?",
+      "Do you feel you have adequate support from teachers, peers, or family?"
+    ]
+  },
+  {
+    title: "Social & Connection Assessment",
+    description: "Evaluates social adjustment, peer interactions, feelings of loneliness, and community integration.",
+    questions: [
+      "How connected do you feel to the campus community and your peers?",
+      "Have you experienced any conflicts or tensions with friends or classmates recently?",
+      "Who is your main source of emotional support when you face difficulties?",
+      "How often do you engage in group or extracurricular campus activities?"
+    ]
+  },
+  {
+    title: "Clinical Anxiety Baseline",
+    description: "A deeper clinical template targeting root causes of panic, social anxiety, and chronic worry.",
+    questions: [
+      "How frequently do you experience sudden, intense feelings of worry or panic?",
+      "Does anxiety interfere with your ability to attend classes or complete assignments?",
+      "Do you find it difficult to control your worrying once it starts?",
+      "What specific situations trigger the highest level of distress for you?"
+    ]
+  }
+];
 
 export default function CounselorAssessmentsPage() {
   const { user: counselor } = useAuth();
@@ -43,7 +122,8 @@ export default function CounselorAssessmentsPage() {
   const { toast } = useToast();
 
   // Google Form builder state
-  const [targetStudent, setTargetStudent] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDesc, setTaskDesc] = useState('');
   const [questions, setQuestions] = useState<string[]>([]);
@@ -86,31 +166,48 @@ export default function CounselorAssessmentsPage() {
   };
 
   const handleCreateTask = async () => {
-    if (!targetStudent || !taskTitle || !counselor) return;
+    if (selectedStudentIds.length === 0 || !taskTitle || !counselor) return;
 
-    const studentUser = students.find(s => s.id === targetStudent);
     const finalQuestions = questions.length > 0 ? questions : ['Please describe your current stress levels.'];
 
-    await storageService.create(STORAGE_KEYS.ASSESSMENT_TASKS, {
-      counselorId: counselor.id,
-      counselorName: counselor.name,
-      studentId: targetStudent,
-      studentName: studentUser?.name,
-      title: taskTitle,
-      description: taskDesc,
-      questions: finalQuestions,
-      status: 'pending',
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    });
+    // Map each selected student and execute storageService writes in parallel
+    await Promise.all(selectedStudentIds.map(async (studentId) => {
+      const studentUser = students.find(s => s.id === studentId);
+      return storageService.create(STORAGE_KEYS.ASSESSMENT_TASKS, {
+        counselorId: counselor.id,
+        counselorName: counselor.name,
+        studentId: studentId,
+        studentName: studentUser?.name || 'Student',
+        title: taskTitle,
+        description: taskDesc,
+        questions: finalQuestions,
+        status: 'pending',
+        timestamp: Date.now(),
+        date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      });
+    }));
 
-    toast({
-      title: "Assessment Assigned",
-      description: `New analysis form sent to ${studentUser?.name}.`,
-    });
+    if (selectedStudentIds.length === students.length) {
+      toast({
+        title: "Assessment Broadcasted",
+        description: `New analysis form sent to all ${students.length} students successfully.`,
+      });
+    } else if (selectedStudentIds.length > 1) {
+      toast({
+        title: "Assessment Assigned",
+        description: `New analysis form sent to ${selectedStudentIds.length} selected students.`,
+      });
+    } else {
+      const singleStudentName = students.find(s => s.id === selectedStudentIds[0])?.name || 'Student';
+      toast({
+        title: "Assessment Assigned",
+        description: `New analysis form sent to ${singleStudentName}.`,
+      });
+    }
 
     setIsTaskModalOpen(false);
-    setTargetStudent('');
+    setSelectedStudentIds([]);
+    setStudentSearchQuery('');
     setTaskTitle('');
     setTaskDesc('');
     setQuestions([]);
@@ -204,26 +301,198 @@ export default function CounselorAssessmentsPage() {
           <DialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black">Assign Clinical Assessment</DialogTitle>
-              <p className="text-xs text-slate-400 font-medium mt-1">Build a custom form by adding questions one at a time.</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">Build a custom form or load a prebuilt template below.</p>
             </DialogHeader>
             <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select Student</Label>
-                  <Select value={targetStudent} onValueChange={setTargetStudent}>
-                    <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50">
-                      <SelectValue placeholder="Student..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              {/* Sleek Prebuilt Assessment Templates Section */}
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                  <ClipboardList className="h-3.5 w-3.5 text-primary" /> Load Prebuilt Assessment Template
+                </Label>
+                <div className="grid grid-cols-2 gap-2 max-h-28 overflow-y-auto pr-1">
+                  {ASSESSMENT_TEMPLATES.map((tmpl, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setTaskTitle(tmpl.title);
+                        setTaskDesc(tmpl.description);
+                        setQuestions(tmpl.questions);
+                        toast({
+                          title: "Template Loaded",
+                          description: `"${tmpl.title}" loaded successfully with ${tmpl.questions.length} questions.`,
+                        });
+                      }}
+                      className="p-2.5 text-left border border-slate-100 rounded-xl hover:bg-primary/5 hover:border-primary/20 hover:text-primary transition-all text-xs bg-slate-50/50 flex flex-col justify-between min-h-[60px] w-full group"
+                    >
+                      <span className="font-bold text-slate-800 group-hover:text-primary transition-colors block line-clamp-1">{tmpl.title}</span>
+                      <span className="text-[10px] text-slate-400 font-semibold mt-1 line-clamp-1">{tmpl.questions.length} clinical questions</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 col-span-2">
+                <div className="space-y-2 flex flex-col justify-end">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select Student(s)</Label>
+                    <div className="flex items-center space-x-1.5">
+                      <Checkbox
+                        id="broadcast-select-all"
+                        checked={selectedStudentIds.length === students.length && students.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedStudentIds(students.map(s => s.id));
+                          } else {
+                            setSelectedStudentIds([]);
+                          }
+                        }}
+                      />
+                      <label htmlFor="broadcast-select-all" className="text-[10px] font-black uppercase text-primary cursor-pointer select-none">
+                        Select All
+                      </label>
+                    </div>
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        disabled={selectedStudentIds.length === students.length && students.length > 0}
+                        className="h-12 w-full rounded-xl border-slate-100 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 justify-between text-left font-bold text-xs shadow-none text-slate-700 px-3 disabled:opacity-80"
+                      >
+                        <span className="truncate">
+                          {selectedStudentIds.length === 0 && "Select student(s)..."}
+                          {selectedStudentIds.length === students.length && students.length > 0 && `📢 Broadcast to ALL (${students.length})`}
+                          {selectedStudentIds.length > 0 && selectedStudentIds.length < students.length && (
+                            selectedStudentIds.length === 1 
+                              ? students.find(s => s.id === selectedStudentIds[0])?.name
+                              : `👥 ${selectedStudentIds.length} students selected`
+                          )}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-4 rounded-2xl border-none shadow-2xl bg-white" align="start">
+                      <div className="space-y-3">
+                        {/* Search Input */}
+                        <div className="relative flex items-center">
+                          <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400" />
+                          <Input
+                            placeholder="Search students..."
+                            value={studentSearchQuery}
+                            onChange={(e) => setStudentSearchQuery(e.target.value)}
+                            className="h-9 pl-8 text-xs rounded-xl bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary/20"
+                          />
+                        </div>
+
+                        {/* Select All Toggle */}
+                        {students.length > 0 && (
+                          <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
+                            <Checkbox
+                              id="select-all-checkbox"
+                              checked={
+                                students.filter(s =>
+                                  s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                ).every(s => selectedStudentIds.includes(s.id)) &&
+                                students.filter(s =>
+                                  s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                ).length > 0
+                              }
+                              onCheckedChange={(checked) => {
+                                const filtered = students.filter(s =>
+                                  s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                );
+                                if (checked) {
+                                  // Add all filtered that are not already selected
+                                  setSelectedStudentIds(prev => {
+                                    const next = [...prev];
+                                    filtered.forEach(s => {
+                                      if (!next.includes(s.id)) next.push(s.id);
+                                    });
+                                    return next;
+                                  });
+                                } else {
+                                  // Remove all filtered from selection
+                                  const filteredIds = filtered.map(s => s.id);
+                                  setSelectedStudentIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor="select-all-checkbox"
+                              className="text-xs font-black text-primary cursor-pointer select-none"
+                            >
+                              📢 Select All / Broadcast
+                            </label>
+                          </div>
+                        )}
+
+                        {/* Student List */}
+                        <ScrollArea className="h-48">
+                          <div className="space-y-1.5 pr-1">
+                            {students
+                              .filter(s =>
+                                s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                                s.email.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                              )
+                              .map((student) => {
+                                const isSelected = selectedStudentIds.includes(student.id);
+                                return (
+                                  <div
+                                    key={student.id}
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                      } else {
+                                        setSelectedStudentIds(prev => [...prev, student.id]);
+                                      }
+                                    }}
+                                    className="flex items-center space-x-3 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+                                  >
+                                    <Checkbox checked={isSelected} className="pointer-events-none" />
+                                    <Avatar className="h-6 w-6 shrink-0">
+                                      <AvatarImage src={`https://picsum.photos/seed/${student.id}/32/32`} />
+                                      <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                                        {student.name[0]}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0 text-left">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{student.name}</p>
+                                      <p className="text-[9px] font-semibold text-slate-400 truncate">
+                                        {student.studentId || student.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            {students.filter(s =>
+                              s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                              s.email.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-[10px] text-center text-slate-400 italic py-4">No students found.</p>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Form Title</Label>
                   <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Anxiety Root Analysis" className="h-12 rounded-xl" />
                 </div>
               </div>
+              {selectedStudentIds.length === students.length && students.length > 0 && (
+                <div className="p-3 bg-primary/5 border border-primary/10 rounded-xl text-xs font-bold text-primary animate-pulse text-center w-full">
+                  📢 Broadcast Mode Active: Form will be assigned to all {students.length} students simultaneously.
+                </div>
+              )}
+              {selectedStudentIds.length > 0 && selectedStudentIds.length < students.length && (
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs font-bold text-blue-600 text-center w-full">
+                  👥 Group Assignment Active: Form will be assigned to {selectedStudentIds.length} selected students.
+                </div>
+              )}
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Description / Context</Label>
                 <Textarea value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="Why is this form being assigned?" className="min-h-[60px] rounded-xl" />
@@ -275,7 +544,7 @@ export default function CounselorAssessmentsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCreateTask} disabled={!targetStudent || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">
+              <Button onClick={handleCreateTask} disabled={selectedStudentIds.length === 0 || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">
                 Assign Clinical Task ({questions.length || 1} {questions.length === 1 ? 'question' : 'questions'})
               </Button>
             </DialogFooter>
@@ -575,10 +844,32 @@ export default function CounselorAssessmentsPage() {
               </div>
             </div>
             <div className="space-y-3">
-              <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Clinical Commentary</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Clinical Commentary</Label>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Pre-defined evaluation templates</span>
+              </div>
+              
+              {/* Sleek feedback templates buttons grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                {FEEDBACK_TEMPLATES.map((tmpl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setEvalRating([tmpl.rating]);
+                      setEvalComments(tmpl.comments);
+                    }}
+                    className="p-2 text-left border border-slate-100 rounded-xl hover:bg-primary/5 hover:border-primary/20 hover:text-primary transition-all text-[10px] font-bold text-slate-700 bg-slate-50/50 flex flex-col justify-between min-h-[50px] w-full"
+                  >
+                    <span className="line-clamp-1">{tmpl.label}</span>
+                    <span className="text-[8px] text-slate-400 font-black mt-1">Severity: {tmpl.rating}/10</span>
+                  </button>
+                ))}
+              </div>
+
               <Textarea
                 placeholder="Provide professional insights for this student's progress..."
-                className="min-h-[150px] rounded-2xl bg-slate-50 border-none p-5 text-sm font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
+                className="min-h-[110px] rounded-2xl bg-slate-50 border-none p-5 text-sm font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
                 value={evalComments}
                 onChange={(e) => setEvalComments(e.target.value)}
               />
