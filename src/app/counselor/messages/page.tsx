@@ -24,6 +24,7 @@ import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { supabase } from '@/lib/supabase';
 
 type Message = {
   id: string;
@@ -115,9 +116,30 @@ export default function CounselorMessagesPage() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`chat-counselor-${user.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'messages' 
+      }, (payload) => {
+        const msg = payload.new as any;
+        const oldMsg = payload.old as any;
+        const affectedUser = msg?.sender_id || msg?.receiver_id || msg?.senderId || msg?.receiverId ||
+                             oldMsg?.sender_id || oldMsg?.receiver_id || oldMsg?.senderId || oldMsg?.receiverId;
+        if (affectedUser === user.id) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, loadData]);
 
   // Mark active chat as read - SEEN Logic
   useEffect(() => {

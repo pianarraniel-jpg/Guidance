@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 type ChatMessage = {
@@ -110,9 +111,30 @@ export default function StudentMessages() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`chat-student-${user.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'messages' 
+      }, (payload) => {
+        const msg = payload.new as any;
+        const oldMsg = payload.old as any;
+        const affectedUser = msg?.sender_id || msg?.receiver_id || msg?.senderId || msg?.receiverId ||
+                             oldMsg?.sender_id || oldMsg?.receiver_id || oldMsg?.senderId || oldMsg?.receiverId;
+        if (affectedUser === user.id) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, loadData]);
 
   // Mark active chat as read - SEEN Logic
   useEffect(() => {
