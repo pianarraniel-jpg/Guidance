@@ -34,10 +34,17 @@ import {
   ArrowDownRight,
   Minus,
   ClipboardList,
+  Play,
+  Plus,
+  Trash2,
+  ListTodo,
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useLiveSync } from '@/hooks/useLiveSync';
+import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
 
 interface ChartPoint {
   day: string;
@@ -54,8 +61,18 @@ interface RecentSession {
   summary: string | null;
 }
 
+interface ChecklistItem {
+  id: string;
+  text: string;
+  category: 'counselor' | 'ai' | 'custom';
+  isCompleted: boolean;
+  duration?: number;
+  dateAssigned: string;
+}
+
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
 
   const [nextAppointment, setNextAppointment] = useState<any>(null);
@@ -64,6 +81,16 @@ export default function StudentDashboard() {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [wellnessScore, setWellnessScore] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Daily Wellness Checklist States
+  const [todoList, setTodoList] = useState<ChecklistItem[]>([]);
+  const [customTaskText, setCustomTaskText] = useState('');
+
+  // Guided Breathing Modal States
+  const [isBreathingModalOpen, setIsBreathingModalOpen] = useState(false);
+  const [modalDuration, setModalDuration] = useState(300);
+  const [modalTitle, setModalTitle] = useState('Mindfulness Breathing');
+  const [activeTodoId, setActiveTodoId] = useState<string | null>(null);
 
   const loadDashboardData = React.useCallback(async (isBackground = false) => {
     if (!user) return;
@@ -115,6 +142,96 @@ export default function StudentDashboard() {
     const upcoming = appointments.find(a => !isBefore(parseISO(a.date), startOfToday));
     setNextAppointment(upcoming ?? null);
 
+    // Initialize/Load Daily Checklist
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const storageKey = `guidance_todo_${user.id}_${todayStr}`;
+    const saved = localStorage.getItem(storageKey);
+    
+    if (saved) {
+      setTodoList(JSON.parse(saved));
+    } else {
+      const newItems: ChecklistItem[] = [];
+      
+      // 1. Counselor Homework (completed actionItems)
+      const completedApps = allAppointments.filter(
+        a => a.status === 'completed' && a.actionItems && Array.isArray(a.actionItems)
+      );
+      
+      completedApps.forEach(app => {
+        app.actionItems.forEach((act: string, index: number) => {
+          const isBreath = /(breath|meditat|calm|mindful|inhale|exhale|relax)/i.test(act);
+          const durationMatch = act.match(/(\d+)\s*(min|minute)/i);
+          const mins = durationMatch ? parseInt(durationMatch[1], 10) : 5;
+          
+          newItems.push({
+            id: `counselor-${app.id}-${index}`,
+            text: act,
+            category: 'counselor',
+            isCompleted: false,
+            duration: isBreath ? mins * 60 : undefined,
+            dateAssigned: app.date
+          });
+        });
+      });
+      
+      // 2. Parse AI Insight suggestions
+      if (insightRow?.insight) {
+        const text: string = insightRow.insight;
+        const lines = text
+          .split(/[.\n]/)
+          .map(l => l.trim())
+          .filter(l => l.length > 10 && (
+            l.toLowerCase().includes('try') || 
+            l.toLowerCase().includes('recommend') || 
+            l.toLowerCase().includes('practice') || 
+            l.toLowerCase().includes('limit') || 
+            l.toLowerCase().includes('journal')
+          ));
+        
+        if (lines.length > 0) {
+          lines.slice(0, 2).forEach((line, index) => {
+            const cleanText = line.replace(/^(try to|you should|i recommend|try|recommend)\s+/i, '');
+            newItems.push({
+              id: `ai-${index}`,
+              text: cleanText.charAt(0).toUpperCase() + cleanText.slice(1),
+              category: 'ai',
+              isCompleted: false,
+              dateAssigned: todayStr
+            });
+          });
+        }
+      }
+      
+      // 3. Fallbacks
+      if (newItems.length === 0) {
+        newItems.push({
+          id: 'default-1',
+          text: '5-Min Box Breathing Exercise',
+          category: 'ai',
+          isCompleted: false,
+          duration: 300,
+          dateAssigned: todayStr
+        });
+        newItems.push({
+          id: 'default-2',
+          text: 'Daily Assessment with Guidi AI',
+          category: 'ai',
+          isCompleted: false,
+          dateAssigned: todayStr
+        });
+        newItems.push({
+          id: 'default-3',
+          text: 'Write down 3 gratitude points in your notes',
+          category: 'ai',
+          isCompleted: false,
+          dateAssigned: todayStr
+        });
+      }
+      
+      localStorage.setItem(storageKey, JSON.stringify(newItems));
+      setTodoList(newItems);
+    }
+
     setIsLoading(false);
   }, [user]);
 
@@ -126,6 +243,97 @@ export default function StudentDashboard() {
   useLiveSync(() => {
     loadDashboardData(true);
   });
+
+  // Toggle checklist item status
+  const toggleTodo = (id: string) => {
+    if (!user) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const storageKey = `guidance_todo_${user.id}_${todayStr}`;
+    
+    const updated = todoList.map(item => {
+      if (item.id === id) {
+        const nextState = !item.isCompleted;
+        if (nextState) {
+          toast({
+            title: "Task Accomplished! 🎉",
+            description: `You checked off: "${item.text}"`,
+          });
+        }
+        return { ...item, isCompleted: nextState };
+      }
+      return item;
+    });
+    
+    setTodoList(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  // Add custom wellness task
+  const addCustomTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTaskText.trim() || !user) return;
+    
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const storageKey = `guidance_todo_${user.id}_${todayStr}`;
+    
+    const isBreath = /(breath|meditat|calm|mindful|inhale|exhale|relax)/i.test(customTaskText);
+    const durationMatch = customTaskText.match(/(\d+)\s*(min|minute)/i);
+    const mins = durationMatch ? parseInt(durationMatch[1], 10) : 5;
+    
+    const newItem: ChecklistItem = {
+      id: `custom-${Date.now()}`,
+      text: customTaskText.trim(),
+      category: 'custom',
+      isCompleted: false,
+      duration: isBreath ? mins * 60 : undefined,
+      dateAssigned: todayStr
+    };
+    
+    const updated = [...todoList, newItem];
+    setTodoList(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    setCustomTaskText('');
+    
+    toast({
+      title: "Wellness Task Added",
+      description: `"${newItem.text}" has been added to your daily habits list.`,
+    });
+  };
+
+  // Delete custom checklist item
+  const deleteTodo = (id: string) => {
+    if (!user) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const storageKey = `guidance_todo_${user.id}_${todayStr}`;
+    
+    const updated = todoList.filter(item => item.id !== id);
+    setTodoList(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    
+    toast({
+      title: "Task Removed",
+      description: "Mindfulness checklist item has been deleted.",
+    });
+  };
+
+  // Complete breathing exercise callback
+  const handleBreathingComplete = () => {
+    if (activeTodoId && user) {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const storageKey = `guidance_todo_${user.id}_${todayStr}`;
+      
+      const updated = todoList.map(item => {
+        if (item.id === activeTodoId) {
+          return { ...item, isCompleted: true };
+        }
+        return item;
+      });
+      
+      setTodoList(updated);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setActiveTodoId(null);
+    }
+  };
 
   // Computed stats from real chart data
   const avgMood = chartData.length
@@ -366,34 +574,175 @@ export default function StudentDashboard() {
               </Button>
             </Card>
 
-            {/* Recommended Actions */}
-            <Card className="border-none shadow-sm p-6 bg-slate-50/50">
-              <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Recommended Actions</h4>
-              <div className="space-y-4">
-                <Link href="/student/resources" className="p-3 bg-white rounded-xl border border-primary/5 flex items-center gap-3 hover:shadow-md transition-shadow group">
-                  <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                    <Heart className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold">5-Min Box Breathing</p>
-                    <p className="text-[10px] text-muted-foreground">Manage immediate stress</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </Link>
-                <Link href="/student/assessments" className="p-3 bg-white rounded-xl border border-primary/5 flex items-center gap-3 hover:shadow-md transition-shadow group">
-                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold">Daily Check-in</p>
-                    <p className="text-[10px] text-muted-foreground">Chat with Guidi AI</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </Link>
+            {/* Dynamic Daily Wellness Checklist */}
+            <Card className="border-none shadow-sm p-6 bg-white flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest flex items-center gap-1.5">
+                    <ListTodo className="h-4 w-4 text-primary" /> Daily Wellness Checklist
+                  </h4>
+                  <Badge className="bg-primary/5 text-primary border-none font-bold text-[9px] px-2 py-0.5 rounded-full">
+                    {todoList.filter(t => t.isCompleted).length}/{todoList.length} Done
+                  </Badge>
+                </div>
+
+                {/* To-Do Items Scroll Container */}
+                <div className="space-y-3.5 max-h-[220px] overflow-y-auto pr-1">
+                  {todoList.length > 0 ? (
+                    todoList.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all ${
+                          item.isCompleted 
+                            ? 'bg-slate-50/50 border-slate-100 opacity-70' 
+                            : 'bg-white border-slate-100 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Checkbox 
+                            id={item.id} 
+                            checked={item.isCompleted} 
+                            onCheckedChange={() => toggleTodo(item.id)}
+                            className="h-4.5 w-4.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md transition-all active:scale-90"
+                          />
+                          <div className="min-w-0">
+                            <label 
+                              htmlFor={item.id}
+                              className={`text-xs font-bold block cursor-pointer truncate ${
+                                item.isCompleted ? 'line-through text-slate-400 font-medium' : 'text-slate-700'
+                              }`}
+                            >
+                              {item.text}
+                            </label>
+                            
+                            {/* Tags by Category */}
+                            <span className="inline-block mt-1">
+                              {item.category === 'counselor' ? (
+                                <Badge className="bg-emerald-50 hover:bg-emerald-50 text-emerald-600 border-none font-black text-[9px] h-4.5 px-1.5 py-0 rounded-md">
+                                  Counselor Recommended
+                                </Badge>
+                              ) : item.category === 'ai' ? (
+                                <Badge className="bg-purple-50 hover:bg-purple-50 text-purple-600 border-none font-black text-[9px] h-4.5 px-1.5 py-0 rounded-md">
+                                  Guidi Recommendation
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-blue-50 hover:bg-blue-50 text-blue-600 border-none font-black text-[9px] h-4.5 px-1.5 py-0 rounded-md">
+                                  My Habit
+                                </Badge>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions Badge/Trigger */}
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {item.duration && !item.isCompleted && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                setModalDuration(item.duration || 300);
+                                setModalTitle(item.text);
+                                setActiveTodoId(item.id);
+                                setIsBreathingModalOpen(true);
+                              }}
+                              className="h-7 w-7 p-0 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center transition-all animate-pulse"
+                            >
+                              <Play className="h-3 w-3 fill-current ml-0.5" />
+                            </Button>
+                          )}
+                          {item.category === 'custom' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteTodo(item.id)}
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full flex items-center justify-center transition-all"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center flex flex-col items-center gap-2">
+                      <ListTodo className="h-6 w-6 text-slate-200" />
+                      <p className="text-xs text-slate-400 italic font-medium">Your wellness checklist is empty.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Checklist Add Form */}
+                <form onSubmit={addCustomTask} className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add wellness task (e.g. Drink water)..."
+                    value={customTaskText}
+                    onChange={(e) => setCustomTaskText(e.target.value)}
+                    className="flex-1 text-xs border border-slate-100 bg-slate-50/50 rounded-xl px-3 py-2 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/30"
+                  />
+                  <Button 
+                    type="submit" 
+                    size="icon" 
+                    className="h-8 w-8 bg-primary hover:bg-primary/95 text-white rounded-xl shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+
+              {/* Quick Guided breathing exercises triggers */}
+              <div className="mt-5 pt-4 border-t border-slate-100">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Quick Guided Exercises</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setModalDuration(300);
+                      setModalTitle("5-Min Box Breathing");
+                      setActiveTodoId(null);
+                      setIsBreathingModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100/70 rounded-2xl text-left border border-slate-100/40 group transition-all"
+                  >
+                    <div className="h-7 w-7 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
+                      <Heart className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-700 truncate group-hover:text-primary transition-colors">5-Min Box Breath</p>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setModalDuration(600);
+                      setModalTitle("10-Min Deep Calm Breathing");
+                      setActiveTodoId(null);
+                      setIsBreathingModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100/70 rounded-2xl text-left border border-slate-100/40 group transition-all"
+                  >
+                    <div className="h-7 w-7 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500 shrink-0">
+                      <Brain className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-700 truncate group-hover:text-primary transition-colors">10-Min Deep Calm</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </Card>
           </div>
         </div>
+
+        {/* Guided Breathing Exercise Modal */}
+        <BreathingExerciseModal
+          isOpen={isBreathingModalOpen}
+          onClose={() => setIsBreathingModalOpen(false)}
+          duration={modalDuration}
+          title={modalTitle}
+          onComplete={handleBreathingComplete}
+        />
+
       </DashboardLayout>
     </ProtectedRoute>
   );

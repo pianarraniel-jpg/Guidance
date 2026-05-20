@@ -31,11 +31,13 @@ import {
   Target,
   Radio,
   AlertTriangle,
+  Play,
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useLiveSync } from '@/hooks/useLiveSync';
+import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
 
 
 type TabKey = 'upcoming' | 'history' | 'all';
@@ -52,6 +54,11 @@ export default function StudentAppointments() {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isLive, setIsLive] = useState(false);
+
+  // Guided Breathing Modal States
+  const [isBreathingModalOpen, setIsBreathingModalOpen] = useState(false);
+  const [modalDuration, setModalDuration] = useState(300);
+  const [modalTitle, setModalTitle] = useState('Mindfulness Breathing');
 
   // Use a ref so the realtime callback always calls the latest version
   const loadRef = useRef<() => void>(() => {});
@@ -405,12 +412,36 @@ export default function StudentAppointments() {
                   {selectedApp.actionItems && selectedApp.actionItems.length > 0 && (
                     <div className="pt-3 border-t border-emerald-200/60 space-y-2">
                       <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Recommended Actions</p>
-                      {selectedApp.actionItems.map((act: string, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs font-medium text-emerald-900">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
-                          <span>{act}</span>
-                        </div>
-                      ))}
+                      {selectedApp.actionItems.map((act: string, idx: number) => {
+                        const isExercise = /(breath|meditat|calm|mindful|inhale|exhale|relax)/i.test(act);
+                        return (
+                          <div key={idx} className="flex items-center justify-between gap-3 text-xs font-semibold text-emerald-900 bg-emerald-100/35 px-3 py-2 rounded-xl border border-emerald-200/30">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                              <span className="truncate">{act}</span>
+                            </div>
+                            {isExercise && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  // Close details modal to focus on the exercise
+                                  setIsDetailsOpen(false);
+                                  // Parse duration
+                                  const match = act.match(/(\d+)\s*(min|minute)/i);
+                                  const mins = match ? parseInt(match[1], 10) : 5;
+                                  setModalDuration(mins * 60);
+                                  setModalTitle(act);
+                                  setIsBreathingModalOpen(true);
+                                }}
+                                className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black text-[10px] flex items-center gap-1 shrink-0 transition-transform active:scale-95"
+                              >
+                                <Play className="h-2.5 w-2.5 fill-current" /> Start
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -451,6 +482,20 @@ export default function StudentAppointments() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Guided Breathing Exercise Modal */}
+        <BreathingExerciseModal
+          isOpen={isBreathingModalOpen}
+          onClose={() => setIsBreathingModalOpen(false)}
+          duration={modalDuration}
+          title={modalTitle}
+          onComplete={() => {
+            toast({
+              title: "Session Action Item Completed!",
+              description: "You've successfully completed this counselor recommended exercise.",
+            });
+          }}
+        />
 
       </DashboardLayout>
     </ProtectedRoute>
