@@ -15,8 +15,16 @@ import {
 } from '@/components/ui/dialog';
 import {
   Send, ShieldCheck, Zap, Activity, Meh, Smile,
-  CheckCircle2, Clock, Sparkles, AlertTriangle, Phone, Heart, MessageSquare
+  CheckCircle2, Clock, Sparkles, AlertTriangle, Phone, Heart, MessageSquare, EyeOff,
+  CalendarPlus, X,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
 import { generateAiInsights } from '@/ai/flows/generate-ai-insights';
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
@@ -30,12 +38,15 @@ type Message = {
   role: 'user' | 'model';
   text: string;
   time: string;
+  hidden?: boolean;
 };
 
 type SystemContext = {
   studentName: string;
   counselorName?: string;
+  counselorId?: string;
   upcomingAppointment?: { date: string; time: string; type: string };
+  previousSessions?: Array<{ date: string; summary: string; riskLevel: string; stressScore: number }>;
 };
 
 type RiskAlert = {
@@ -72,6 +83,19 @@ function detectHighRisk(text: string): RiskAlert | null {
     if (lower.includes(p.phrase)) return p;
   }
   return null;
+}
+
+const OFFENSIVE_PATTERNS = [
+  'fuck you', 'fuck off', 'go fuck yourself', 'motherfucker',
+  'piece of shit', 'asshole', 'stupid bitch', 'dumb bitch',
+  'fucking idiot', 'son of a bitch', 'go to hell', 'i hate you',
+  'shut the fuck up', 'bastard', 'jackass', 'dickhead', 'kys',
+];
+
+function isBadContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return HIGH_RISK_PATTERNS.some(p => lower.includes(p.phrase)) ||
+    OFFENSIVE_PATTERNS.some(p => lower.includes(p));
 }
 
 const alertContent = {
@@ -112,6 +136,11 @@ const alertContent = {
   },
 };
 
+const TIME_SLOTS = [
+  '09:00 AM', '10:00 AM', '11:00 AM',
+  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+];
+
 export default function StudentAiChat() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -127,17 +156,44 @@ export default function StudentAiChat() {
   const [systemContext, setSystemContext] = useState<SystemContext | null>(null);
   const [activeAlert, setActiveAlert] = useState<RiskAlert | null>(null);
 
+  // Quick appointment booking from chat
+  const [showBookingCard, setShowBookingCard] = useState(false);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+  const [bookingDone, setBookingDone] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     const loadContext = async () => {
-      const apts = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
+      const [apts, sessionsRes] = await Promise.all([
+        storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
+        supabase
+          .from('ai_chat_sessions')
+          .select('created_at, summary, risk_level, stress_level')
+          .eq('student_id', user.id)
+          .not('summary', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(4),
+      ]);
+
       const next = apts
         .filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), new Date()))
         .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+      const previousSessions = (sessionsRes.data ?? []).map((s: any) => ({
+        date: new Date(s.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        summary: s.summary ?? '',
+        riskLevel: s.risk_level ?? 'low',
+        stressScore: s.stress_level ?? 0,
+      }));
+
       setSystemContext({
         studentName: user.name,
         counselorName: next?.counselorName,
+        counselorId: next?.counselorId,
         upcomingAppointment: next ? { date: next.date, time: next.time, type: next.type } : undefined,
+        previousSessions: previousSessions.length > 0 ? previousSessions : undefined,
       });
     };
     setMessages([{
@@ -186,7 +242,8 @@ export default function StudentAiChat() {
     if (!text.trim() || isLoading || isComplete) return;
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newUserMessage: Message = { role: 'user', text, time: currentTime };
+    const bad = isBadContent(text);
+    const newUserMessage: Message = { role: 'user', text, time: currentTime, hidden: bad };
     setMessages(prev => [...prev, newUserMessage]);
     setInputValue('');
     setIsLoading(true);
@@ -200,7 +257,7 @@ export default function StudentAiChat() {
     }
 
     if (sessionId) {
-      supabase.from('ai_chat_messages').insert({ session_id: sessionId, role: 'user', content: text }).then(() => {});
+      supabase.from('ai_chat_messages').insert({ session_id: sessionId, role: 'user', content: text, hidden: bad }).then(() => {});
     }
 
     try {
@@ -216,6 +273,10 @@ export default function StudentAiChat() {
       if (result.riskLevel === 'high' && !riskMatch) {
         fireAlert(sessionId, 'ai_classification', text, 'high');
         setActiveAlert({ phrase: 'ai_classification', severity: 'high' });
+      }
+
+      if (result.suggestAppointment && !bookingDone) {
+        setShowBookingCard(true);
       }
 
       const botResponse: Message = {
@@ -312,6 +373,36 @@ export default function StudentAiChat() {
     }
   };
 
+  const handleQuickBook = async () => {
+    if (!bookingDate || !bookingTime || !user) {
+      toast({ variant: 'destructive', title: 'Please select a date and time.' });
+      return;
+    }
+    setIsBookingSubmit(true);
+    try {
+      await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
+        studentId: user.id,
+        studentName: user.name,
+        counselorId: systemContext?.counselorId ?? null,
+        counselorName: systemContext?.counselorName ?? 'Guidance Counselor',
+        date: bookingDate,
+        time: bookingTime,
+        type: 'Mental Health Support',
+        status: APPOINTMENT_STATUS.PENDING,
+        location: 'Room 302',
+        reason: 'Urgent support requested via Guidi AI chat session.',
+        createdAt: new Date().toISOString(),
+      });
+      setBookingDone(true);
+      setShowBookingCard(false);
+      toast({ title: 'Appointment Requested', description: 'Your counselor will confirm your session soon.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Booking Failed', description: err.message });
+    } finally {
+      setIsBookingSubmit(false);
+    }
+  };
+
   const emotionReplies = [
     { label: 'Stressed', icon: Zap, color: 'text-red-500' },
     { label: 'Anxious', icon: Activity, color: 'text-orange-500' },
@@ -370,18 +461,30 @@ export default function StudentAiChat() {
 
               <p className="text-xs text-slate-500 font-medium text-center italic px-2">{alert?.cta}</p>
 
-              <div className="flex gap-3 pt-2">
-                <Button asChild variant="outline" className="flex-1 rounded-2xl font-black border-slate-200">
-                  <Link href="/student/messages">
-                    <MessageSquare className="h-4 w-4 mr-2" /> Message Counselor
-                  </Link>
-                </Button>
+              <div className="flex flex-col gap-2 pt-2">
                 <Button
-                  className="flex-1 rounded-2xl font-black bg-primary"
-                  onClick={() => setActiveAlert(null)}
+                  className="w-full rounded-2xl font-black bg-primary h-11"
+                  onClick={() => {
+                    setActiveAlert(null);
+                    setShowBookingCard(true);
+                  }}
                 >
-                  Continue with Guidi
+                  <CalendarPlus className="h-4 w-4 mr-2" /> Book Appointment Now
                 </Button>
+                <div className="flex gap-2">
+                  <Button asChild variant="outline" className="flex-1 rounded-2xl font-black border-slate-200 h-10">
+                    <Link href="/student/messages">
+                      <MessageSquare className="h-4 w-4 mr-2" /> Message Counselor
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="flex-1 rounded-2xl font-black h-10 text-slate-500"
+                    onClick={() => setActiveAlert(null)}
+                  >
+                    Continue with Guidi
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -416,13 +519,22 @@ export default function StudentAiChat() {
                       </Avatar>
                     )}
                     <div className={`max-w-[85%] md:max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
-                          : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
-                      }`}>
-                        {msg.text}
-                      </div>
+                      {msg.hidden && msg.role === 'user' ? (
+                        <div className="p-4 rounded-3xl bg-slate-100 border border-dashed border-slate-300 flex items-center gap-2 rounded-tr-none">
+                          <EyeOff className="h-4 w-4 text-slate-400 shrink-0" />
+                          <span className="text-sm font-bold text-slate-400 italic">
+                            Your message was hidden — it may contain inappropriate content.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className={`p-5 md:p-6 rounded-3xl text-base leading-relaxed font-medium shadow-md ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
+                            : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      )}
                       <span className="text-[10px] text-slate-400 font-bold mt-2 uppercase tracking-widest px-1">{msg.time}</span>
                     </div>
                   </div>
@@ -455,6 +567,80 @@ export default function StudentAiChat() {
                     </Button>
                   </div>
                 )}
+                {/* Inline appointment booking card */}
+                {showBookingCard && !bookingDone && (
+                  <div className="flex justify-start items-start gap-4 animate-in fade-in slide-in-from-bottom-3">
+                    <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0 mt-1">
+                      <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
+                    </Avatar>
+                    <div className="bg-white border-2 border-primary/20 rounded-3xl rounded-tl-none shadow-lg p-5 max-w-sm w-full">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarPlus className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-black text-slate-900">Book a Session</p>
+                        </div>
+                        <button onClick={() => setShowBookingCard(false)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium mb-4 leading-relaxed">
+                        I'd like to connect you with your counselor. Choose a date and time and I'll request an appointment for you right away.
+                      </p>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Preferred Date</p>
+                          <input
+                            type="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            value={bookingDate}
+                            onChange={e => setBookingDate(e.target.value)}
+                            className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Preferred Time</p>
+                          <Select value={bookingTime} onValueChange={setBookingTime}>
+                            <SelectTrigger className="h-10 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold">
+                              <SelectValue placeholder="Choose a time slot..." />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl shadow-2xl border-none">
+                              {TIME_SLOTS.map(slot => (
+                                <SelectItem key={slot} value={slot} className="text-xs font-bold rounded-lg">{slot}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={handleQuickBook}
+                          disabled={isBookingSubmit || !bookingDate || !bookingTime}
+                          className="w-full h-10 rounded-xl font-black bg-primary text-white shadow-md shadow-primary/20 mt-1"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          {isBookingSubmit ? 'Requesting...' : 'Request Appointment'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Booking confirmed inline confirmation */}
+                {bookingDone && (
+                  <div className="flex justify-start items-start gap-4 animate-in fade-in slide-in-from-bottom-3">
+                    <Avatar className="h-10 w-10 ring-2 ring-primary/5 shrink-0 mt-1">
+                      <AvatarFallback className="bg-primary text-white text-xs font-black">🤖</AvatarFallback>
+                    </Avatar>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-3xl rounded-tl-none shadow-sm p-5 max-w-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        <p className="text-sm font-black text-emerald-800">Appointment Requested</p>
+                      </div>
+                      <p className="text-xs text-emerald-700 font-medium leading-relaxed">
+                        Your counselor has been notified and will confirm your session shortly. You're taking a brave step — I'm proud of you.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div ref={scrollRef} />
               </div>
             </ScrollArea>

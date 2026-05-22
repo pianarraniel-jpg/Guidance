@@ -139,7 +139,7 @@ export default function CounselorAppointmentsPage() {
       const selectedStudent = students.find(s => s.id === bookingStudentId);
       if (!selectedStudent) throw new Error("Student not found");
 
-      await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
+      const newAppointment = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: bookingStudentId,
         studentName: selectedStudent.name,
         counselorId: counselor?.id,
@@ -153,22 +153,20 @@ export default function CounselorAppointmentsPage() {
         createdAt: new Date().toISOString(),
       });
 
+      setAppointments(prev => [newAppointment as any, ...prev]);
+
       toast({
         title: "Appointment Booked!",
         description: `Successfully booked a confirmed session for ${selectedStudent.name}.`,
       });
 
       setIsBookingOpen(false);
-      // Reset form
       setBookingStudentId("");
       setBookingType("");
       setBookingDate("");
       setBookingTime("");
       setBookingReason("");
       setBookingLocation("Room 302");
-      
-      // Reload appointments
-      loadAppointments();
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -228,15 +226,27 @@ export default function CounselorAppointmentsPage() {
   }, [notifications, markAsRead]);
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
-    await storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
-    toast({ title: 'Status Updated', description: `Appointment is now ${newStatus}.` });
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
     if (selectedApp?.id === id) setSelectedApp((prev: any) => prev ? { ...prev, status: newStatus } : null);
+    try {
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
+      toast({ title: 'Status Updated', description: `Appointment is now ${newStatus}.` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update appointment status.' });
+      loadAppointments();
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await storageService.delete(STORAGE_KEYS.APPOINTMENTS, id);
-    toast({ variant: 'destructive', title: 'Appointment Deleted', description: 'The record has been permanently removed.' });
+    setAppointments(prev => prev.filter(a => a.id !== id));
     setIsDetailsOpen(false);
+    try {
+      await storageService.delete(STORAGE_KEYS.APPOINTMENTS, id);
+      toast({ variant: 'destructive', title: 'Appointment Deleted', description: 'The record has been permanently removed.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Delete Failed', description: 'Could not remove the record.' });
+      loadAppointments();
+    }
   };
 
   const openFeedbackModal = (appointment: any) => {
@@ -286,18 +296,18 @@ export default function CounselorAppointmentsPage() {
       },
     );
 
+    const completedApp = { status: APPOINTMENT_STATUS.COMPLETED, counselorNotes: feedbackText, actionItems };
+    setAppointments(prev => prev.map(a => a.id === feedbackAppointment.id ? { ...a, ...completedApp } : a));
+    setSelectedApp((prev: any) =>
+      prev?.id === feedbackAppointment.id ? { ...prev, ...completedApp } : prev,
+    );
+
     toast({
       title: "Session Completed",
       description: "Feedback has been saved and the appointment is now completed.",
     });
 
     setIsFeedbackOpen(false);
-    setSelectedApp((prev: any) =>
-      prev?.id === feedbackAppointment.id
-        ? { ...prev, status: APPOINTMENT_STATUS.COMPLETED, counselorNotes: feedbackText, actionItems }
-        : prev,
-    );
-    loadAppointments();
   };
 
   const filteredAppointments = appointments.filter(app => {

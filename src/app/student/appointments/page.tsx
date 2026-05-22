@@ -172,25 +172,26 @@ export default function StudentAppointments() {
   const handleCancel = async () => {
     if (!cancelTarget || isCancelling) return;
     setIsCancelling(true);
+    const targetId = cancelTarget.id;
+    setAppointments(prev => prev.map(a => a.id === targetId ? { ...a, status: APPOINTMENT_STATUS.CANCELLED } : a));
+    if (selectedApp?.id === targetId) setSelectedApp((prev: any) => prev ? { ...prev, status: APPOINTMENT_STATUS.CANCELLED } : null);
+    setCancelTarget(null);
     try {
-      await storageService.update(STORAGE_KEYS.APPOINTMENTS, cancelTarget.id, {
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, targetId, {
         status: APPOINTMENT_STATUS.CANCELLED,
         lastUpdate: Date.now()
       });
-
       toast({
         title: 'Session Cancelled',
         description: 'Your counselor has been notified.',
       });
-
-      setCancelTarget(null);
-      loadAppointments();
     } catch {
       toast({
         variant: 'destructive',
         title: 'Error',
         description: 'Could not cancel session.',
       });
+      loadAppointments();
     } finally {
       setIsCancelling(false);
     }

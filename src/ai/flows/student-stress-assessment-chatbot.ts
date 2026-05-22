@@ -17,6 +17,12 @@ export type StudentStressAssessmentInput = {
       time: string;
       type: string;
     };
+    previousSessions?: Array<{
+      date: string;
+      summary: string;
+      riskLevel: string;
+      stressScore: number;
+    }>;
   };
 };
 
@@ -26,6 +32,7 @@ export type StudentStressAssessmentOutput = {
   assessmentComplete: boolean;
   riskLevel: 'low' | 'moderate' | 'high';
   stressScore: number;
+  suggestAppointment: boolean;
 };
 
 function buildSystemPrompt(ctx?: StudentStressAssessmentInput['systemContext']): string {
@@ -37,7 +44,14 @@ function buildSystemPrompt(ctx?: StudentStressAssessmentInput['systemContext']):
     }
     if (ctx.upcomingAppointment) {
       const { date, time, type } = ctx.upcomingAppointment;
-      contextBlock += ` They have an upcoming ${type} session on ${date} at ${time}. You may reference this appointment naturally if relevant (e.g., encouraging them to share how they're feeling with their counselor).`;
+      contextBlock += ` They have an upcoming ${type} session on ${date} at ${time}. You may reference this appointment naturally if relevant.`;
+    }
+    if (ctx.previousSessions && ctx.previousSessions.length > 0) {
+      contextBlock += `\n\nSTUDENT MEMORY — Previous Wellness Sessions (most recent first):`;
+      ctx.previousSessions.forEach(s => {
+        contextBlock += `\n• ${s.date}: ${s.summary} [Risk: ${s.riskLevel}, Stress: ${s.stressScore}/100]`;
+      });
+      contextBlock += `\n\nUse this history to personalize your responses. Reference patterns you notice (e.g., "Last time you mentioned academic pressure — how has that been since?"). Do NOT repeat what you already know — build on it naturally.`;
     }
   }
 
@@ -56,16 +70,22 @@ STRESS SCORE — estimate 0–100 on EVERY response:
 - 56–74: Significant stress, multiple areas affected
 - 75–100: Severe stress or crisis level
 
+APPOINTMENT SUGGESTION — set suggestAppointment to true when:
+- riskLevel is "high" (suicidal ideation, self-harm, severe hopelessness)
+- The student expresses acute distress, crisis language, or breakdown
+- You believe immediate professional counselor support is needed beyond what Guidi can provide
+
 You MUST respond with valid JSON only (no markdown, no code fences) using this exact structure:
 {
   "response": "your empathetic message to the student",
   "assessmentComplete": false,
   "assessmentSummary": null,
   "riskLevel": "low",
-  "stressScore": 30
+  "stressScore": 30,
+  "suggestAppointment": false
 }
 
-When the assessment is complete, set assessmentComplete to true and provide a comprehensive summary string in assessmentSummary. Always include riskLevel and stressScore on every response based on the full conversation so far.`;
+When the assessment is complete, set assessmentComplete to true and provide a comprehensive summary string in assessmentSummary. Always include riskLevel, stressScore, and suggestAppointment on every response based on the full conversation so far.`;
 }
 
 export async function studentStressAssessment(
@@ -96,5 +116,6 @@ export async function studentStressAssessment(
     assessmentComplete: parsed.assessmentComplete === true,
     riskLevel: (['low', 'moderate', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low') as 'low' | 'moderate' | 'high',
     stressScore: typeof parsed.stressScore === 'number' ? Math.min(100, Math.max(0, parsed.stressScore)) : 40,
+    suggestAppointment: parsed.suggestAppointment === true,
   };
 }

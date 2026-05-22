@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS messages (
   text        TEXT NOT NULL,
   time        TEXT NOT NULL,
   timestamp   BIGINT NOT NULL,
+  hidden      BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -180,6 +181,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
   session_id UUID REFERENCES ai_chat_sessions(id) ON DELETE CASCADE NOT NULL,
   role       TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content    TEXT NOT NULL,
+  hidden     BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

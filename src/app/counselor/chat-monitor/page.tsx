@@ -2,17 +2,36 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { storageService } from '@/lib/storage-service';
+import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
   MonitorSmartphone, Search, ChevronDown, ChevronUp,
   AlertTriangle, ShieldAlert, Info, MessageSquare,
-  CheckCircle2, Clock, Filter, BarChart3
+  CheckCircle2, Clock, Filter, BarChart3, CalendarPlus,
+  Heart, BookOpen, Brain, Sparkles, Briefcase
 } from 'lucide-react';
 import { format, formatDistanceToNow, subDays } from 'date-fns';
 import {
@@ -65,8 +84,22 @@ const severityConfig = {
   critical: { label: 'Critical', color: 'bg-red-100 text-red-700', icon: ShieldAlert },
 };
 
+const SESSION_TYPES = [
+  { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
+  { value: 'Academic Stress', label: 'Academic Stress', icon: BookOpen, color: 'text-blue-500 bg-blue-50' },
+  { value: 'Personal Concerns', label: 'Personal Concerns', icon: Brain, color: 'text-purple-500 bg-purple-50' },
+  { value: 'Career Guidance', label: 'Career Guidance', icon: Briefcase, color: 'text-orange-500 bg-orange-50' },
+  { value: 'Mental Health Support', label: 'Mental Health Support', icon: Sparkles, color: 'text-pink-500 bg-pink-50' },
+];
+
+const TIME_SLOTS = [
+  '09:00 AM', '10:00 AM', '11:00 AM',
+  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+];
+
 export default function ChatMonitorPage() {
   const { toast } = useToast();
+  const { user: counselor } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [alerts, setAlerts] = useState<ChatAlert[]>([]);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -75,6 +108,66 @@ export default function ChatMonitorPage() {
   const [riskFilter, setRiskFilter] = useState<'all' | 'low' | 'moderate' | 'high'>('all');
   const [activeTab, setActiveTab] = useState<'sessions' | 'alerts' | 'analytics'>('sessions');
   const [loading, setLoading] = useState(true);
+
+  // Booking from alert
+  const [bookingAlert, setBookingAlert] = useState<ChatAlert | null>(null);
+  const [bookingType, setBookingType] = useState('');
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [bookingReason, setBookingReason] = useState('');
+  const [bookingLocation, setBookingLocation] = useState('Room 302');
+  const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+
+  const openBookingFromAlert = (alert: ChatAlert) => {
+    setBookingAlert(alert);
+    setBookingType('Mental Health Support');
+    setBookingDate('');
+    setBookingTime('');
+    setBookingReason(`Follow-up required after alert: "${alert.trigger_phrase}"`);
+    setBookingLocation('Room 302');
+  };
+
+  const handleBookFromAlert = async () => {
+    if (!bookingAlert || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()) {
+      toast({ variant: 'destructive', title: 'Validation Error', description: 'Please fill in all required fields.' });
+      return;
+    }
+    setIsBookingSubmit(true);
+    try {
+      await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
+        studentId: bookingAlert.student_id,
+        studentName: bookingAlert.student_name,
+        counselorId: counselor?.id,
+        counselorName: counselor?.name,
+        date: bookingDate,
+        time: bookingTime,
+        type: bookingType,
+        status: APPOINTMENT_STATUS.CONFIRMED,
+        location: bookingLocation,
+        reason: bookingReason.trim(),
+        createdAt: new Date().toISOString(),
+      });
+
+      // Also acknowledge the alert if not already done
+      if (!bookingAlert.acknowledged) {
+        await supabase
+          .from('chat_alerts')
+          .update({ acknowledged: true, acknowledged_at: new Date().toISOString() })
+          .eq('id', bookingAlert.id);
+        setAlerts(prev => prev.map(a => a.id === bookingAlert.id ? { ...a, acknowledged: true } : a));
+      }
+
+      toast({
+        title: 'Appointment Booked',
+        description: `Confirmed session scheduled for ${bookingAlert.student_name}.`,
+      });
+      setBookingAlert(null);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Booking Failed', description: err.message || 'An error occurred.' });
+    } finally {
+      setIsBookingSubmit(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -410,13 +503,16 @@ export default function ChatMonitorPage() {
                                         </Avatar>
                                       )}
                                       <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm font-medium leading-relaxed ${
-                                        msg.role === 'user'
-                                          ? 'bg-primary text-white rounded-tr-none'
-                                          : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
+                                        msg.hidden && msg.role === 'user'
+                                          ? 'bg-red-50 border-2 border-dashed border-red-300 text-red-800 rounded-tr-none'
+                                          : msg.role === 'user'
+                                            ? 'bg-primary text-white rounded-tr-none'
+                                            : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
                                       }`}>
                                         {msg.content}
-                                        <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${msg.role === 'user' ? 'text-white/60' : 'text-slate-400'}`}>
+                                        <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${msg.hidden && msg.role === 'user' ? 'text-red-400' : msg.role === 'user' ? 'text-white/60' : 'text-slate-400'}`}>
                                           {msg.role === 'user' ? session.student_name : 'Guidi'} · {format(new Date(msg.created_at), 'h:mm a')}
+                                          {msg.hidden && msg.role === 'user' && ' · 🚫 Hidden from student'}
                                         </p>
                                       </div>
                                     </div>
@@ -473,16 +569,25 @@ export default function ChatMonitorPage() {
                           {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
                         </p>
                       </div>
-                      {!alert.acknowledged && (
+                      <div className="flex flex-col gap-2 shrink-0">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => acknowledgeAlert(alert.id)}
-                          className="rounded-xl font-black text-xs shrink-0 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          onClick={() => openBookingFromAlert(alert)}
+                          className="rounded-xl font-black text-xs bg-primary hover:bg-primary/90 text-white shadow-sm"
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Acknowledge
+                          <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Book Appointment
                         </Button>
-                      )}
+                        {!alert.acknowledged && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => acknowledgeAlert(alert.id)}
+                            className="rounded-xl font-black text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Acknowledge
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -606,6 +711,131 @@ export default function ChatMonitorPage() {
               )}
             </div>
           )}
+      {/* Book Appointment Dialog (triggered from alert) */}
+      <Dialog open={!!bookingAlert} onOpenChange={(o) => { if (!o) setBookingAlert(null); }}>
+        <DialogContent className="max-w-xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-8 bg-slate-50 border-b">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                <CalendarPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black text-slate-900">Book Appointment</DialogTitle>
+                <p className="text-sm text-slate-500 font-medium mt-0.5">
+                  Scheduling for <span className="font-black text-slate-700">{bookingAlert?.student_name}</span> based on alert
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
+            {/* Alert context banner */}
+            {bookingAlert && (
+              <div className={`flex items-start gap-3 p-4 rounded-2xl border ${severityConfig[bookingAlert.severity].color} border-current/20`}>
+                {React.createElement(severityConfig[bookingAlert.severity].icon, { className: 'h-4 w-4 mt-0.5 shrink-0' })}
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-1">Alert trigger</p>
+                  <p className="text-xs font-semibold leading-relaxed">"{bookingAlert.message_content}"</p>
+                </div>
+              </div>
+            )}
+
+            {/* Session Type */}
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Session Type *</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SESSION_TYPES.map(({ value, label, icon: Icon, color }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setBookingType(value)}
+                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                      bookingType === value
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-primary/30'
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className={`text-[11px] font-bold ${bookingType === value ? 'text-primary' : 'text-slate-700'}`}>
+                      {label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Date & Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Date *</Label>
+                <Input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={bookingDate}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                  className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Time Slot *</Label>
+                <Select value={bookingTime} onValueChange={setBookingTime}>
+                  <SelectTrigger className="h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold">
+                    <SelectValue placeholder="Choose time..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl shadow-2xl border-none">
+                    {TIME_SLOTS.map(slot => (
+                      <SelectItem key={slot} value={slot} className="text-xs font-bold rounded-lg">{slot}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Location</Label>
+              <Input
+                placeholder="e.g. Guidance Office - Room 302"
+                value={bookingLocation}
+                onChange={(e) => setBookingLocation(e.target.value)}
+                className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
+              />
+            </div>
+
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Session Reason *</Label>
+              <Textarea
+                placeholder="Describe the purpose of this session..."
+                value={bookingReason}
+                onChange={(e) => setBookingReason(e.target.value)}
+                className="min-h-[90px] rounded-xl text-xs font-medium bg-white border border-slate-200 p-3 leading-relaxed"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2 border-t border-slate-100">
+              <Button
+                onClick={handleBookFromAlert}
+                disabled={isBookingSubmit || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()}
+                className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black text-white shadow-lg shadow-primary/20"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {isBookingSubmit ? 'Scheduling...' : 'Book & Confirm'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setBookingAlert(null)}
+                className="flex-1 h-12 rounded-xl font-bold border-slate-200"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

@@ -15,7 +15,11 @@
       "Bash(Select-Object -First 50)",
       "Bash(Format-Table FullName)",
       "Bash(Select-String -Pattern \"counselor|dashboard\")",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\app\\\\counselor\" -Recurse | Where-Object {$_.Extension -eq \".tsx\"} | Select-Object FullName)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\app\\\\counselor\" -Recurse | Where-Object {$_.Extension -eq \".tsx\"} | Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(grep -E \"\\\\.\\(md|pdf|doc|txt\\)$\")"
     ]
   }
 }

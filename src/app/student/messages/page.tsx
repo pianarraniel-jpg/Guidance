@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,15 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Send,
-  Plus,
-  Clock,
-  AlertCircle,
-  Search,
-  MessageSquare,
-  Calendar,
-  ChevronRight
+import {
+  Send, Plus, Clock, AlertCircle, Search, MessageSquare,
+  Calendar, ChevronRight, EyeOff, Lock,
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
@@ -33,6 +27,7 @@ type ChatMessage = {
   text: string;
   time: string;
   timestamp: number;
+  hidden?: boolean;
 };
 
 type CounselorContact = any & {
@@ -40,9 +35,23 @@ type CounselorContact = any & {
   isUnread: boolean;
 };
 
+const BAD_CONTENT_PATTERNS = [
+  'fuck you', 'fuck off', 'go fuck yourself', 'motherfucker',
+  'piece of shit', 'asshole', 'stupid bitch', 'dumb bitch',
+  'fucking idiot', 'son of a bitch', 'go to hell', 'i hate you',
+  'shut the fuck up', 'kill yourself', 'kys', 'bastard', 'jackass', 'dickhead',
+  'suicide', 'suicidal', 'kill myself', 'end my life', 'take my life',
+  'want to die', 'hurt myself', 'harm myself', 'cut myself', 'self harm', 'self-harm',
+];
+
+function isBadContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return BAD_CONTENT_PATTERNS.some(p => lower.includes(p));
+}
+
 export default function StudentMessages() {
   const { user } = useAuth();
-  const { notifications, markIdsAsRead } = useNotifications();
+  const { markIdsAsRead } = useNotifications();
   const [counselors, setCounselors] = useState<CounselorContact[]>([]);
   const [activeCounselor, setActiveCounselor] = useState<any>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -53,7 +62,7 @@ export default function StudentMessages() {
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    const { data: readData } = await (await import('@/lib/supabase')).supabase
+    const { data: readData } = await supabase
       .from('notifications_read')
       .select('notification_id')
       .eq('user_id', user.id);
@@ -78,10 +87,10 @@ export default function StudentMessages() {
       if (prev.length !== counselorsWithMetadata.length) return counselorsWithMetadata;
       const hasDiff = prev.some((c, idx) => {
         const nextC = counselorsWithMetadata[idx];
-        return c.id !== nextC.id || 
-               c.isUnread !== nextC.isUnread || 
-               c.lastMessage?.id !== nextC.lastMessage?.id ||
-               c.lastMessage?.timestamp !== nextC.lastMessage?.timestamp;
+        return c.id !== nextC.id ||
+          c.isUnread !== nextC.isUnread ||
+          c.lastMessage?.id !== nextC.lastMessage?.id ||
+          c.lastMessage?.timestamp !== nextC.lastMessage?.timestamp;
       });
       return hasDiff ? counselorsWithMetadata : prev;
     });
@@ -111,75 +120,67 @@ export default function StudentMessages() {
 
   useEffect(() => {
     loadData();
-
     if (!user) return;
-
     const channel = supabase
       .channel(`chat-student-${user.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'messages' 
-      }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         const msg = payload.new as any;
         const oldMsg = payload.old as any;
-        const affectedUser = msg?.sender_id || msg?.receiver_id || msg?.senderId || msg?.receiverId ||
-                             oldMsg?.sender_id || oldMsg?.receiver_id || oldMsg?.senderId || oldMsg?.receiverId;
-        if (affectedUser === user.id) {
-          loadData();
-        }
+        const affected = msg?.sender_id || msg?.receiver_id || oldMsg?.sender_id || oldMsg?.receiver_id;
+        if (affected === user.id) loadData();
       })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user, loadData]);
 
-  // Mark active chat as read - SEEN Logic
   useEffect(() => {
     if (activeCounselor && user && chatHistory.length > 0) {
-      const incomingFromActive = chatHistory
+      const incoming = chatHistory
         .filter(m => m.senderId === activeCounselor.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
-      if (incomingFromActive.length > 0) {
-        const latestIncoming = incomingFromActive[0];
-        const idsToMark = incomingFromActive.map(m => `msg-${m.id}`);
-        idsToMark.push(`group-msg-${activeCounselor.id}-${latestIncoming.id}`);
-        markIdsAsRead(idsToMark);
+      if (incoming.length > 0) {
+        const latest = incoming[0];
+        const ids = incoming.map(m => `msg-${m.id}`);
+        ids.push(`group-msg-${activeCounselor.id}-${latest.id}`);
+        markIdsAsRead(ids);
       }
     }
   }, [activeCounselor?.id, chatHistory, markIdsAsRead, user?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
-  const handleSelectCounselor = (counselor: any) => {
-    setActiveCounselor(counselor);
-  };
+  // Turn-based: student can only send if the last message was from the counselor (or no messages)
+  const canStudentSend = useMemo(() => {
+    if (chatHistory.length === 0) return true;
+    const last = chatHistory[chatHistory.length - 1];
+    return last.senderId !== user?.id;
+  }, [chatHistory, user?.id]);
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() || !user || !activeCounselor) return;
+    if (!inputValue.trim() || !user || !activeCounselor || !canStudentSend) return;
+
+    const text = inputValue.trim();
+    const bad = isBadContent(text);
 
     const newMessage: Omit<ChatMessage, 'id'> = {
       senderId: user.id,
       receiverId: activeCounselor.id,
       senderRole: user.role,
-      text: inputValue,
+      text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      hidden: bad,
     };
 
-    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
+    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     loadData();
   };
 
-  const filteredCounselors = counselors.filter(c => 
+  const filteredCounselors = counselors.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -187,12 +188,13 @@ export default function StudentMessages() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+          {/* Sidebar */}
           <div className="w-80 bg-white border-r flex flex-col shrink-0">
             <div className="p-6 border-b">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input 
-                  placeholder="Search counselors..." 
+                <Input
+                  placeholder="Search counselors..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-11 bg-[#F1F5F9] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl text-xs font-bold"
@@ -202,12 +204,12 @@ export default function StudentMessages() {
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
                 {filteredCounselors.map(counselor => (
-                  <div 
+                  <div
                     key={counselor.id}
-                    onClick={() => handleSelectCounselor(counselor)}
+                    onClick={() => setActiveCounselor(counselor)}
                     className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
-                      activeCounselor?.id === counselor.id 
-                        ? 'bg-primary/5 ring-1 ring-primary/20 shadow-sm' 
+                      activeCounselor?.id === counselor.id
+                        ? 'bg-primary/5 ring-1 ring-primary/20 shadow-sm'
                         : 'hover:bg-slate-50'
                     }`}
                   >
@@ -217,7 +219,7 @@ export default function StudentMessages() {
                         <AvatarFallback className="font-bold text-primary bg-primary/5">{counselor.name[0]}</AvatarFallback>
                       </Avatar>
                       {counselor.isUnread && (
-                        <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm"></span>
+                        <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -230,10 +232,9 @@ export default function StudentMessages() {
                         )}
                       </div>
                       <p className={`text-[11px] truncate ${counselor.isUnread ? 'font-bold text-slate-600' : 'text-slate-400'}`}>
-                        {counselor.lastMessage 
-                          ? (counselor.lastMessage.text === '[BOOKING_REQUEST]' ? '📅 Session Invitation' : counselor.lastMessage.text)
-                          : 'Wellness Counselor'
-                        }
+                        {counselor.lastMessage
+                          ? (counselor.lastMessage.text === '[BOOKING_REQUEST]' ? '📅 Session Invitation' : counselor.lastMessage.hidden && counselor.lastMessage.senderId === user?.id ? '[Message hidden]' : counselor.lastMessage.text)
+                          : 'Wellness Counselor'}
                       </p>
                     </div>
                   </div>
@@ -245,6 +246,7 @@ export default function StudentMessages() {
             </ScrollArea>
           </div>
 
+          {/* Chat area */}
           <div className="flex-1 flex flex-col bg-white">
             {activeCounselor ? (
               <>
@@ -257,7 +259,7 @@ export default function StudentMessages() {
                     <div>
                       <h3 className="font-black text-slate-900 text-lg">{activeCounselor.name}</h3>
                       <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
                         Synchronized Support Channel
                       </p>
                     </div>
@@ -271,8 +273,8 @@ export default function StudentMessages() {
                 <ScrollArea className="flex-1 p-8 bg-[#F8FAFC]">
                   <div className="max-w-4xl mx-auto space-y-8">
                     {chatHistory.map((msg) => (
-                      <div 
-                        key={msg.id} 
+                      <div
+                        key={msg.id}
                         className={`flex items-start gap-4 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}
                       >
                         {msg.senderId !== user?.id && (
@@ -282,7 +284,15 @@ export default function StudentMessages() {
                           </Avatar>
                         )}
                         <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
-                          {msg.text === '[BOOKING_REQUEST]' ? (
+                          {/* Hidden message placeholder (student's own hidden msg) */}
+                          {msg.hidden && msg.senderId === user?.id ? (
+                            <div className="p-3 rounded-2xl bg-slate-100 border border-dashed border-slate-300 flex items-center gap-2">
+                              <EyeOff className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              <span className="text-xs font-bold text-slate-400 italic">
+                                Your message was hidden — it may contain inappropriate content.
+                              </span>
+                            </div>
+                          ) : msg.text === '[BOOKING_REQUEST]' ? (
                             <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden max-w-sm">
                               <div className="bg-primary p-5 text-white">
                                 <div className="flex items-center gap-2 mb-1">
@@ -293,9 +303,9 @@ export default function StudentMessages() {
                               </div>
                               <CardContent className="p-6">
                                 <p className="text-xs text-slate-500 mb-6 leading-relaxed font-medium">
-                                  Your counselor has requested that you schedule a follow-up appointment to continue your wellness journey.
+                                  Your counselor has requested that you schedule a follow-up appointment.
                                 </p>
-                                <Button asChild className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black text-xs shadow-lg shadow-primary/20">
+                                <Button asChild className="w-full h-12 rounded-xl bg-primary font-black text-xs shadow-lg shadow-primary/20">
                                   <Link href="/student/book" className="flex items-center justify-center gap-2">
                                     Complete Booking Form <ChevronRight className="h-4 w-4" />
                                   </Link>
@@ -304,8 +314,8 @@ export default function StudentMessages() {
                             </Card>
                           ) : (
                             <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
-                              msg.senderId === user?.id 
-                                ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                              msg.senderId === user?.id
+                                ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                                 : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                             }`}>
                               {msg.text}
@@ -321,23 +331,37 @@ export default function StudentMessages() {
 
                 <div className="p-8 border-t bg-white">
                   <div className="max-w-4xl mx-auto">
-                    <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 text-red-700">
+                    <div className="mb-4 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 text-red-700">
                       <AlertCircle className="h-5 w-5 shrink-0" />
                       <div className="text-[10px] font-bold uppercase tracking-wide">
                         <p className="font-black">Emergency Protocol</p>
                         <p className="opacity-80">This channel is not for crises. Call 988 or 911 if in immediate danger.</p>
                       </div>
                     </div>
+
+                    {/* Turn-lock indicator */}
+                    {!canStudentSend && (
+                      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2 text-amber-700">
+                        <Lock className="h-4 w-4 shrink-0" />
+                        <span className="text-xs font-black">Waiting for your counselor's reply before you can send another message.</span>
+                      </div>
+                    )}
+
                     <form onSubmit={handleSend} className="flex items-center gap-4">
                       <div className="flex-1 relative">
-                        <Input 
-                          placeholder="Type a message to your counselor..." 
+                        <Input
+                          placeholder={canStudentSend ? 'Type a message to your counselor...' : 'Waiting for counselor reply...'}
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
-                          className="h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-4 text-sm font-medium"
+                          disabled={!canStudentSend}
+                          className="h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-4 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
-                      <Button type="submit" className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95" disabled={!inputValue.trim()}>
+                      <Button
+                        type="submit"
+                        className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95"
+                        disabled={!inputValue.trim() || !canStudentSend}
+                      >
                         <Send className="h-5 w-5" />
                       </Button>
                     </form>
@@ -347,7 +371,7 @@ export default function StudentMessages() {
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
                 <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
-                   <MessageSquare className="h-8 w-8 opacity-20" />
+                  <MessageSquare className="h-8 w-8 opacity-20" />
                 </div>
                 <p className="font-black text-sm italic uppercase tracking-widest">Select a counselor to begin</p>
               </div>

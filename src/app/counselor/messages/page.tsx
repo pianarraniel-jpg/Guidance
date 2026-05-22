@@ -1,22 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Send, 
-  Search, 
-  Sparkles, 
-  MoreVertical, 
-  Clock,
-  CheckCircle2,
-  MessageSquare,
-  Plus,
-  Calendar
+import {
+  Send, Search, Sparkles, MoreVertical, Clock,
+  CheckCircle2, MessageSquare, Plus, Calendar, EyeOff, Lock,
 } from 'lucide-react';
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +27,7 @@ type Message = {
   text: string;
   time: string;
   timestamp: number;
+  hidden?: boolean;
 };
 
 type Contact = any & {
@@ -41,9 +35,23 @@ type Contact = any & {
   isUnread?: boolean;
 };
 
+const BAD_CONTENT_PATTERNS = [
+  'fuck you', 'fuck off', 'go fuck yourself', 'motherfucker',
+  'piece of shit', 'asshole', 'stupid bitch', 'dumb bitch',
+  'fucking idiot', 'son of a bitch', 'go to hell', 'i hate you',
+  'shut the fuck up', 'kill yourself', 'kys', 'bastard', 'jackass', 'dickhead',
+  'suicide', 'suicidal', 'kill myself', 'end my life', 'take my life',
+  'want to die', 'hurt myself', 'harm myself', 'cut myself', 'self harm', 'self-harm',
+];
+
+function isBadContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return BAD_CONTENT_PATTERNS.some(p => lower.includes(p));
+}
+
 export default function CounselorMessagesPage() {
   const { user } = useAuth();
-  const { notifications, markIdsAsRead } = useNotifications();
+  const { markIdsAsRead } = useNotifications();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -56,7 +64,7 @@ export default function CounselorMessagesPage() {
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    const { data: readData } = await (await import('@/lib/supabase')).supabase
+    const { data: readData } = await supabase
       .from('notifications_read')
       .select('notification_id')
       .eq('user_id', user.id);
@@ -83,10 +91,10 @@ export default function CounselorMessagesPage() {
       if (prev.length !== studentsWithMetadata.length) return studentsWithMetadata;
       const hasDiff = prev.some((c, idx) => {
         const nextC = studentsWithMetadata[idx];
-        return c.id !== nextC.id || 
-               c.isUnread !== nextC.isUnread || 
-               c.lastMessage?.id !== nextC.lastMessage?.id ||
-               c.lastMessage?.timestamp !== nextC.lastMessage?.timestamp;
+        return c.id !== nextC.id ||
+          c.isUnread !== nextC.isUnread ||
+          c.lastMessage?.id !== nextC.lastMessage?.id ||
+          c.lastMessage?.timestamp !== nextC.lastMessage?.timestamp;
       });
       return hasDiff ? studentsWithMetadata : prev;
     });
@@ -116,69 +124,62 @@ export default function CounselorMessagesPage() {
 
   useEffect(() => {
     loadData();
-
     if (!user) return;
-
     const channel = supabase
       .channel(`chat-counselor-${user.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'messages' 
-      }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         const msg = payload.new as any;
         const oldMsg = payload.old as any;
-        const affectedUser = msg?.sender_id || msg?.receiver_id || msg?.senderId || msg?.receiverId ||
-                             oldMsg?.sender_id || oldMsg?.receiver_id || oldMsg?.senderId || oldMsg?.receiverId;
-        if (affectedUser === user.id) {
-          loadData();
-        }
+        const affected = msg?.sender_id || msg?.receiver_id || oldMsg?.sender_id || oldMsg?.receiver_id;
+        if (affected === user.id) loadData();
       })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user, loadData]);
 
-  // Mark active chat as read - SEEN Logic
   useEffect(() => {
     if (activeStudent && user && messages.length > 0) {
-      const incomingFromActive = messages
+      const incoming = messages
         .filter(m => m.senderId === activeStudent.id && m.receiverId === user.id)
         .sort((a, b) => b.timestamp - a.timestamp);
-      if (incomingFromActive.length > 0) {
-        const latestIncoming = incomingFromActive[0];
-        const idsToMark = incomingFromActive.map(m => `msg-${m.id}`);
-        idsToMark.push(`group-msg-${activeStudent.id}-${latestIncoming.id}`);
-        markIdsAsRead(idsToMark);
+      if (incoming.length > 0) {
+        const latest = incoming[0];
+        const ids = incoming.map(m => `msg-${m.id}`);
+        ids.push(`group-msg-${activeStudent.id}-${latest.id}`);
+        markIdsAsRead(ids);
       }
     }
   }, [activeStudent?.id, messages, markIdsAsRead, user?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSelectStudent = (student: any) => {
-    setActiveStudent(student);
-  };
+  // Turn-based: counselor can only reply if last message was from the student (or no messages)
+  const canCounselorSend = useMemo(() => {
+    if (messages.length === 0) return true;
+    const last = messages[messages.length - 1];
+    return last.senderId !== user?.id;
+  }, [messages, user?.id]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() || !user || !activeStudent) return;
+    if (!inputValue.trim() || !user || !activeStudent || !canCounselorSend) return;
+
+    const text = inputValue.trim();
+    const bad = isBadContent(text);
+
     const newMessage: Omit<Message, 'id'> = {
       senderId: user.id,
       receiverId: activeStudent.id,
       senderRole: user.role,
-      text: inputValue,
+      text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      hidden: bad,
     };
-    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     setInputValue('');
+    await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     loadData();
   };
 
@@ -190,11 +191,11 @@ export default function CounselorMessagesPage() {
       senderRole: user.role,
       text: '[BOOKING_REQUEST]',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     await storageService.create(STORAGE_KEYS.MESSAGES, newMessage);
     loadData();
-    toast({ title: "Invitation Sent", description: `A session booking request has been sent to ${activeStudent.name}.` });
+    toast({ title: 'Invitation Sent', description: `A session booking request has been sent to ${activeStudent.name}.` });
   };
 
   const handleAISummarize = async () => {
@@ -203,9 +204,8 @@ export default function CounselorMessagesPage() {
     try {
       const transcript = messages.map(m => `${m.senderRole === 'counselor' ? 'Counselor' : 'Student'}: ${m.text}`).join('\n');
       const result = await summarizeAssessmentConversation({ assessmentConversation: transcript });
-      
       toast({
-        title: "🤖 AI Insight Generated",
+        title: '🤖 AI Insight Generated',
         description: (
           <div className="mt-2 space-y-2 text-left">
             <p className="text-xs font-bold text-slate-700">{result.summary}</p>
@@ -218,29 +218,26 @@ export default function CounselorMessagesPage() {
         ),
         duration: 8000,
       });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Summarization failed",
-        description: "Could not generate AI insight at this time.",
-      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Summarization failed', description: 'Could not generate AI insight at this time.' });
     } finally {
       setIsSummarizing(false);
     }
   };
 
-  const filteredContacts = contacts.filter(c => 
+  const filteredContacts = contacts.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="h-[calc(100vh-120px)] flex gap-6">
+      {/* Sidebar */}
       <Card className="w-80 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-slate-50">
           <div className="relative group mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
-            <Input 
-              placeholder="Search students..." 
+            <Input
+              placeholder="Search students..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 h-11 bg-slate-50 border-none rounded-xl text-xs font-medium"
@@ -254,14 +251,12 @@ export default function CounselorMessagesPage() {
 
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1">
-            {filteredContacts.map((contact) => (
-              <div 
+            {filteredContacts.map(contact => (
+              <div
                 key={contact.id}
-                onClick={() => handleSelectStudent(contact)}
+                onClick={() => setActiveStudent(contact)}
                 className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
-                  activeStudent?.id === contact.id 
-                    ? 'bg-primary/5 ring-1 ring-primary/10' 
-                    : 'hover:bg-slate-50'
+                  activeStudent?.id === contact.id ? 'bg-primary/5 ring-1 ring-primary/10' : 'hover:bg-slate-50'
                 }`}
               >
                 <div className="relative">
@@ -270,7 +265,7 @@ export default function CounselorMessagesPage() {
                     <AvatarFallback className="bg-primary/5 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
                   {contact.isUnread && (
-                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm"></span>
+                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -281,10 +276,9 @@ export default function CounselorMessagesPage() {
                     )}
                   </div>
                   <p className={`text-xs truncate ${contact.isUnread ? 'font-bold text-slate-700' : 'font-medium text-slate-400'}`}>
-                    {contact.lastMessage 
+                    {contact.lastMessage
                       ? (contact.lastMessage.text === '[BOOKING_REQUEST]' ? 'Sent session invitation' : contact.lastMessage.text)
-                      : 'Click to open chat'
-                    }
+                      : 'Click to open chat'}
                   </p>
                 </div>
               </div>
@@ -293,6 +287,7 @@ export default function CounselorMessagesPage() {
         </ScrollArea>
       </Card>
 
+      {/* Chat area */}
       <Card className="flex-1 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
         {activeStudent ? (
           <>
@@ -305,20 +300,17 @@ export default function CounselorMessagesPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-black text-slate-900 text-lg">{activeStudent.name}</h3>
-                    <Badge className="text-[9px] font-black uppercase tracking-tighter border-none bg-emerald-50 text-emerald-600">
-                      Active Session
-                    </Badge>
+                    <Badge className="text-[9px] font-black uppercase tracking-tighter border-none bg-emerald-50 text-emerald-600">Active Session</Badge>
                   </div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
                     <Clock className="h-3 w-3" /> University Support Channel
                   </p>
                 </div>
               </div>
-
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleAISummarize}
                   disabled={isSummarizing || messages.length === 0}
                   className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 font-black text-xs gap-2 h-10 px-4"
@@ -331,15 +323,17 @@ export default function CounselorMessagesPage() {
                   AI Insight
                 </Button>
                 <div className="h-8 w-px bg-slate-100 mx-2" />
-                <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-primary"><MoreVertical className="h-5 w-5" /></Button>
+                <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-primary">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
               </div>
             </header>
 
             <ScrollArea className="flex-1 p-8 bg-slate-50/30">
               <div className="max-w-4xl mx-auto space-y-8">
                 {messages.map((msg) => (
-                  <div 
-                    key={msg.id} 
+                  <div
+                    key={msg.id}
                     className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2`}
                   >
                     <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
@@ -350,19 +344,35 @@ export default function CounselorMessagesPage() {
                           </div>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Session Invitation Sent</p>
                         </div>
+                      ) : msg.hidden ? (
+                        /* Hidden message — counselor sees full content with warning */
+                        <div className={`flex flex-col gap-1 ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
+                          <div className={`p-4 rounded-2xl text-sm leading-relaxed font-medium border-2 border-dashed ${
+                            msg.senderId === user?.id
+                              ? 'bg-orange-50 border-orange-300 text-orange-800 rounded-tr-none'
+                              : 'bg-red-50 border-red-300 text-red-800 rounded-tl-none'
+                          }`}>
+                            {msg.text}
+                          </div>
+                          <span className="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1 px-1">
+                            <EyeOff className="h-3 w-3" /> Hidden from student
+                          </span>
+                        </div>
                       ) : (
                         <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
-                          msg.senderId === user?.id 
-                            ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
+                          msg.senderId === user?.id
+                            ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                             : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
                         }`}>
                           {msg.text}
                         </div>
                       )}
-                      <div className="flex items-center gap-2 mt-2 px-1">
-                        <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">{msg.time}</span>
-                        {msg.senderId === user?.id && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
-                      </div>
+                      {msg.text !== '[BOOKING_REQUEST]' && !msg.hidden && (
+                        <div className="flex items-center gap-2 mt-2 px-1">
+                          <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">{msg.time}</span>
+                          {msg.senderId === user?.id && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -372,28 +382,37 @@ export default function CounselorMessagesPage() {
 
             <div className="p-8 border-t border-slate-50 bg-white">
               <div className="max-w-4xl mx-auto">
+                {/* Turn-lock indicator */}
+                {!canCounselorSend && (
+                  <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2 text-amber-700">
+                    <Lock className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-black">Waiting for the student's reply before you can respond again.</span>
+                  </div>
+                )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-4">
                   <div className="flex-1 relative flex items-center gap-2">
-                    <Button 
+                    <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       onClick={handleSendBookingForm}
-                      className="h-14 w-14 rounded-2xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all shrink-0"
+                      disabled={!canCounselorSend}
+                      className="h-14 w-14 rounded-2xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Plus className="h-6 w-6" />
                     </Button>
-                    <Input 
-                      placeholder="Type your clinical response..." 
+                    <Input
+                      placeholder={canCounselorSend ? 'Type your clinical response...' : 'Waiting for student reply...'}
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
-                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 text-sm font-medium w-full"
+                      disabled={!canCounselorSend}
+                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 text-sm font-medium w-full disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-all active:scale-95" 
-                    disabled={!inputValue.trim()}
+                  <Button
+                    type="submit"
+                    className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-all active:scale-95"
+                    disabled={!inputValue.trim() || !canCounselorSend}
                   >
                     <Send className="h-5 w-5" />
                   </Button>
