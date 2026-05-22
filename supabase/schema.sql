@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   role        TEXT NOT NULL CHECK (role IN ('student', 'counselor', 'admin')),
   student_id  TEXT UNIQUE,
   staff_id    TEXT UNIQUE,
+  department  TEXT,
+  year_level  TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -229,7 +231,8 @@ DROP POLICY IF EXISTS "profiles_select" ON profiles;
 DROP POLICY IF EXISTS "profiles_update" ON profiles;
 DROP POLICY IF EXISTS "profiles_insert" ON profiles;
 CREATE POLICY "profiles_select" ON profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated
+  USING (auth.uid() = id OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
 CREATE POLICY "profiles_insert" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
 -- appointments: student sees own; counselor/admin see all; owner or counselor can insert/update/delete

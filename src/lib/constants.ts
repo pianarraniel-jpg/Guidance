@@ -1,3 +1,26 @@
+export const DEPARTMENTS = [
+  { value: 'CEA', label: 'College of Engineering and Architecture' },
+  { value: 'CCS', label: 'College of Computer Studies' },
+  { value: 'CBA', label: 'College of Business and Accountancy' },
+  { value: 'COE', label: 'College of Education' },
+  { value: 'CAS', label: 'College of Arts and Sciences' },
+  { value: 'CON', label: 'College of Nursing' },
+  { value: 'CCJE', label: 'College of Criminal Justice Education' },
+  { value: 'CTHM', label: 'College of Tourism and Hospitality Management' },
+  { value: 'GS', label: 'Graduate School' },
+] as const;
+
+export type DepartmentCode = typeof DEPARTMENTS[number]['value'];
+
+export const YEAR_LEVELS = [
+  '1st Year',
+  '2nd Year',
+  '3rd Year',
+  '4th Year',
+  '5th Year',
+  'Graduate',
+] as const;
+
 export const USER_ROLES = {
   STUDENT: 'student',
   COUNSELOR: 'counselor',

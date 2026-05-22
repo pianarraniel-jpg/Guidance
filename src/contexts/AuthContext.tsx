@@ -11,6 +11,8 @@ interface User {
   email: string;
   role: UserRole;
   studentId?: string;
+  department?: string;
+  yearLevel?: string;
 }
 
 interface AuthContextType {
@@ -32,10 +34,10 @@ async function fetchProfile(userId: string): Promise<User | null> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, name, email, role, student_id')
+      .select('id, name, email, role, student_id, department, year_level')
       .eq('id', userId)
       .maybeSingle();
-    
+
     if (error || !data) {
       console.warn(`[AuthContext] Profile fetch failed or not found:`, error?.message || 'No data');
       return null;
@@ -46,6 +48,8 @@ async function fetchProfile(userId: string): Promise<User | null> {
       email: data.email,
       role: data.role as UserRole,
       studentId: data.student_id ?? undefined,
+      department: data.department ?? undefined,
+      yearLevel: data.year_level ?? undefined,
     };
     // Ensure Supabase session metadata has these fields for instant future reloads
     try {
