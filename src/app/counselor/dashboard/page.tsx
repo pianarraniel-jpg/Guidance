@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { storageService } from "@/lib/storage-service";
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from "@/lib/constants";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 import {
   Card,
   CardHeader,
@@ -26,6 +28,8 @@ import {
   Users,
   TrendingUp,
   Activity,
+  ShieldAlert,
+  MonitorSmartphone,
 } from "lucide-react";
 import { format, isThisWeek, isThisMonth } from "date-fns";
 import Link from "next/link";
@@ -45,24 +49,47 @@ import {
 } from "recharts";
 
 export default function CounselorDashboard() {
+  const { toast } = useToast();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
+  const [unackAlertCount, setUnackAlertCount] = useState(0);
   const [analyticsTab, setAnalyticsTab] = useState<"volume" | "concerns">(
     "volume",
   );
 
   const loadData = React.useCallback(async () => {
-    const [allApts, allAssessments] = await Promise.all([
+    const [allApts, allAssessments, alertsRes] = await Promise.all([
       storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
+      supabase.from('chat_alerts').select('id', { count: 'exact', head: true }).eq('acknowledged', false),
     ]);
     setAppointments(allApts);
     setAssessments(allAssessments);
+    setUnackAlertCount(alertsRes.count ?? 0);
   }, []);
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+
+    const channel = supabase
+      .channel('dashboard-alerts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_alerts' }, (payload) => {
+        const alert = payload.new as any;
+        setUnackAlertCount(prev => prev + 1);
+        toast({
+          variant: 'destructive',
+          title: `High-Risk Alert — ${alert.student_name}`,
+          description: `Triggered by: "${alert.trigger_phrase}". Go to Chat Monitor to review.`,
+          duration: 8000,
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_alerts' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadData, toast]);
 
   useLiveSync(() => {
     loadData();
@@ -186,6 +213,24 @@ export default function CounselorDashboard() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
+      {unackAlertCount > 0 && (
+        <Link href="/counselor/chat-monitor">
+          <div className="mb-6 flex items-center gap-4 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 cursor-pointer hover:bg-red-100 transition-colors">
+            <div className="h-10 w-10 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+              <ShieldAlert className="h-5 w-5 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-black text-red-800 text-sm">
+                {unackAlertCount} unacknowledged high-risk alert{unackAlertCount > 1 ? 's' : ''} require your attention
+              </p>
+              <p className="text-xs text-red-600 font-medium">Click to open Chat Monitor and review</p>
+            </div>
+            <Badge className="bg-red-600 text-white font-black rounded-full px-3">
+              <MonitorSmartphone className="h-3 w-3 mr-1.5" /> Review
+            </Badge>
+          </div>
+        </Link>
+      )}
       <header className="mb-10">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
           Maayong Adlaw, Guidance Office

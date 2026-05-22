@@ -10,7 +10,12 @@
       "Bash(npm uninstall *)",
       "Bash(Remove-Item \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\ai\\\\genkit.ts\" -Force)",
       "Bash(Remove-Item \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\ai\\\\dev.ts\" -Force)",
-      "Bash(Write-Host \"Deleted\")"
+      "Bash(Write-Host \"Deleted\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(Select-String -Pattern \"counselor|dashboard\")",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\hanzc\\\\Documents\\\\Guidance\\\\src\\\\app\\\\counselor\" -Recurse | Where-Object {$_.Extension -eq \".tsx\"} | Select-Object FullName)"
     ]
   }
 }

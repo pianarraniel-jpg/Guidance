@@ -5,18 +5,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  HelpCircle, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  HelpCircle,
   LogOut,
   Settings,
   Search,
   Calendar,
   MessageSquare,
   ShieldCheck,
-  ClipboardList
+  ClipboardList,
+  MonitorSmartphone
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -37,6 +38,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
     { icon: Users, label: 'Students', href: '/counselor/students' },
     { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
     { icon: FileText, label: 'Assessments', href: '/counselor/assessments', type: 'assessment' },
+    { icon: MonitorSmartphone, label: 'Chat Monitor', href: '/counselor/chat-monitor', type: 'alert' },
     { icon: ClipboardList, label: 'Session Records', href: '/counselor/session-records' },
     { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
   ];

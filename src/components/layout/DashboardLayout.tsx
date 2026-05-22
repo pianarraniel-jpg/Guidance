@@ -17,7 +17,8 @@ import {
   Settings,
   Sparkles,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  MonitorSmartphone
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -51,6 +52,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
         { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
         { icon: Users, label: 'Students', href: '/counselor/students' },
+        { icon: MonitorSmartphone, label: 'Chat Monitor', href: '/counselor/chat-monitor', type: 'alert' },
         { icon: ClipboardCheck, label: 'Session Notes', href: '/counselor/session-notes' },
       ];
     }

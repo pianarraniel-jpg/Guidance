@@ -24,6 +24,8 @@ export type StudentStressAssessmentOutput = {
   response: string;
   assessmentSummary?: string;
   assessmentComplete: boolean;
+  riskLevel: 'low' | 'moderate' | 'high';
+  stressScore: number;
 };
 
 function buildSystemPrompt(ctx?: StudentStressAssessmentInput['systemContext']): string {
@@ -43,14 +45,27 @@ function buildSystemPrompt(ctx?: StudentStressAssessmentInput['systemContext']):
 
 Your responses should always help the student feel heard and understood. When you believe you have gathered sufficient information to form a preliminary understanding of their stress factors (typically after 5–8 exchanges), conclude the assessment by providing a summary.
 
+RISK CLASSIFICATION GUIDELINES — evaluate on EVERY response:
+- "low": Student shows normal academic or life stress with healthy coping. No crisis language. Functioning well overall.
+- "moderate": Elevated distress, signs of functional impairment (sleep issues, concentration problems, withdrawal). Needs counseling support but not in immediate danger.
+- "high": Any indication of suicidal ideation, self-harm intent, severe hopelessness, panic attacks, or mental breakdown. Requires immediate counselor intervention.
+
+STRESS SCORE — estimate 0–100 on EVERY response:
+- 0–30: Minimal stress, generally positive
+- 31–55: Mild to moderate stress, some concern areas
+- 56–74: Significant stress, multiple areas affected
+- 75–100: Severe stress or crisis level
+
 You MUST respond with valid JSON only (no markdown, no code fences) using this exact structure:
 {
   "response": "your empathetic message to the student",
   "assessmentComplete": false,
-  "assessmentSummary": null
+  "assessmentSummary": null,
+  "riskLevel": "low",
+  "stressScore": 30
 }
 
-When the assessment is complete, set assessmentComplete to true and provide a comprehensive summary string in assessmentSummary. Otherwise keep assessmentComplete false and assessmentSummary null.`;
+When the assessment is complete, set assessmentComplete to true and provide a comprehensive summary string in assessmentSummary. Always include riskLevel and stressScore on every response based on the full conversation so far.`;
 }
 
 export async function studentStressAssessment(
@@ -79,5 +94,7 @@ export async function studentStressAssessment(
     response: parsed.response ?? "I'm here to listen. Can you tell me more?",
     assessmentSummary: parsed.assessmentSummary ?? undefined,
     assessmentComplete: parsed.assessmentComplete === true,
+    riskLevel: (['low', 'moderate', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low') as 'low' | 'moderate' | 'high',
+    stressScore: typeof parsed.stressScore === 'number' ? Math.min(100, Math.max(0, parsed.stressScore)) : 40,
   };
 }

@@ -11,8 +11,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
+} from '@/components/ui/dialog';
+import {
   Send, ShieldCheck, Zap, Activity, Meh, Smile,
-  CheckCircle2, Clock, Sparkles, MessageSquare, Heart
+  CheckCircle2, Clock, Sparkles, AlertTriangle, Phone, Heart, MessageSquare
 } from 'lucide-react';
 import { studentStressAssessment } from '@/ai/flows/student-stress-assessment-chatbot';
 import { generateAiInsights } from '@/ai/flows/generate-ai-insights';
@@ -35,41 +38,113 @@ type SystemContext = {
   upcomingAppointment?: { date: string; time: string; type: string };
 };
 
+type RiskAlert = {
+  phrase: string;
+  severity: 'moderate' | 'high' | 'critical';
+};
+
+const HIGH_RISK_PATTERNS: RiskAlert[] = [
+  { phrase: 'suicide', severity: 'critical' },
+  { phrase: 'suicidal', severity: 'critical' },
+  { phrase: 'kill myself', severity: 'critical' },
+  { phrase: 'end my life', severity: 'critical' },
+  { phrase: 'take my life', severity: 'critical' },
+  { phrase: 'want to die', severity: 'critical' },
+  { phrase: 'no reason to live', severity: 'critical' },
+  { phrase: 'dont want to live', severity: 'critical' },
+  { phrase: "don't want to live", severity: 'critical' },
+  { phrase: 'hurt myself', severity: 'high' },
+  { phrase: 'harm myself', severity: 'high' },
+  { phrase: 'cut myself', severity: 'high' },
+  { phrase: 'self harm', severity: 'high' },
+  { phrase: 'self-harm', severity: 'high' },
+  { phrase: 'cant go on', severity: 'high' },
+  { phrase: "can't go on", severity: 'high' },
+  { phrase: 'give up on life', severity: 'high' },
+  { phrase: 'hopeless', severity: 'moderate' },
+  { phrase: 'panic attack', severity: 'moderate' },
+  { phrase: 'breakdown', severity: 'moderate' },
+];
+
+function detectHighRisk(text: string): RiskAlert | null {
+  const lower = text.toLowerCase();
+  for (const p of HIGH_RISK_PATTERNS) {
+    if (lower.includes(p.phrase)) return p;
+  }
+  return null;
+}
+
+const alertContent = {
+  critical: {
+    title: "We're here for you",
+    icon: Heart,
+    iconBg: 'bg-red-100',
+    iconColor: 'text-red-600',
+    borderColor: 'border-red-200',
+    message: "What you just shared is important and we take it very seriously. You are not alone. Your counselor has been notified and will reach out to you.",
+    resources: [
+      { label: 'NCMH Crisis Hotline', value: '1553' },
+      { label: 'In Touch Philippines', value: '02-893-7603' },
+    ],
+    cta: "Please know that your life matters and help is available right now.",
+  },
+  high: {
+    title: "We noticed something concerning",
+    icon: AlertTriangle,
+    iconBg: 'bg-orange-100',
+    iconColor: 'text-orange-600',
+    borderColor: 'border-orange-200',
+    message: "What you shared suggests you may be going through something difficult. Your counselor has been notified and Guidi is here to listen.",
+    resources: [
+      { label: 'NCMH Crisis Hotline', value: '1553' },
+    ],
+    cta: "You can continue sharing with Guidi, or reach out to your counselor directly.",
+  },
+  moderate: {
+    title: "Guidi is here for you",
+    icon: Heart,
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    borderColor: 'border-amber-200',
+    message: "It sounds like things feel heavy right now. That's okay — you're safe here and your counselor has been informed so they can support you.",
+    resources: [],
+    cta: "Take a breath. You don't have to face this alone.",
+  },
+};
+
 export default function StudentAiChat() {
   const { user } = useAuth();
   const { toast } = useToast();
   const firstName = user?.name.split(' ')[0] || 'Student';
   const scrollRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const latestRiskRef = useRef<{ level: 'low' | 'moderate' | 'high'; score: number }>({ level: 'low', score: 30 });
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [systemContext, setSystemContext] = useState<SystemContext | null>(null);
+  const [activeAlert, setActiveAlert] = useState<RiskAlert | null>(null);
 
   useEffect(() => {
     if (!user) return;
-
     const loadContext = async () => {
       const apts = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
       const next = apts
         .filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && isAfter(parseISO(a.date), new Date()))
         .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-
       setSystemContext({
         studentName: user.name,
         counselorName: next?.counselorName,
         upcomingAppointment: next ? { date: next.date, time: next.time, type: next.type } : undefined,
       });
     };
-
     setMessages([{
       role: 'model',
       text: `Maayong adlaw, ${firstName}! I am Guidi, your private wellness companion. How have things been going with your coursework and academic stress this week?`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
-
     loadContext();
   }, [user, firstName]);
 
@@ -77,67 +152,85 @@ export default function StudentAiChat() {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const ensureSession = async (): Promise<string | null> => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+    if (!user) return null;
+    try {
+      const { data, error } = await supabase
+        .from('ai_chat_sessions')
+        .insert({ student_id: user.id, student_name: user.name })
+        .select('id')
+        .single();
+      if (error) throw error;
+      sessionIdRef.current = data.id;
+      return data.id;
+    } catch (e) {
+      console.error('Failed to create chat session:', e);
+      return null;
+    }
+  };
+
+  const fireAlert = async (sessionId: string | null, triggerPhrase: string, messageContent: string, severity: 'moderate' | 'high' | 'critical') => {
+    if (!user) return;
+    supabase.from('chat_alerts').insert({
+      student_id: user.id,
+      student_name: user.name,
+      session_id: sessionId,
+      trigger_phrase: triggerPhrase,
+      message_content: messageContent,
+      severity,
+    }).then(() => {});
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading || isComplete) return;
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newUserMessage: Message = { role: 'user', text, time: currentTime };
-
     setMessages(prev => [...prev, newUserMessage]);
     setInputValue('');
     setIsLoading(true);
 
-    if (!sessionIdRef.current && user) {
-      try {
-        const session = await storageService.create<{ id: string; studentId: string }>(
-          STORAGE_KEYS.AI_CHAT_SESSIONS,
-          { studentId: user.id }
-        );
-        sessionIdRef.current = session.id;
-      } catch (e) {
-        console.error('Failed to create chat session:', e);
-      }
+    const sessionId = await ensureSession();
+
+    const riskMatch = detectHighRisk(text);
+    if (riskMatch) {
+      fireAlert(sessionId, riskMatch.phrase, text, riskMatch.severity);
+      setActiveAlert(riskMatch);
     }
 
-    if (sessionIdRef.current) {
-      storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
-        sessionId: sessionIdRef.current,
-        role: 'user',
-        content: text,
-      }).catch(console.error);
+    if (sessionId) {
+      supabase.from('ai_chat_messages').insert({ session_id: sessionId, role: 'user', content: text }).then(() => {});
     }
 
     try {
-      const history = messages.map(m => ({
-        role: m.role,
-        content: [{ text: m.text }]
-      }));
-
+      const history = messages.map(m => ({ role: m.role, content: [{ text: m.text }] }));
       const result = await studentStressAssessment({
         currentMessage: text,
         history,
         systemContext: systemContext ?? { studentName: firstName },
       });
 
+      latestRiskRef.current = { level: result.riskLevel, score: result.stressScore };
+
+      if (result.riskLevel === 'high' && !riskMatch) {
+        fireAlert(sessionId, 'ai_classification', text, 'high');
+        setActiveAlert({ phrase: 'ai_classification', severity: 'high' });
+      }
+
       const botResponse: Message = {
         role: 'model',
         text: result.response,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-
       setMessages(prev => [...prev, botResponse]);
 
-      if (sessionIdRef.current) {
-        storageService.create(STORAGE_KEYS.AI_CHAT_MESSAGES, {
-          sessionId: sessionIdRef.current,
-          role: 'assistant',
-          content: result.response,
-        }).catch(console.error);
+      if (sessionId) {
+        supabase.from('ai_chat_messages').insert({ session_id: sessionId, role: 'assistant', content: result.response }).then(() => {});
       }
 
       if (result.assessmentComplete && result.assessmentSummary) {
         setIsComplete(true);
-
         const allMsgs = [...messages, newUserMessage, botResponse];
         const transcript = allMsgs.map(m => `${m.role === 'user' ? 'Student' : 'Guidi'}: ${m.text}`).join('\n');
 
@@ -149,7 +242,7 @@ export default function StudentAiChat() {
         if (tLow.includes('sleep') || tLow.includes('tired') || tLow.includes('energy')) focusAreas.push('Physical');
         if (focusAreas.length === 0) focusAreas.push('General Wellness');
 
-        const stressLevel = Math.floor(Math.random() * (90 - 40 + 1)) + 40;
+        const { level: riskLevel, score: stressLevel } = latestRiskRef.current;
 
         let mainConcerns: string[] = [];
         let emotionalState = '';
@@ -157,9 +250,7 @@ export default function StudentAiChat() {
           const analysis = await summarizeAssessmentConversation({ assessmentConversation: transcript });
           mainConcerns = analysis.mainConcerns;
           emotionalState = analysis.emotionalState;
-        } catch (e) {
-          console.error('Analysis error:', e);
-        }
+        } catch (e) { console.error('Analysis error:', e); }
 
         await storageService.create(STORAGE_KEYS.ASSESSMENTS, {
           studentId: user?.id,
@@ -167,20 +258,22 @@ export default function StudentAiChat() {
           date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
           summary: result.assessmentSummary,
           stressLevel,
+          riskLevel,
           focusAreas,
           mainConcerns,
           emotionalState,
           timestamp: Date.now(),
-          type: 'AI_CHAT'
+          type: 'AI_CHAT',
         });
 
-        if (sessionIdRef.current) {
-          storageService.update(STORAGE_KEYS.AI_CHAT_SESSIONS, sessionIdRef.current, {
+        if (sessionId) {
+          supabase.from('ai_chat_sessions').update({
             summary: result.assessmentSummary,
-            stressLevel,
-            focusAreas,
-            completedAt: new Date().toISOString(),
-          }).catch(console.error);
+            stress_level: stressLevel,
+            risk_level: riskLevel,
+            focus_areas: focusAreas,
+            completed_at: new Date().toISOString(),
+          }).eq('id', sessionId).then(() => {});
         }
 
         if (user) {
@@ -195,40 +288,25 @@ export default function StudentAiChat() {
           try {
             const allAssessments = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);
             allAssessments.sort((a: any, b: any) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
-            const recent5 = allAssessments.slice(0, 5);
-
             const insightResult = await generateAiInsights({
               studentName: user.name,
-              recentAssessments: recent5.map((a: any) => ({
-                date: a.date ?? '',
-                summary: a.summary ?? '',
-                stressLevel: a.stressLevel ?? 50,
-                focusAreas: a.focusAreas ?? [],
+              recentAssessments: allAssessments.slice(0, 5).map((a: any) => ({
+                date: a.date ?? '', summary: a.summary ?? '',
+                stressLevel: a.stressLevel ?? 50, focusAreas: a.focusAreas ?? [],
               })),
             });
-
             await supabase.from('ai_insights').upsert({
-              student_id: user.id,
-              insight: insightResult.insight,
+              student_id: user.id, insight: insightResult.insight,
               created_at: new Date().toISOString(),
             }, { onConflict: 'student_id' });
-          } catch (e) {
-            console.error('Failed to generate AI insights:', e);
-          }
+          } catch (e) { console.error('Failed to generate AI insights:', e); }
         }
 
-        toast({
-          title: "Session Synchronized",
-          description: "Your wellness check-in has been confidentially logged for your counselor.",
-        });
+        toast({ title: "Session Synchronized", description: "Your wellness check-in has been confidentially logged for your counselor." });
       }
     } catch (error) {
       console.error('Chat error:', error);
-      toast({
-        variant: "destructive",
-        title: "Connection Issue",
-        description: "Unable to connect right now. Please try again in a moment.",
-      });
+      toast({ variant: "destructive", title: "Connection Issue", description: "Unable to connect right now. Please try again." });
     } finally {
       setIsLoading(false);
     }
@@ -240,6 +318,9 @@ export default function StudentAiChat() {
     { label: 'Okay', icon: Meh, color: 'text-slate-500' },
     { label: 'Good', icon: Smile, color: 'text-emerald-500' },
   ];
+
+  const alert = activeAlert ? alertContent[activeAlert.severity] : null;
+  const AlertIcon = alert?.icon ?? Heart;
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
@@ -259,6 +340,51 @@ export default function StudentAiChat() {
               <ShieldCheck className="h-4 w-4" /> Confidential AI Space
             </Badge>
           </header>
+
+          {/* High-risk support modal */}
+          <Dialog open={!!activeAlert} onOpenChange={(open) => { if (!open) setActiveAlert(null); }}>
+            <DialogContent className={`rounded-3xl border-2 ${alert?.borderColor ?? ''} max-w-md`}>
+              <DialogHeader className="items-center text-center gap-4 pt-2">
+                <div className={`h-16 w-16 rounded-full ${alert?.iconBg} flex items-center justify-center`}>
+                  <AlertIcon className={`h-8 w-8 ${alert?.iconColor}`} />
+                </div>
+                <DialogTitle className="text-xl font-black text-slate-900">{alert?.title}</DialogTitle>
+                <DialogDescription className="text-sm text-slate-600 font-medium leading-relaxed text-center">
+                  {alert?.message}
+                </DialogDescription>
+              </DialogHeader>
+
+              {alert?.resources && alert.resources.length > 0 && (
+                <div className="bg-slate-50 rounded-2xl p-4 space-y-2 my-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Crisis Resources</p>
+                  {alert.resources.map(r => (
+                    <div key={r.label} className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-primary" />{r.label}
+                      </span>
+                      <span className="text-sm font-black text-primary">{r.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-500 font-medium text-center italic px-2">{alert?.cta}</p>
+
+              <div className="flex gap-3 pt-2">
+                <Button asChild variant="outline" className="flex-1 rounded-2xl font-black border-slate-200">
+                  <Link href="/student/messages">
+                    <MessageSquare className="h-4 w-4 mr-2" /> Message Counselor
+                  </Link>
+                </Button>
+                <Button
+                  className="flex-1 rounded-2xl font-black bg-primary"
+                  onClick={() => setActiveAlert(null)}
+                >
+                  Continue with Guidi
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <div className="flex-1 flex flex-col h-[calc(100vh-200px)] bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="p-5 border-b flex items-center gap-4 bg-slate-50/50 backdrop-blur-md">

@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS assessments (
   type              TEXT NOT NULL CHECK (type IN ('AI_CHAT', 'CLINICAL_FORM')),
   status            TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'evaluated')),
   stress_level      INTEGER,
+  risk_level        TEXT CHECK (risk_level IN ('low', 'moderate', 'high')),
   summary           TEXT,
   questions         TEXT[],
   answers           JSONB,
@@ -100,6 +101,9 @@ CREATE TABLE IF NOT EXISTS assessments (
   focus_areas       TEXT[],
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add risk_level to existing assessments tables (idempotent)
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS risk_level TEXT CHECK (risk_level IN ('low', 'moderate', 'high'));
 
 -- ============================================================
 -- ASSESSMENT TASKS
@@ -152,6 +156,49 @@ CREATE TABLE IF NOT EXISTS appointment_feedback (
 );
 
 -- ============================================================
+-- AI CHAT SESSIONS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id   UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  student_name TEXT NOT NULL DEFAULT '',
+  summary      TEXT,
+  stress_level INTEGER,
+  risk_level   TEXT CHECK (risk_level IN ('low', 'moderate', 'high')),
+  focus_areas  TEXT[] DEFAULT '{}',
+  completed_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- AI CHAT MESSAGES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id UUID REFERENCES ai_chat_sessions(id) ON DELETE CASCADE NOT NULL,
+  role       TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content    TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- CHAT ALERTS (high-risk keyword triggers)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS chat_alerts (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id       UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  student_name     TEXT NOT NULL,
+  session_id       UUID REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
+  trigger_phrase   TEXT NOT NULL,
+  message_content  TEXT NOT NULL,
+  severity         TEXT NOT NULL DEFAULT 'high' CHECK (severity IN ('moderate', 'high', 'critical')),
+  acknowledged     BOOLEAN DEFAULT FALSE,
+  acknowledged_by  UUID REFERENCES profiles(id),
+  acknowledged_at  TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- NOTIFICATIONS READ STATE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notifications_read (
@@ -173,13 +220,23 @@ ALTER TABLE assessments         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assessment_tasks    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_notes       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications_read  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_chat_sessions    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_chat_messages    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_alerts         ENABLE ROW LEVEL SECURITY;
 
 -- profiles: all authenticated users can read; owner can update
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
+DROP POLICY IF EXISTS "profiles_update" ON profiles;
+DROP POLICY IF EXISTS "profiles_insert" ON profiles;
 CREATE POLICY "profiles_select" ON profiles FOR SELECT TO authenticated USING (true);
 CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 CREATE POLICY "profiles_insert" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
 -- appointments: student sees own; counselor/admin see all; owner or counselor can insert/update/delete
+DROP POLICY IF EXISTS "appointments_select" ON appointments;
+DROP POLICY IF EXISTS "appointments_insert" ON appointments;
+DROP POLICY IF EXISTS "appointments_update" ON appointments;
+DROP POLICY IF EXISTS "appointments_delete" ON appointments;
 CREATE POLICY "appointments_select" ON appointments FOR SELECT TO authenticated
   USING (
     student_id = auth.uid()
@@ -194,17 +251,24 @@ CREATE POLICY "appointments_delete" ON appointments FOR DELETE TO authenticated
   USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
 
 -- availability: all authenticated users can read; counselors manage their own
+DROP POLICY IF EXISTS "availability_select" ON availability;
+DROP POLICY IF EXISTS "availability_manage" ON availability;
 CREATE POLICY "availability_select" ON availability FOR SELECT TO authenticated USING (true);
 CREATE POLICY "availability_manage" ON availability FOR ALL TO authenticated
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- messages: sender or receiver can see; sender can insert
+DROP POLICY IF EXISTS "messages_select" ON messages;
+DROP POLICY IF EXISTS "messages_insert" ON messages;
 CREATE POLICY "messages_select" ON messages FOR SELECT TO authenticated
   USING (sender_id = auth.uid() OR receiver_id = auth.uid());
 CREATE POLICY "messages_insert" ON messages FOR INSERT TO authenticated
   WITH CHECK (sender_id = auth.uid());
 
 -- assessments: student sees own; counselors/admins see all
+DROP POLICY IF EXISTS "assessments_select" ON assessments;
+DROP POLICY IF EXISTS "assessments_insert" ON assessments;
+DROP POLICY IF EXISTS "assessments_update" ON assessments;
 CREATE POLICY "assessments_select" ON assessments FOR SELECT TO authenticated
   USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
 CREATE POLICY "assessments_insert" ON assessments FOR INSERT TO authenticated
@@ -213,6 +277,9 @@ CREATE POLICY "assessments_update" ON assessments FOR UPDATE TO authenticated
   USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
 
 -- assessment_tasks: student sees assigned; counselor manages their own; admin sees all
+DROP POLICY IF EXISTS "assessment_tasks_select" ON assessment_tasks;
+DROP POLICY IF EXISTS "assessment_tasks_insert" ON assessment_tasks;
+DROP POLICY IF EXISTS "assessment_tasks_update" ON assessment_tasks;
 CREATE POLICY "assessment_tasks_select" ON assessment_tasks FOR SELECT TO authenticated
   USING (student_id = auth.uid() OR counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "assessment_tasks_insert" ON assessment_tasks FOR INSERT TO authenticated
@@ -221,12 +288,17 @@ CREATE POLICY "assessment_tasks_update" ON assessment_tasks FOR UPDATE TO authen
   USING (counselor_id = auth.uid() OR student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- session_notes: counselors manage their own; admins see all
+DROP POLICY IF EXISTS "session_notes_select" ON session_notes;
+DROP POLICY IF EXISTS "session_notes_manage" ON session_notes;
 CREATE POLICY "session_notes_select" ON session_notes FOR SELECT TO authenticated
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "session_notes_manage" ON session_notes FOR ALL TO authenticated
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- appointment_feedback: counselors can submit feedback, students and admins may read their own feedback
+DROP POLICY IF EXISTS "appointment_feedback_select" ON appointment_feedback;
+DROP POLICY IF EXISTS "appointment_feedback_insert" ON appointment_feedback;
+DROP POLICY IF EXISTS "appointment_feedback_update" ON appointment_feedback;
 CREATE POLICY "appointment_feedback_select" ON appointment_feedback FOR SELECT TO authenticated
   USING (counselor_id = auth.uid() OR student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "appointment_feedback_insert" ON appointment_feedback FOR INSERT TO authenticated
@@ -235,6 +307,44 @@ CREATE POLICY "appointment_feedback_update" ON appointment_feedback FOR UPDATE T
   USING (counselor_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- notifications_read: users manage their own read state
+DROP POLICY IF EXISTS "notifications_read_select" ON notifications_read;
+DROP POLICY IF EXISTS "notifications_read_insert" ON notifications_read;
+DROP POLICY IF EXISTS "notifications_read_delete" ON notifications_read;
 CREATE POLICY "notifications_read_select" ON notifications_read FOR SELECT TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "notifications_read_insert" ON notifications_read FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "notifications_read_delete" ON notifications_read FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+-- ai_chat_sessions: student sees own; counselors/admins see all
+DROP POLICY IF EXISTS "ai_chat_sessions_select" ON ai_chat_sessions;
+DROP POLICY IF EXISTS "ai_chat_sessions_insert" ON ai_chat_sessions;
+DROP POLICY IF EXISTS "ai_chat_sessions_update" ON ai_chat_sessions;
+CREATE POLICY "ai_chat_sessions_select" ON ai_chat_sessions FOR SELECT TO authenticated
+  USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
+CREATE POLICY "ai_chat_sessions_insert" ON ai_chat_sessions FOR INSERT TO authenticated
+  WITH CHECK (student_id = auth.uid());
+CREATE POLICY "ai_chat_sessions_update" ON ai_chat_sessions FOR UPDATE TO authenticated
+  USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
+
+-- ai_chat_messages: student sees own session messages; counselors/admins see all
+DROP POLICY IF EXISTS "ai_chat_messages_select" ON ai_chat_messages;
+DROP POLICY IF EXISTS "ai_chat_messages_insert" ON ai_chat_messages;
+CREATE POLICY "ai_chat_messages_select" ON ai_chat_messages FOR SELECT TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM ai_chat_sessions s WHERE s.id = session_id AND s.student_id = auth.uid())
+    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin'))
+  );
+CREATE POLICY "ai_chat_messages_insert" ON ai_chat_messages FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM ai_chat_sessions s WHERE s.id = session_id AND s.student_id = auth.uid())
+  );
+
+-- chat_alerts: students can insert their own; counselors/admins can read and update (acknowledge)
+DROP POLICY IF EXISTS "chat_alerts_select" ON chat_alerts;
+DROP POLICY IF EXISTS "chat_alerts_insert" ON chat_alerts;
+DROP POLICY IF EXISTS "chat_alerts_update" ON chat_alerts;
+CREATE POLICY "chat_alerts_select" ON chat_alerts FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
+CREATE POLICY "chat_alerts_insert" ON chat_alerts FOR INSERT TO authenticated
+  WITH CHECK (student_id = auth.uid());
+CREATE POLICY "chat_alerts_update" ON chat_alerts FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('counselor', 'admin')));
