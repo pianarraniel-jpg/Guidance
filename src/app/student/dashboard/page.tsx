@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,13 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import {
   AreaChart,
   Area,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  ReferenceLine,
 } from 'recharts';
 import {
   Calendar,
@@ -40,16 +39,18 @@ import {
   ListTodo,
 } from 'lucide-react';
 import Link from 'next/link';
-import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
 
 interface ChartPoint {
-  day: string;
+  date: string;
+  dateKey: string;
+  sortKey: number;
   stress: number;
-  mood: number;
+  count: number;
 }
 
 interface RecentSession {
@@ -76,7 +77,9 @@ export default function StudentDashboard() {
   const firstName = user?.name.split(' ')[0] || 'Student';
 
   const [nextAppointment, setNextAppointment] = useState<any>(null);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [allChartData, setAllChartData] = useState<ChartPoint[]>([]);
+  const [trendRange, setTrendRange] = useState<'7d' | '30d' | 'all'>('30d');
+  const [sessionCountWeek, setSessionCountWeek] = useState(0);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [wellnessScore, setWellnessScore] = useState<number | null>(null);
@@ -92,18 +95,30 @@ export default function StudentDashboard() {
   const [modalTitle, setModalTitle] = useState('Mindfulness Breathing');
   const [activeTodoId, setActiveTodoId] = useState<string | null>(null);
 
+  const chartData = useMemo(() => {
+    if (trendRange === 'all') return allChartData;
+    const days = trendRange === '7d' ? 7 : 30;
+    const cutoff = subDays(new Date(), days).getTime();
+    return allChartData.filter(p => p.sortKey >= cutoff);
+  }, [allChartData, trendRange]);
+
   const loadDashboardData = React.useCallback(async (isBackground = false) => {
     if (!user) return;
     if (!isBackground) {
       setIsLoading(true);
     }
 
-    const [allAssessments, rawAppointments, allFeedback, { data: insightRow }, { data: profileRow }] = await Promise.all([
+    const [allAssessments, rawAppointments, allFeedback, { data: insightRow }, { data: profileRow }, { data: aiSessions }] = await Promise.all([
       storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
       storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
       storageService.getByField<any>('appointment_feedback', 'studentId', user.id),
       supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle(),
       supabase.from('profiles').select('wellness_score').eq('id', user.id).maybeSingle(),
+      supabase.from('ai_chat_sessions')
+        .select('id, created_at, stress_level, risk_level')
+        .eq('student_id', user.id)
+        .not('stress_level', 'is', null)
+        .order('created_at', { ascending: false }),
     ]);
 
     // Sort feedback descending so we always get the latest one if there are duplicates
@@ -126,29 +141,59 @@ export default function StudentDashboard() {
       return app;
     });
 
-    const assessments = allAssessments.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 7);
-    const appointments = allAppointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED);
+    const sortedAssessments = [...allAssessments].sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+    const appointments = allAppointments.filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED);
 
-    const chart: ChartPoint[] = assessments
-      .slice()
-      .reverse()
-      .map(a => {
-        const stress = a.stressLevel ?? a.stress_level ?? 5;
-        return {
-          day: a.timestamp
-            ? format(new Date(a.timestamp), 'EEE')
-            : (a.date ? format(parseISO(a.date), 'EEE') : '—'),
-          stress: stress,
-          mood: 10 - stress,
-        };
-      });
-    setChartData(chart);
+    // Build combined chart data: form assessments (0–10 → ×10) + AI sessions (0–100), aggregated by day
+    const pointMap = new Map<string, { totalStress: number; count: number; sortKey: number }>();
 
-    const sessions: RecentSession[] = assessments.slice(0, 3).map(a => ({
+    sortedAssessments.forEach((a: any) => {
+      const ts = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
+      if (!ts) return;
+      const dateKey = format(new Date(ts), 'yyyy-MM-dd');
+      const stress = Math.min(100, Math.max(0, (a.stressLevel ?? a.stress_level ?? 5) * 10));
+      const existing = pointMap.get(dateKey);
+      if (existing) {
+        existing.totalStress += stress;
+        existing.count++;
+        existing.sortKey = Math.max(existing.sortKey, ts);
+      } else {
+        pointMap.set(dateKey, { totalStress: stress, count: 1, sortKey: ts });
+      }
+    });
+
+    (aiSessions ?? []).forEach((s: any) => {
+      if (s.stress_level == null) return;
+      const ts = new Date(s.created_at).getTime();
+      const dateKey = format(new Date(ts), 'yyyy-MM-dd');
+      const existing = pointMap.get(dateKey);
+      if (existing) {
+        existing.totalStress += s.stress_level;
+        existing.count++;
+        existing.sortKey = Math.max(existing.sortKey, ts);
+      } else {
+        pointMap.set(dateKey, { totalStress: s.stress_level, count: 1, sortKey: ts });
+      }
+    });
+
+    const combined: ChartPoint[] = Array.from(pointMap.entries())
+      .map(([dateKey, { totalStress, count, sortKey }]) => ({
+        date: format(new Date(dateKey), 'MMM d'),
+        dateKey,
+        sortKey,
+        stress: Math.round(totalStress / count),
+        count,
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+
+    setAllChartData(combined);
+
+    const weekCutoff = subDays(new Date(), 7).getTime();
+    setSessionCountWeek(combined.filter(p => p.sortKey >= weekCutoff).reduce((s, p) => s + p.count, 0));
+
+    const sessions: RecentSession[] = sortedAssessments.slice(0, 3).map((a: any) => ({
       id: a.id,
-      date: a.timestamp
-        ? format(new Date(a.timestamp), 'MMM d')
-        : (a.date ?? '—'),
+      date: a.timestamp ? format(new Date(a.timestamp), 'MMM d') : (a.date ?? '—'),
       timestamp: a.timestamp,
       stressLevel: a.stressLevel ?? a.stress_level ?? null,
       emotionalState: a.emotionalState ?? a.emotional_state ?? null,
@@ -356,9 +401,10 @@ export default function StudentDashboard() {
     }
   };
 
-  // Computed stats from real chart data
-  const avgMood = chartData.length
-    ? (chartData.reduce((s, d) => s + d.mood, 0) / chartData.length).toFixed(1)
+  // Computed stats from chart data
+  const totalSessions = allChartData.reduce((s, p) => s + p.count, 0);
+  const avgStress = chartData.length
+    ? Math.round(chartData.reduce((s, d) => s + d.stress, 0) / chartData.length)
     : null;
   const peakStressEntry = chartData.length
     ? chartData.reduce((max, d) => (d.stress > max.stress ? d : max), chartData[0])
@@ -370,8 +416,8 @@ export default function StudentDashboard() {
     const older = chartData.slice(0, Math.max(1, chartData.length - 3));
     const recentAvg = recent.reduce((s, d) => s + d.stress, 0) / recent.length;
     const olderAvg = older.reduce((s, d) => s + d.stress, 0) / older.length;
-    if (recentAvg < olderAvg - 0.5) return { label: 'Improving', color: 'bg-emerald-50 text-emerald-700 border-emerald-100', Icon: ArrowDownRight };
-    if (recentAvg > olderAvg + 0.5) return { label: 'Increasing Stress', color: 'bg-red-50 text-red-600 border-red-100', Icon: ArrowUpRight };
+    if (recentAvg < olderAvg - 5) return { label: 'Improving', color: 'bg-emerald-50 text-emerald-700 border-emerald-100', Icon: ArrowDownRight };
+    if (recentAvg > olderAvg + 5) return { label: 'Increasing Stress', color: 'bg-red-50 text-red-600 border-red-100', Icon: ArrowUpRight };
     return { label: 'Stable', color: 'bg-blue-50 text-blue-700 border-blue-100', Icon: Minus };
   };
   const trend = getTrendInfo();
@@ -410,20 +456,35 @@ export default function StudentDashboard() {
             {/* Wellness Trends Chart */}
             <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden flex flex-col bg-white">
               <CardHeader className="pb-2 border-b">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <CardTitle className="text-lg font-bold flex items-center gap-2">
                       <TrendingUp className="h-5 w-5 text-primary" />
                       Wellness Trends
                     </CardTitle>
-                    <CardDescription>Mood and stress from your check-in sessions.</CardDescription>
+                    <CardDescription>Stress levels from all your check-in sessions.</CardDescription>
                   </div>
-                  {trend && (
-                    <Badge variant="outline" className={`font-bold px-3 py-1 ${trend.color}`}>
-                      <trend.Icon className="h-3 w-3 mr-1" />
-                      {trend.label}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex gap-0.5 bg-slate-100 p-1 rounded-xl">
+                      {(['7d', '30d', 'all'] as const).map(r => (
+                        <button
+                          key={r}
+                          onClick={() => setTrendRange(r)}
+                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg transition-all ${
+                            trendRange === r ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-slate-700'
+                          }`}
+                        >
+                          {r === '7d' ? '7D' : r === '30d' ? '30D' : 'All'}
+                        </button>
+                      ))}
+                    </div>
+                    {trend && (
+                      <Badge variant="outline" className={`font-bold px-3 py-1 ${trend.color}`}>
+                        <trend.Icon className="h-3 w-3 mr-1" />
+                        {trend.label}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-6 h-[320px]">
@@ -431,47 +492,64 @@ export default function StudentDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                       <defs>
-                        <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#248F7D" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#248F7D" stopOpacity={0.02} />
-                        </linearGradient>
                         <linearGradient id="colorStress" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
+                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
                           <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }} />
-                      <YAxis domain={[0, 10]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickCount={6} />
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickCount={6} tickFormatter={(v) => `${v}%`} />
+                      <ReferenceLine y={55} stroke="#e2e8f0" strokeDasharray="4 2" label={{ value: 'Moderate', position: 'insideTopRight', fontSize: 9, fill: '#cbd5e1' }} />
                       <Tooltip
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.15)', fontSize: 12 }}
-                        formatter={(val: number, name: string) => [val.toFixed(1), name]}
+                        formatter={(val: number) => [`${val}%`, 'Stress Level']}
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload[0]) {
+                            const d = payload[0].payload as ChartPoint;
+                            return d.count > 1 ? `${d.date} (${d.count} sessions)` : d.date;
+                          }
+                          return '';
+                        }}
                       />
-                      <Legend
-                        wrapperStyle={{ fontSize: 11, fontWeight: 700, paddingTop: 8 }}
-                        formatter={(value) => value === 'mood' ? 'Mood Level' : 'Stress Level'}
-                      />
-                      <Area type="monotone" dataKey="mood" stroke="#248F7D" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMood)" name="mood" dot={{ fill: '#248F7D', r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
-                      <Area type="monotone" dataKey="stress" stroke="#f97316" strokeWidth={2} fillOpacity={1} fill="url(#colorStress)" name="stress" strokeDasharray="5 3" dot={{ fill: '#f97316', r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                      <Area type="monotone" dataKey="stress" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorStress)" name="stress" dot={{ fill: '#f97316', r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
                     <TrendingUp className="h-10 w-10 text-slate-100" />
-                    <p className="text-sm font-bold text-slate-400">No check-in data yet</p>
-                    <p className="text-xs text-slate-300">Complete a session with Guidi to see your trends here.</p>
+                    <p className="text-sm font-bold text-slate-400">
+                      {allChartData.length > 0 ? 'No sessions in this period' : 'No check-in data yet'}
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      {allChartData.length > 0
+                        ? 'Try a wider range or complete a new session with Guidi.'
+                        : 'Complete a session with Guidi to see your trends here.'}
+                    </p>
                   </div>
                 )}
               </CardContent>
               <div className="p-4 border-t bg-slate-50/50 flex items-center justify-around gap-4">
                 <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Avg Mood</p>
-                  <p className="text-xl font-black text-primary">{avgMood ?? '—'}</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Sessions</p>
+                  <p className="text-xl font-black text-primary">{totalSessions || '—'}</p>
                 </div>
                 <div className="h-8 w-px bg-slate-200" />
                 <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Peak Stress Day</p>
-                  <p className="text-xl font-black text-orange-500">{peakStressEntry?.day ?? '—'}</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">This Week</p>
+                  <p className="text-xl font-black text-blue-500">{sessionCountWeek || '—'}</p>
+                </div>
+                <div className="h-8 w-px bg-slate-200" />
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Avg Stress</p>
+                  <p className={`text-xl font-black ${
+                    avgStress == null ? 'text-slate-200' :
+                    avgStress >= 75 ? 'text-red-500' :
+                    avgStress >= 55 ? 'text-orange-500' :
+                    'text-emerald-600'
+                  }`}>
+                    {avgStress != null ? `${avgStress}%` : '—'}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -565,7 +643,7 @@ export default function StudentDashboard() {
               </div>
               <div className="mt-8 flex gap-2 flex-wrap">
                 {wellnessScore != null && wellnessScore >= 70 && <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Resilient</Badge>}
-                {chartData.length >= 3 && <Badge className="bg-blue-50 text-blue-700 border-none font-bold">Active</Badge>}
+                {totalSessions >= 3 && <Badge className="bg-blue-50 text-blue-700 border-none font-bold">Active</Badge>}
               </div>
             </Card>
 
