@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,7 +169,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => loadData(true), 15000);
 
     // Initial logs setup
     const initialLogs: SystemLog[] = [
@@ -178,11 +178,13 @@ export default function AdminDashboard() {
       { timestamp: '18:00:08', type: 'info', source: 'ClinicalEngine', message: 'Cognitive check-in evaluator loaded with default neural weighting.' }
     ];
     setTelemetryLogs(initialLogs);
-
-    return () => clearInterval(interval);
   }, [loadData]);
 
-  // Live telemetry logs generation
+  // Supabase Realtime: reactively refresh when any subscribed table changes
+  const stableLoadData = useCallback(() => loadData(true), [loadData]);
+  useLiveSync(stableLoadData);
+
+  // Live telemetry logs generation (cosmetic UI animation only)
   useEffect(() => {
     if (activeTab !== 'telemetry') return;
     const logInterval = setInterval(() => {

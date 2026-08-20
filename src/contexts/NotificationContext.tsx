@@ -33,7 +33,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isCounselor, isStudent } = useAuth();
+  const { user, isCounselor, isStudent, isAdmin } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
@@ -242,11 +242,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, handleRealtimeUpdate)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeUpdate)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, handleRealtimeUpdate);
+    } else if (isAdmin) {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, handleRealtimeUpdate)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, handleRealtimeUpdate);
     }
 
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, isStudent, isCounselor, fetchNotificationsData, handleRealtimeUpdate]);
+  }, [user, isStudent, isCounselor, isAdmin, fetchNotificationsData, handleRealtimeUpdate]);
 
   const persistReadIds = useCallback(async (ids: string[]) => {
     if (!user || ids.length === 0) return;

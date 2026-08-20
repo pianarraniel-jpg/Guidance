@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
@@ -15,10 +16,10 @@ import {
   Search,
   Calendar,
   MessageSquare,
-  ShieldCheck,
   ClipboardList,
   MonitorSmartphone
 } from 'lucide-react';
+import logo from '@/app/assets/logo.png';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -54,9 +55,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
       <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-8 sticky top-0 h-screen shrink-0 z-40">
         <div className="px-6 mb-12">
           <div className="flex items-center gap-2 mb-1">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
+            <Image src={logo} alt="GuidanceSync Logo" className="h-8 w-8 object-contain" width={32} height={32} />
             <h2 className="text-xl font-bold text-slate-900 font-headline">GuidanceSync</h2>
           </div>
           <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] pl-10 text-primary/80">Guidance Office</p>

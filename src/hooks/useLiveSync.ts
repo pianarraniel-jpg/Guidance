@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNotifications } from '@/contexts/NotificationContext';
 
 /**
@@ -9,10 +9,15 @@ import { useNotifications } from '@/contexts/NotificationContext';
  */
 export function useLiveSync(onSync: () => void) {
   const { lastUpdate } = useNotifications();
+  const onSyncRef = useRef(onSync);
+
+  useEffect(() => {
+    onSyncRef.current = onSync;
+  }, [onSync]);
 
   useEffect(() => {
     if (lastUpdate) {
-      onSync();
+      onSyncRef.current();
     }
-  }, [lastUpdate, onSync]);
+  }, [lastUpdate]);
 }

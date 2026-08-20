@@ -54,6 +54,7 @@ export default function StudentAppointments() {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   // Guided Breathing Modal States
   const [isBreathingModalOpen, setIsBreathingModalOpen] = useState(false);
@@ -223,30 +224,35 @@ export default function StudentAppointments() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 max-w-6xl mx-auto w-full min-h-screen">
+        <div className="p-8 w-full min-h-screen">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-4xl font-black text-slate-900 tracking-tight">Appointments</h1>
-                {isLive && (
-                  <Badge className="bg-emerald-500 text-white animate-pulse text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
-                    <Radio className="h-3 w-3 mr-1 inline" /> Live Sync
-                  </Badge>
-                )}
               </div>
               <p className="text-sm text-muted-foreground font-medium">Manage your clinical sessions and review completed appointment feedback.</p>
             </div>
-            <Button asChild className="rounded-2xl font-black bg-primary h-12 px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-all">
-              <Link href="/student/book">
-                <Plus className="h-5 w-5 mr-2" /> Book New Session
-              </Link>
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setShowCalendar(!showCalendar)}
+                variant="outline"
+                className="rounded-2xl font-black border-slate-200 bg-white hover:bg-slate-50 h-12 w-12 p-0 shadow-sm hover:scale-105 transition-all shrink-0"
+              >
+                <CalendarIcon className="h-5 w-5 text-slate-600" />
+                <span className="sr-only">Show Calendar</span>
+              </Button>
+              <Button asChild className="rounded-2xl font-black bg-primary h-12 px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-all">
+                <Link href="/student/book">
+                  <Plus className="h-5 w-5 mr-2" /> Book New Session
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Main list */}
-            <div className="lg:col-span-8">
+            {/* Main table list */}
+            <div className="lg:col-span-9">
               <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
                 {/* Tab bar */}
                 <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1">
@@ -270,7 +276,7 @@ export default function StudentAppointments() {
                   ))}
                 </div>
 
-                <CardContent className="p-0">
+                <CardContent className="p-0 overflow-x-auto">
                   {filtered.length === 0 ? (
                     <div className="h-48 flex flex-col items-center justify-center gap-3 text-center px-8">
                       <CalendarIcon className="h-8 w-8 text-slate-100" />
@@ -284,94 +290,97 @@ export default function StudentAppointments() {
                       )}
                     </div>
                   ) : (
-                    <div className="divide-y divide-slate-50">
-                      {filtered.map(app => (
-                        <div
-                          key={app.id}
-                          className={`flex items-center gap-4 px-6 py-5 hover:bg-slate-50/50 transition-all group ${
-                            app.status === APPOINTMENT_STATUS.PENDING ? 'bg-amber-50/20' : ''
-                          }`}
-                        >
-                          {/* Date block */}
-                          <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center shrink-0">
-                            <span className="text-[10px] font-black uppercase tracking-tighter text-primary">
-                              {format(parseISO(app.date), 'MMM')}
-                            </span>
-                            <span className="text-xl font-black text-slate-900 leading-none">
-                              {format(parseISO(app.date), 'dd')}
-                            </span>
-                          </div>
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4">Type</th>
+                          <th className="px-6 py-4">Counselor</th>
+                          <th className="px-6 py-4">Schedule & Location</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {filtered.map(app => (
+                          <tr
+                            key={app.id}
+                            className={`hover:bg-slate-50/30 transition-all ${
+                              app.status === APPOINTMENT_STATUS.PENDING ? 'bg-amber-50/10' : ''
+                            }`}
+                          >
+                            {/* Date Column */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center shrink-0">
+                                  <span className="text-[9px] font-black uppercase tracking-tighter text-primary">
+                                    {format(parseISO(app.date), 'MMM')}
+                                  </span>
+                                  <span className="text-sm font-black text-slate-900 leading-none">
+                                    {format(parseISO(app.date), 'dd')}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-bold text-slate-500">
+                                  {format(parseISO(app.date), 'yyyy')}
+                                </span>
+                              </div>
+                            </td>
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-black text-slate-900 truncate">{app.type}</p>
+                            {/* Type Column */}
+                            <td className="px-6 py-4 font-bold text-slate-900">
+                              {app.type}
+                            </td>
+
+                            {/* Counselor Column */}
+                            <td className="px-6 py-4 text-xs font-semibold text-slate-600">
+                              {app.counselorName}
+                            </td>
+
+                            {/* Time / Location Column */}
+                            <td className="px-6 py-4 text-xs text-slate-500 font-medium">
+                              <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-slate-400" /> {app.time}</div>
+                              <div className="flex items-center gap-1.5 mt-1"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {app.location || 'Room 302'}</div>
+                            </td>
+
+                            {/* Status Column */}
+                            <td className="px-6 py-4 whitespace-nowrap">
                               {getStatusBadge(app.status)}
-                            </div>
-                            <p className="text-xs text-slate-400 font-medium flex items-center gap-3">
-                              <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{app.time}</span>
-                              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{app.location || 'Room 302'}</span>
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-bold mt-1">
-                              with {app.counselorName}
-                            </p>
-                          </div>
+                            </td>
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => { setSelectedApp(app); setIsDetailsOpen(true); }}
-                              className="h-8 text-[10px] font-black text-slate-400 hover:text-primary rounded-xl"
-                            >
-                              View
-                            </Button>
-                            {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setCancelTarget(app)}
-                                className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                              >
-                                <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                            {/* Actions Column */}
+                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => { setSelectedApp(app); setIsDetailsOpen(true); }}
+                                  className="h-8 text-[10px] font-black text-slate-400 hover:text-primary rounded-xl"
+                                >
+                                  View
+                                </Button>
+                                {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setCancelTarget(app)}
+                                    className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                                  >
+                                    <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </CardContent>
               </Card>
             </div>
 
             {/* Right sidebar */}
-            <div className="lg:col-span-4 space-y-6">
-              {/* Calendar */}
-              <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2.5rem] overflow-hidden">
-                <CardHeader className="p-6 pb-3">
-                  <CardTitle className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-primary" /> Schedule View
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-6 pb-6 flex flex-col items-center">
-                  <Calendar
-                    mode="multiple"
-                    selected={confirmedDates}
-                    className="w-full"
-                    modifiers={{ confirmed: confirmedDates }}
-                    modifiersClassNames={{
-                      confirmed: 'bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 shadow-sm'
-                    }}
-                  />
-                  <div className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
-                    <div className="h-3 w-3 rounded bg-emerald-500 shrink-0" />
-                    <p className="text-[10px] text-slate-400 font-medium">Confirmed sessions are highlighted in green.</p>
-                  </div>
-                </CardContent>
-              </Card>
-
+            <div className="lg:col-span-3 space-y-6">
               {/* CTA card */}
               <Card className="border-none shadow-lg bg-primary rounded-[2rem] p-6 text-white overflow-hidden relative group">
                 <div className="relative z-10">
@@ -385,6 +394,36 @@ export default function StudentAppointments() {
               </Card>
             </div>
           </div>
+
+          {/* Calendar Modal */}
+          <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
+            <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-2xl p-6">
+              <DialogHeader className="pb-3">
+                <DialogTitle className="text-xl font-black uppercase text-slate-900 tracking-wider flex items-center gap-2">
+                  <CalendarIcon className="h-5 w-5 text-primary" /> Schedule View
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-medium">
+                  View your confirmed counseling sessions on the calendar.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center justify-center p-4">
+                <Calendar
+                  mode="multiple"
+                  selected={confirmedDates}
+                  className="w-full flex justify-center"
+                  modifiers={{ confirmed: confirmedDates }}
+                  modifiersClassNames={{
+                    confirmed: 'bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 shadow-sm'
+                  }}
+                />
+                <div className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+                  <div className="h-3 w-3 rounded bg-emerald-500 shrink-0" />
+                  <p className="text-[10px] text-slate-400 font-medium">Confirmed sessions are highlighted in green.</p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
         </div>
 
         {/* Details Dialog */}

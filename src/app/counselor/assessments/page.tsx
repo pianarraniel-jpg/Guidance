@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from '@/components/ui/slider';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { analyzeClinicalForm } from '@/ai/flows/analyze-clinical-form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -135,7 +136,7 @@ export default function CounselorAssessmentsPage() {
   const [evalComments, setEvalComments] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const [allAssessments, allUsers] = await Promise.all([
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
       storageService.getAll<any>(STORAGE_KEYS.USERS),
@@ -146,9 +147,11 @@ export default function CounselorAssessmentsPage() {
       setSelectedAssessment(allAssessments[0]);
     }
     setStudents(allUsers.filter(u => u.role === 'student'));
-  };
+  }, [selectedAssessment]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useLiveSync(loadData);
 
   useEffect(() => {
     const unread = notifications.filter(n => n.type === 'assessment' && !n.isRead);

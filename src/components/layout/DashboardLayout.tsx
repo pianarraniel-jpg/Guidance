@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,9 +18,9 @@ import {
   Settings,
   Sparkles,
   Users,
-  ShieldCheck,
   MonitorSmartphone
 } from 'lucide-react';
+import logo from '@/app/assets/logo.png';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import NotificationBell from '@/components/common/NotificationBell';
@@ -78,9 +79,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0 z-40">
         <div className="px-6 mb-10">
           <div className="flex items-center gap-2 mb-1">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
+            <Image src={logo} alt="GuidanceSync Logo" className="h-8 w-8 object-contain" width={32} height={32} />
             <h2 className="text-2xl font-bold text-primary font-headline">GuidanceSync</h2>
           </div>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider pl-10">Supportive Wellness</p>
@@ -119,7 +118,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {isStudent && (
             <Button asChild className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg flex items-center justify-start gap-3 h-11 mb-2 shadow-md">
               <Link href="/student/chat">
-                <Sparkles className="h-5 w-5 animate-spin" />
+                <Sparkles className="h-5 w-5" />
                 Guidi AI Companion
               </Link>
             </Button>

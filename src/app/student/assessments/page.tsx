@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -69,18 +70,20 @@ export default function StudentAssessments() {
   const [activeTask, setActiveTask] = useState<any>(null);
   const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     if (user) {
       const allTasks = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     loadTasks();
-  }, [user]);
+  }, [user, loadTasks]);
+
+  useLiveSync(loadTasks);
 
   useEffect(() => {
     const unread = notifications.filter(n => n.type === 'assessment' && !n.isRead);
@@ -176,56 +179,62 @@ export default function StudentAssessments() {
               </TabsTrigger>
             </TabsList>
 
-            {/* Tab 1: Clinical Tasks */}
             <TabsContent value="tasks" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {tasks.map(task => (
-                  <Card key={task.id} className="border-none shadow-xl shadow-slate-200/40 bg-white rounded-[2rem] overflow-hidden flex flex-col group hover:shadow-2xl transition-all">
-                    <div className={`h-2.5 w-full ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-500' : 'bg-primary'}`} />
-                    <CardHeader className="p-8 pb-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-bold">
-                          📋
-                        </div>
-                        <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none px-3 py-1 ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
-                          {task.status === 'completed' ? 'Evaluated' : task.status === 'submitted' ? 'Awaiting Review' : 'New Assignment'}
-                        </Badge>
-                      </div>
-                      <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors">{task.title}</CardTitle>
-                      <CardDescription className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest pt-2 text-slate-400">
-                        <User className="h-3 w-3" /> Dr. {task.counselorName?.split(' ').pop()}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-8 pt-0 flex-1 flex flex-col">
-                      <p className="text-sm text-slate-500 font-medium mb-8 leading-relaxed">{task.description}</p>
-                      <div className="mt-auto space-y-4">
-                        <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          <Clock className="h-3 w-3" /> Assigned: {task.date}
-                        </div>
-                        {task.status === 'pending' ? (
-                          <Button onClick={() => handleOpenTask(task)} className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/20">
-                            Complete Clinical Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
-                          </Button>
-                        ) : task.status === 'submitted' ? (
-                          <div className="flex items-center gap-2 text-emerald-600 font-black text-xs pt-2">
-                            <CheckCircle2 className="h-4 w-4" /> Form Submitted
+                  <Card key={task.id} className="border-none shadow-lg shadow-slate-200/30 bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border border-slate-100/50">
+                    <div className="flex flex-col md:flex-row items-stretch min-h-[120px]">
+                      {/* Left border highlight based on status */}
+                      <div className={`w-2 shrink-0 ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-500' : 'bg-primary'}`} />
+                      
+                      <div className="flex-1 p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        {/* Info details */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                              📋
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900 truncate">{task.title}</h3>
+                            <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-widest border-none px-3 py-1 shrink-0 ${task.status === 'completed' || task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary/10 text-primary'}`}>
+                              {task.status === 'completed' ? 'Evaluated' : task.status === 'submitted' ? 'Awaiting Review' : 'New Assignment'}
+                            </Badge>
                           </div>
-                        ) : (
-                          <div className="space-y-4 pt-4 border-t border-slate-50">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-lg font-black text-primary">{task.counselorRating}</span>
-                                <span className="text-[10px] font-bold text-slate-300">/10</span>
+                          
+                          <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-2xl">{task.description}</p>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest pt-1">
+                            <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Assigned: {task.date}</span>
+                            <span className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Dr. {task.counselorName?.split(' ').pop()}</span>
+                          </div>
+                        </div>
+
+                        {/* Actions / Evaluation Results */}
+                        <div className="flex flex-col justify-center shrink-0 min-w-[200px] md:border-l md:border-slate-50 md:pl-6">
+                          {task.status === 'pending' ? (
+                            <Button onClick={() => handleOpenTask(task)} className="h-11 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/20 w-full md:w-auto">
+                              Complete Clinical Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
+                            </Button>
+                          ) : task.status === 'submitted' ? (
+                            <div className="flex items-center gap-2 text-emerald-600 font-black text-xs">
+                              <CheckCircle2 className="h-4 w-4" /> Form Submitted
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-base font-black text-primary">{task.counselorRating}</span>
+                                  <span className="text-[10px] font-bold text-slate-300">/10</span>
+                                </div>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-50 text-xs font-medium text-slate-600 italic border border-slate-100 max-w-xs line-clamp-2" title={task.counselorComments || 'Reviewed by counselor.'}>
+                                "{task.counselorComments || 'Reviewed by counselor.'}"
                               </div>
                             </div>
-                            <div className="p-3.5 rounded-xl bg-slate-50 text-xs font-medium text-slate-600 italic border border-slate-100">
-                              "{task.counselorComments || 'Reviewed by counselor.'}"
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
                 ))}
                 {tasks.length === 0 && (
