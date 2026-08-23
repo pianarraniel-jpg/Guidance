@@ -283,7 +283,7 @@ export default function CounselorStudentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Student ID <span className="text-red-500">*</span></Label>
-                  <Input placeholder="2024-0001" value={enrollStudentId} onChange={e => setEnrollStudentId(e.target.value)} required />
+                  <Input placeholder="202300958" value={enrollStudentId} onChange={e => setEnrollStudentId(e.target.value)} required />
                   <p className="text-[10px] text-slate-400">Student ID is also the initial login password.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

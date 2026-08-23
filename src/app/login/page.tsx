@@ -41,7 +41,7 @@ export default function LoginPage() {
       if (success) {
         router.push('/');
       } else {
-        setError('Invalid credentials. Use student@uspf.edu.ph / password123');
+        setError('Invalid credentials. Use student@uspf.edu.ph / 202300958');
       }
     } catch (err) {
       setError('An unexpected error occurred.');
@@ -60,7 +60,7 @@ export default function LoginPage() {
       if (success) {
         router.push('/');
       } else {
-        setError('Student ID not found. Try: 2024-0001');
+        setError('Student ID not found. Try: 202300958');
       }
     } catch (err) {
       setError('An unexpected error occurred.');
@@ -224,7 +224,7 @@ export default function LoginPage() {
                     <Scan className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                       id="studentId"
-                      placeholder="e.g. 2024-0001"
+                      placeholder="e.g. 202300958"
                       className="pl-10 h-11 border-muted"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}

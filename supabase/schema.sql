@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   staff_id    TEXT UNIQUE,
   department  TEXT,
   year_level  TEXT,
+  course      TEXT,
+  year        TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
