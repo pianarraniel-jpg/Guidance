@@ -10,7 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
-  Search, MoreVertical, Trash2, ExternalLink, Users,
+  Search, MoreVertical, Trash2, ExternalLink, Users, User,
   Brain, TrendingUp, GraduationCap, Building2, Pencil, Filter
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
@@ -237,7 +237,7 @@ export default function CounselorStudentsPage() {
   const hasActiveFilters = deptFilter !== 'all' || yearFilter !== 'all';
 
   return (
-    <div className="max-w-7xl mx-auto w-full pb-10">
+    <div className="w-full pb-10">
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
         <div>
@@ -422,10 +422,9 @@ export default function CounselorStudentsPage() {
                   <TableRow key={student.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all group">
                     <TableCell className="pl-8 py-5">
                       <div className="flex items-center gap-4">
-                        <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
-                          <AvatarImage src={`https://picsum.photos/seed/${student.id}/64/64`} />
-                          <AvatarFallback className="bg-primary/5 text-primary font-bold">{student.name?.[0]}</AvatarFallback>
-                        </Avatar>
+                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 shadow-sm shrink-0">
+                          <User className="h-5 w-5" />
+                        </div>
                         <div>
                           <span className="font-bold text-slate-900 text-sm block">{student.name}</span>
                           <span className="text-[10px] text-slate-400 font-bold">{student.email}</span>
@@ -513,10 +512,9 @@ export default function CounselorStudentsPage() {
         <DialogContent className="max-w-md rounded-[2rem] p-6 border-none shadow-2xl">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
-              <Avatar className="h-10 w-10 ring-2 ring-primary/10">
-                <AvatarImage src={`https://picsum.photos/seed/${editStudent?.id}/64/64`} />
-                <AvatarFallback className="bg-primary/10 text-primary font-bold">{editStudent?.name?.[0]}</AvatarFallback>
-              </Avatar>
+              <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 shadow-sm shrink-0">
+                <User className="h-5 w-5" />
+              </div>
               <div>
                 <DialogTitle className="text-lg font-black">Update Student Profile</DialogTitle>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{editStudent?.studentId}</p>
@@ -597,10 +595,9 @@ export default function CounselorStudentsPage() {
         <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-8 bg-slate-50 border-b">
             <div className="flex items-center gap-4">
-              <Avatar className="h-14 w-14 ring-2 ring-primary/10">
-                <AvatarImage src={`https://picsum.photos/seed/${profileStudent?.id}/128/128`} />
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">{profileStudent?.name?.[0]}</AvatarFallback>
-              </Avatar>
+              <div className="h-14 w-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 shadow-sm shrink-0">
+                <User className="h-7 w-7" />
+              </div>
               <div className="flex-1 min-w-0">
                 <DialogTitle className="text-2xl font-black text-slate-900">{profileStudent?.name}</DialogTitle>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">

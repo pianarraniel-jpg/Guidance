@@ -13,7 +13,7 @@ export default function CounselorSettings() {
   const { logout } = useAuth();
 
   return (
-    <div className="p-8 max-w-4xl mx-auto w-full">
+    <div className="p-8 w-full">
       <header className="mb-8">
         <h1 className="text-4xl font-bold font-headline text-slate-900 mb-2">Portal Settings</h1>
         <p className="text-muted-foreground">Managing the unified Guidance Office terminal configuration.</p>

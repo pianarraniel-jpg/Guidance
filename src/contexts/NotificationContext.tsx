@@ -216,6 +216,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     refreshNotifications();
   }, [refreshNotifications]);
 
+  const handleRealtimeUpdateRef = useRef(handleRealtimeUpdate);
+  useEffect(() => {
+    handleRealtimeUpdateRef.current = handleRealtimeUpdate;
+  }, [handleRealtimeUpdate]);
+
   useEffect(() => { loadReadIds(); }, [loadReadIds]);
 
   useEffect(() => {
@@ -230,28 +235,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     fetchNotificationsData();
 
     const channel = supabase.channel(`notif-${user.id}`);
+    const callback = () => {
+      handleRealtimeUpdateRef.current();
+    };
 
     if (isStudent) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, handleRealtimeUpdate);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, callback)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, callback)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, callback)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, callback);
     } else if (isCounselor) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, handleRealtimeUpdate);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, callback)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, callback)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, callback);
     } else if (isAdmin) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, handleRealtimeUpdate)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, handleRealtimeUpdate);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, callback)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, callback)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, callback);
     }
 
-    channel.subscribe();
+    channel.subscribe((status) => {
+      console.log(`[NotificationContext] Subscription status for channel notif-${user.id}:`, status);
+    });
     return () => { supabase.removeChannel(channel); };
-  }, [user, isStudent, isCounselor, isAdmin, fetchNotificationsData, handleRealtimeUpdate]);
+  }, [user?.id, isStudent, isCounselor, isAdmin, fetchNotificationsData]);
 
   const persistReadIds = useCallback(async (ids: string[]) => {
     if (!user || ids.length === 0) return;

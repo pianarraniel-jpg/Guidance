@@ -416,7 +416,7 @@ export default function StudentAiChat() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <main className="p-8 max-w-5xl mx-auto w-full min-h-screen flex flex-col">
+        <main className="p-8 w-full min-h-screen flex flex-col">
           <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">

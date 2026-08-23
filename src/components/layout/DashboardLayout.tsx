@@ -18,7 +18,8 @@ import {
   Settings,
   Sparkles,
   Users,
-  MonitorSmartphone
+  MonitorSmartphone,
+  User
 } from 'lucide-react';
 import logo from '@/app/assets/logo.png';
 import Link from 'next/link';
@@ -163,10 +164,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <p className="text-xs font-bold leading-none">{user?.name}</p>
                   <p className="text-[10px] text-muted-foreground capitalize">{user?.role}</p>
                 </div>
-                <Avatar className="h-9 w-9 ring-2 ring-primary/5">
-                  <AvatarImage src={`https://picsum.photos/seed/${user?.id}/64/64`} />
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{firstName[0]}</AvatarFallback>
-                </Avatar>
+                <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 shadow-sm shrink-0">
+                  <User className="h-4 w-4" />
+                </div>
               </div>
             </div>
           </div>

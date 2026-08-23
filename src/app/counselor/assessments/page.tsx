@@ -289,7 +289,7 @@ export default function CounselorAssessmentsPage() {
     : selectedAssessment?.stressLevel > 50 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
 
   return (
-    <div className="max-w-7xl mx-auto w-full pb-10">
+    <div className="w-full pb-10">
       <header className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-1">Clinical Analysis</h1>

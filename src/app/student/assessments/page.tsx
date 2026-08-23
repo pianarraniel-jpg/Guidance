@@ -153,7 +153,7 @@ export default function StudentAssessments() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <main className="p-8 max-w-7xl mx-auto w-full min-h-screen">
+        <main className="p-8 w-full min-h-screen">
           <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Clinical Oversight & Growth</h1>

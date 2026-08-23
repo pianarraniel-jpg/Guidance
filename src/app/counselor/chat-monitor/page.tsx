@@ -309,7 +309,7 @@ export default function ChatMonitorPage() {
   const highRiskCount = sessions.filter(s => s.risk_level === 'high').length;
 
   return (
-    <main className="p-8 max-w-6xl mx-auto w-full">
+    <main className="p-8 w-full">
           <header className="mb-8">
             <div className="flex items-center gap-3 mb-2">
               <div className="h-10 w-10 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">

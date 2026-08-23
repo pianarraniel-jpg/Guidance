@@ -337,7 +337,7 @@ export default function CounselorAppointmentsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto w-full pb-10">
+    <div className="w-full pb-10">
       <header className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-2">

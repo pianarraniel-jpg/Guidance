@@ -330,7 +330,7 @@ export default function CounselorMessagesPage() {
             </header>
 
             <ScrollArea className="flex-1 p-8 bg-slate-50/30">
-              <div className="max-w-4xl mx-auto space-y-8">
+              <div className="space-y-8">
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
@@ -381,7 +381,7 @@ export default function CounselorMessagesPage() {
             </ScrollArea>
 
             <div className="p-8 border-t border-slate-50 bg-white">
-              <div className="max-w-4xl mx-auto">
+              <div>
                 {/* Turn-lock indicator */}
                 {!canCounselorSend && (
                   <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2 text-amber-700">

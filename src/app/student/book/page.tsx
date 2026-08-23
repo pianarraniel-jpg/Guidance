@@ -175,7 +175,7 @@ export default function BookAppointment() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="min-h-screen bg-slate-50/50 p-8">
-          <div className="max-w-7xl mx-auto w-full">
+          <div className="w-full">
             <header className="mb-10">
               {currentStep < STEPS.CONFIRM && (
                 <Button variant="ghost" onClick={back} className="mb-4 -ml-2 text-slate-500 hover:text-primary font-bold">

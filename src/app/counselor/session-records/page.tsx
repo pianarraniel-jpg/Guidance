@@ -172,7 +172,7 @@ export default function SessionRecordsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto w-full pb-16">
+    <div className="w-full pb-16">
       {/* Header section */}
       <header className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-10">
         <div>

@@ -271,7 +271,7 @@ export default function StudentMessages() {
                 </header>
 
                 <ScrollArea className="flex-1 p-8 bg-[#F8FAFC]">
-                  <div className="max-w-4xl mx-auto space-y-8">
+                  <div className="space-y-8">
                     {chatHistory.map((msg) => (
                       <div
                         key={msg.id}
@@ -330,7 +330,7 @@ export default function StudentMessages() {
                 </ScrollArea>
 
                 <div className="p-8 border-t bg-white">
-                  <div className="max-w-4xl mx-auto">
+                  <div>
                     <div className="mb-4 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 text-red-700">
                       <AlertCircle className="h-5 w-5 shrink-0" />
                       <div className="text-[10px] font-bold uppercase tracking-wide">

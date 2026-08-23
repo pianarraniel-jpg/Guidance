@@ -434,7 +434,7 @@ export default function StudentDashboard() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 max-w-7xl mx-auto w-full">
+        <div className="p-8 w-full">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div>
               <h1 className="text-4xl font-bold font-headline text-[#171717] mb-2">Kumusta, {firstName}?</h1>

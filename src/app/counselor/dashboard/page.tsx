@@ -212,7 +212,7 @@ export default function CounselorDashboard() {
     .slice(0, 4);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full">
+    <div className="p-8 w-full">
       {unackAlertCount > 0 && (
         <Link href="/counselor/chat-monitor">
           <div className="mb-6 flex items-center gap-4 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 cursor-pointer hover:bg-red-100 transition-colors">

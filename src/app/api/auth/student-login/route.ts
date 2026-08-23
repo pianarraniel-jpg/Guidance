@@ -24,6 +24,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Student not found' }, { status: 404 });
   }
 
+  // Auto-confirm student email if it is currently unconfirmed
+  try {
+    const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(profileData.id);
+    if (authUser && !authUser.email_confirmed_at) {
+      await supabaseAdmin.auth.admin.updateUserById(profileData.id, { email_confirm: true });
+    }
+  } catch (err) {
+    console.error('[student-login] Failed to auto-confirm user email:', err);
+  }
+
   // Sign in using student_id as the password (set during seed/registration)
   const { data, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
     email: profileData.email,

@@ -123,7 +123,7 @@ export default function StudentSettings() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 max-w-4xl mx-auto w-full">
+        <div className="p-8 w-full">
           <header className="mb-8">
             <h1 className="text-4xl font-bold font-headline text-slate-900 mb-2">Account Settings</h1>
             <p className="text-muted-foreground">Manage your personal information and security preferences.</p>
@@ -134,10 +134,9 @@ export default function StudentSettings() {
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-slate-50/50 border-b pb-6">
                 <div className="flex items-center gap-6">
-                  <Avatar className="h-20 w-20 ring-4 ring-white shadow-lg">
-                    <AvatarImage src={`https://picsum.photos/seed/${user?.id}/128/128`} />
-                    <AvatarFallback className="text-2xl font-bold bg-primary text-white">{user?.name[0]}</AvatarFallback>
-                  </Avatar>
+                  <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border-4 border-white shadow-lg shrink-0">
+                    <User className="h-10 w-10" />
+                  </div>
                   <div>
                     <CardTitle className="text-2xl font-bold">{user?.name}</CardTitle>
                     <CardDescription className="flex items-center gap-2 mt-1">

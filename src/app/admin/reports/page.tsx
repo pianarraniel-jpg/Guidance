@@ -195,7 +195,7 @@ export default function AdminReports() {
   return (
     <ProtectedRoute allowedRoles={['admin']}>
       <DashboardLayout>
-        <div className="p-8 max-w-7xl mx-auto w-full min-h-screen">
+        <div className="p-8 w-full min-h-screen">
           
           {/* Header */}
           <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -162,7 +162,7 @@ export default function SessionNotesPage() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full pb-32">
+    <div className="p-8 w-full pb-32">
       {/* Student Selection Header Card */}
       <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2.5rem] overflow-hidden mb-8">
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

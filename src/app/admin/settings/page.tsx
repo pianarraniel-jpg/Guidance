@@ -15,7 +15,7 @@ export default function AdminSettings() {
   return (
     <ProtectedRoute allowedRoles={['admin']}>
       <DashboardLayout>
-        <div className="p-8 max-w-4xl mx-auto w-full">
+        <div className="p-8 w-full">
           <header className="mb-8">
             <h1 className="text-4xl font-bold font-headline text-slate-900 mb-2">System Settings</h1>
             <p className="text-muted-foreground">Manage administrative controls and system-wide configurations.</p>
