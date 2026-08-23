@@ -39,7 +39,8 @@ import {
   Brain,
   Heart,
   BookOpen,
-  Briefcase
+  Briefcase,
+  ChevronDown
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
@@ -89,12 +90,38 @@ export default function CounselorAppointmentsPage() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [bookingStudentId, setBookingStudentId] = useState("");
+  const [studentSearchText, setStudentSearchText] = useState("");
+  const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
   const [bookingType, setBookingType] = useState("");
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [bookingReason, setBookingReason] = useState("");
   const [bookingLocation, setBookingLocation] = useState("Room 302");
   const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+
+  // Sync search text when selected student changes
+  useEffect(() => {
+    if (bookingStudentId) {
+      const student = students.find(s => s.id === bookingStudentId);
+      if (student) {
+        setStudentSearchText(student.name);
+      }
+    } else {
+      setStudentSearchText("");
+    }
+  }, [bookingStudentId, students]);
+
+  const filteredStudents = React.useMemo(() => {
+    if (!studentSearchText) return students;
+    const selectedStudent = students.find(s => s.id === bookingStudentId);
+    if (selectedStudent && selectedStudent.name === studentSearchText) {
+      return students;
+    }
+    return students.filter(s => 
+      s.name.toLowerCase().includes(studentSearchText.toLowerCase()) ||
+      (s.studentId && s.studentId.includes(studentSearchText))
+    );
+  }, [students, studentSearchText, bookingStudentId]);
 
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackAppointment, setFeedbackAppointment] = useState<any>(null);
@@ -864,20 +891,69 @@ export default function CounselorAppointmentsPage() {
           <div className="p-8 max-h-[70vh] overflow-y-auto space-y-6">
             <div className="space-y-4">
               {/* Student Selection */}
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-900">Select Student *</Label>
-                <Select value={bookingStudentId} onValueChange={setBookingStudentId}>
-                  <SelectTrigger className="w-full h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-primary">
-                    <SelectValue placeholder="Choose student..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-none shadow-2xl bg-white max-h-48 overflow-y-auto">
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id} className="hover:bg-slate-50 rounded-lg p-2.5 cursor-pointer text-xs font-bold text-slate-700">
-                        {student.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                
+                <div className="relative z-50">
+                  <input
+                    type="text"
+                    placeholder="Search student by name or ID (e.g. 202300958)..."
+                    value={studentSearchText}
+                    onChange={(e) => {
+                      setStudentSearchText(e.target.value);
+                      setIsStudentSelectOpen(true);
+                      const matchingStudent = students.find(s => s.name === e.target.value);
+                      if (matchingStudent) {
+                        setBookingStudentId(matchingStudent.id);
+                      } else {
+                        setBookingStudentId("");
+                      }
+                    }}
+                    onFocus={() => setIsStudentSelectOpen(true)}
+                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all pr-10"
+                  />
+                  <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none">
+                    <ChevronDown className="h-4 w-4" />
+                  </div>
+                  
+                  {isStudentSelectOpen && (
+                    <div className="absolute top-12 left-0 right-0 rounded-xl border border-slate-100 shadow-2xl bg-white max-h-48 overflow-y-auto z-50 divide-y divide-slate-50 py-1">
+                      {filteredStudents.length === 0 ? (
+                        <div className="p-3 text-xs text-slate-400 text-center font-bold">
+                          No students found.
+                        </div>
+                      ) : (
+                        filteredStudents.map((student) => (
+                          <div
+                            key={student.id}
+                            onClick={() => {
+                              setBookingStudentId(student.id);
+                              setStudentSearchText(student.name);
+                              setIsStudentSelectOpen(false);
+                            }}
+                            className="hover:bg-slate-50 p-2.5 cursor-pointer text-xs font-bold text-slate-700 flex justify-between items-center"
+                          >
+                            <span>{student.name}</span>
+                            <span className="text-[10px] text-slate-400 font-semibold">
+                              {student.studentId}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {isStudentSelectOpen && (
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => {
+                      setIsStudentSelectOpen(false);
+                      const selected = students.find(s => s.id === bookingStudentId);
+                      setStudentSearchText(selected ? selected.name : "");
+                    }} 
+                  />
+                )}
               </div>
 
               {/* Session Type */}
