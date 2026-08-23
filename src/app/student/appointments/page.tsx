@@ -315,12 +315,12 @@ export default function StudentAppointments() {
                     <table className="w-full border-collapse text-left">
                       <thead>
                         <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          <th className="px-6 py-4">Date</th>
-                          <th className="px-6 py-4">Type</th>
-                          <th className="px-6 py-4">Counselor</th>
-                          <th className="px-6 py-4">Schedule & Location</th>
-                          <th className="px-6 py-4">Status</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Date</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Type</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Counselor</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Schedule & Location</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                          <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
@@ -349,19 +349,19 @@ export default function StudentAppointments() {
                             </td>
 
                             {/* Type Column */}
-                            <td className="px-6 py-4 font-bold text-slate-900">
+                            <td className="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
                               {app.type}
                             </td>
 
                             {/* Counselor Column */}
-                            <td className="px-6 py-4 text-xs font-semibold text-slate-600">
+                            <td className="px-6 py-4 text-xs font-semibold text-slate-600 whitespace-nowrap">
                               {app.counselorName}
                             </td>
 
                             {/* Time / Location Column */}
-                            <td className="px-6 py-4 text-xs text-slate-500 font-medium">
-                              <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-slate-400" /> {app.time}</div>
-                              <div className="flex items-center gap-1.5 mt-1"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {app.location || 'Room 302'}</div>
+                            <td className="px-6 py-4 text-xs text-slate-500 font-medium whitespace-nowrap">
+                              <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {app.time}</div>
+                              <div className="flex items-center gap-1.5 mt-1"><MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {app.location || 'Room 302'}</div>
                             </td>
 
                             {/* Status Column */}
