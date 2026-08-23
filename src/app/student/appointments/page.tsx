@@ -582,29 +582,6 @@ export default function StudentAppointments() {
           }}
         />
 
-        {/* Realtime & DB Debugger Panel */}
-        <div className="mt-8 p-6 bg-slate-900 text-slate-100 rounded-3xl border border-slate-800 shadow-2xl font-mono text-xs space-y-3">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <div className={`h-2.5 w-2.5 rounded-full ${realtimeStatus === 'SUBSCRIBED' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500 animate-pulse'}`} />
-            System Realtime & DB Debugger
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-            <div>
-              <p><span className="text-slate-400 font-bold">Supabase URL:</span> {process.env.NEXT_PUBLIC_SUPABASE_URL || 'Not Set'}</p>
-              <p><span className="text-slate-400 font-bold">Connection State:</span> <span className={realtimeStatus === 'SUBSCRIBED' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>{realtimeStatus}</span></p>
-              <p><span className="text-slate-400 font-bold">Role:</span> {user?.role || 'Guest'}</p>
-            </div>
-            <div>
-              <p><span className="text-slate-400 font-bold">My User ID:</span> {user?.id || 'Not logged in'}</p>
-              <p><span className="text-slate-400 font-bold">Email:</span> {user?.email || 'N/A'}</p>
-              <p><span className="text-slate-400 font-bold">Loaded Appointments:</span> {appointments.length}</p>
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-500 pt-2 border-t border-slate-800">
-            ⚠️ If the Supabase URL does not match your expected database, restart your local Next.js dev server (`Ctrl+C` and `npm run dev`) to reload your `.env` configuration.
-          </p>
-        </div>
-
       </DashboardLayout>
     </ProtectedRoute>
   );
