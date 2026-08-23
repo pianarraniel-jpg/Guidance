@@ -103,7 +103,7 @@ export default function CounselorAppointmentsPage() {
   const [newAction, setNewAction] = useState("");
   const [isLive, setIsLive] = useState(false);
   const { toast } = useToast();
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, markAsRead, realtimeStatus } = useNotifications();
 
   const loadAppointments = useCallback(async () => {
     const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
@@ -344,14 +344,28 @@ export default function CounselorAppointmentsPage() {
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">
               Appointment Queue
             </h1>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-              <Radio
-                className={`h-3 w-3 text-emerald-500 ${isLive ? "animate-ping" : "animate-pulse"}`}
-              />
-              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
-                Live
-              </span>
-            </div>
+            {realtimeStatus === 'SUBSCRIBED' ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
+                <Radio className={`h-3 w-3 text-emerald-500 ${isLive ? "animate-ping" : "animate-pulse"}`} />
+                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                  Live
+                </span>
+              </div>
+            ) : realtimeStatus === 'closed' ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-100 shadow-sm animate-pulse">
+                <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-red-600">
+                  Offline
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 shadow-sm animate-pulse">
+                <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-amber-600">
+                  Connecting ({realtimeStatus})...
+                </span>
+              </div>
+            )}
             {pendingCount > 0 && (
               <Badge className="bg-amber-50 text-amber-700 border-amber-100 font-black text-[10px]">
                 {pendingCount} pending

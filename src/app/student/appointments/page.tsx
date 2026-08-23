@@ -44,7 +44,7 @@ type TabKey = 'upcoming' | 'history' | 'all';
 
 export default function StudentAppointments() {
   const { user } = useAuth();
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, markAsRead, realtimeStatus } = useNotifications();
   const { toast } = useToast();
 
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -230,6 +230,28 @@ export default function StudentAppointments() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-4xl font-black text-slate-900 tracking-tight">Appointments</h1>
+                {realtimeStatus === 'SUBSCRIBED' ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
+                    <Radio className={`h-3 w-3 text-emerald-500 ${isLive ? "animate-ping" : "animate-pulse"}`} />
+                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                      Live
+                    </span>
+                  </div>
+                ) : realtimeStatus === 'closed' ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-100 shadow-sm">
+                    <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-wider text-red-600">
+                      Offline
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 shadow-sm animate-pulse">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-600">
+                      Connecting ({realtimeStatus})...
+                    </span>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-muted-foreground font-medium">Manage your clinical sessions and review completed appointment feedback.</p>
             </div>

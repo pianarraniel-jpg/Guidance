@@ -28,6 +28,7 @@ interface NotificationContextType {
   clearNotifications: () => void;
   refreshNotifications: () => void;
   lastUpdate: number;
+  realtimeStatus: string;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -37,6 +38,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+  const [realtimeStatus, setRealtimeStatus] = useState<string>('connecting');
   const shownBrowserIds = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -259,8 +261,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     channel.subscribe((status) => {
       console.log(`[NotificationContext] Subscription status for channel notif-${user.id}:`, status);
+      setRealtimeStatus(status);
     });
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      setRealtimeStatus('closed');
+      supabase.removeChannel(channel);
+    };
   }, [user?.id, isStudent, isCounselor, isAdmin, fetchNotificationsData]);
 
   const persistReadIds = useCallback(async (ids: string[]) => {
@@ -289,6 +295,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       clearNotifications,
       refreshNotifications,
       lastUpdate,
+      realtimeStatus,
     }}>
       {children}
     </NotificationContext.Provider>
