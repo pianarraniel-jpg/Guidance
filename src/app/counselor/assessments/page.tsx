@@ -301,12 +301,12 @@ export default function CounselorAssessmentsPage() {
               <Plus className="h-4 w-4" /> Create Analysis Form
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="text-2xl font-black">Assign Clinical Assessment</DialogTitle>
               <p className="text-xs text-slate-400 font-medium mt-1">Build a custom form or load a prebuilt template below.</p>
             </DialogHeader>
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4 flex-1 overflow-y-auto pr-2">
               {/* Sleek Prebuilt Assessment Templates Section */}
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
@@ -356,12 +356,12 @@ export default function CounselorAssessmentsPage() {
                       </label>
                     </div>
                   </div>
-                  <Popover>
+                  <Popover modal={true}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
-                        disabled={selectedStudentIds.length === students.length && students.length > 0}
+                        disabled={students.length === 0}
                         className="h-12 w-full rounded-xl border-slate-100 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 justify-between text-left font-bold text-xs shadow-none text-slate-700 px-3 disabled:opacity-80"
                       >
                         <span className="truncate">
@@ -377,7 +377,12 @@ export default function CounselorAssessmentsPage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[300px] p-4 rounded-2xl border-none shadow-2xl bg-white" align="start">
-                      <div className="space-y-3">
+                      <div 
+                        className="space-y-3"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {/* Search Input */}
                         <div className="relative flex items-center">
                           <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400" />
@@ -391,9 +396,30 @@ export default function CounselorAssessmentsPage() {
 
                         {/* Select All Toggle */}
                         {students.length > 0 && (
-                          <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
+                          <div 
+                            onClick={() => {
+                              const filtered = students.filter(s =>
+                                s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                              );
+                              const isAllSelected = filtered.every(s => selectedStudentIds.includes(s.id)) && filtered.length > 0;
+                              if (isAllSelected) {
+                                // Remove all filtered from selection
+                                const filteredIds = filtered.map(s => s.id);
+                                setSelectedStudentIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                              } else {
+                                // Add all filtered that are not already selected
+                                setSelectedStudentIds(prev => {
+                                  const next = [...prev];
+                                  filtered.forEach(s => {
+                                    if (!next.includes(s.id)) next.push(s.id);
+                                  });
+                                  return next;
+                                });
+                              }
+                            }}
+                            className="flex items-center space-x-3 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 select-none"
+                          >
                             <Checkbox
-                              id="select-all-checkbox"
                               checked={
                                 students.filter(s =>
                                   s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
@@ -402,32 +428,11 @@ export default function CounselorAssessmentsPage() {
                                   s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
                                 ).length > 0
                               }
-                              onCheckedChange={(checked) => {
-                                const filtered = students.filter(s =>
-                                  s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-                                );
-                                if (checked) {
-                                  // Add all filtered that are not already selected
-                                  setSelectedStudentIds(prev => {
-                                    const next = [...prev];
-                                    filtered.forEach(s => {
-                                      if (!next.includes(s.id)) next.push(s.id);
-                                    });
-                                    return next;
-                                  });
-                                } else {
-                                  // Remove all filtered from selection
-                                  const filteredIds = filtered.map(s => s.id);
-                                  setSelectedStudentIds(prev => prev.filter(id => !filteredIds.includes(id)));
-                                }
-                              }}
+                              className="pointer-events-none"
                             />
-                            <label
-                              htmlFor="select-all-checkbox"
-                              className="text-xs font-black text-primary cursor-pointer select-none"
-                            >
+                            <span className="text-xs font-black text-primary">
                               📢 Select All / Broadcast
-                            </label>
+                            </span>
                           </div>
                         )}
 
@@ -546,7 +551,7 @@ export default function CounselorAssessmentsPage() {
                 )}
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 pt-4">
               <Button onClick={handleCreateTask} disabled={selectedStudentIds.length === 0 || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">
                 Assign Clinical Task ({questions.length || 1} {questions.length === 1 ? 'question' : 'questions'})
               </Button>
@@ -821,8 +826,8 @@ export default function CounselorAssessmentsPage() {
 
       {/* Evaluation Dialog */}
       <Dialog open={isEvalOpen} onOpenChange={setIsEvalOpen}>
-        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-          <DialogHeader className="p-8 bg-slate-50 border-b">
+        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-8 bg-slate-50 border-b flex-shrink-0">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12">
                 <AvatarImage src={`https://picsum.photos/seed/${selectedAssessment?.studentId}/128/128`} />
@@ -834,7 +839,7 @@ export default function CounselorAssessmentsPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="p-8 space-y-8">
+          <div className="p-8 space-y-8 flex-1 overflow-y-auto">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Counselor Rating (Severity)</Label>
@@ -883,7 +888,7 @@ export default function CounselorAssessmentsPage() {
               </div>
             )}
           </div>
-          <div className="p-8 pt-4 bg-white border-t flex gap-3">
+          <div className="p-8 pt-4 bg-white border-t flex gap-3 flex-shrink-0">
             <Button variant="outline" onClick={() => setIsEvalOpen(false)} className="flex-1 h-14 rounded-2xl font-bold border-slate-200">Discard</Button>
             <Button onClick={handleSubmitEvaluation} disabled={isAnalyzing} className="flex-1 h-14 rounded-2xl font-black bg-primary gap-2 shadow-lg shadow-primary/20">
               {isAnalyzing ? 'Analyzing...' : <><CheckCircle2 className="h-5 w-5" /> Complete Analysis</>}

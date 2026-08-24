@@ -58,6 +58,7 @@ type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+  hidden?: boolean;
 };
 
 type ChatAlert = {

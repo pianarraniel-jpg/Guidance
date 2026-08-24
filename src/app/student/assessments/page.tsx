@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -69,12 +69,19 @@ export default function StudentAssessments() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTask, setActiveTask] = useState<any>(null);
   const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
+  const [dbEvaluations, setDbEvaluations] = useState<any[]>([]);
 
   const loadTasks = useCallback(async () => {
     if (user) {
-      const allTasks = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id);
+      const [allTasks, allAssessments] = await Promise.all([
+        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id),
+        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id)
+      ]);
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
+
+      const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated');
+      setDbEvaluations(evaluated);
     }
   }, [user]);
 
@@ -147,8 +154,90 @@ export default function StudentAssessments() {
     loadTasks();
   };
 
-  const pastYearFeedbacks = HISTORICAL_FEEDBACKS.filter(f => f.academicYear.includes('2024'));
-  const currentYearFeedbacks = HISTORICAL_FEEDBACKS.filter(f => f.academicYear.includes('2025'));
+  const allFeedbacks = useMemo(() => {
+    const dbFeedbacks = dbEvaluations.map(evalItem => {
+      const dateStr = evalItem.date || new Date(evalItem.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      let academicYear = '2025-2026 (Current Year)';
+      if (dateStr.includes('2024')) {
+        academicYear = '2024-2025 (Previous Year)';
+      }
+      
+      const stressRating = evalItem.stressLevel ?? (evalItem.counselorRating ? evalItem.counselorRating * 10 : 50);
+      const clinicalScore = evalItem.counselorRating ?? (evalItem.stressLevel ? Number((evalItem.stressLevel / 10).toFixed(1)) : 5);
+      
+      const focus = evalItem.summary || (evalItem.type === 'AI_CHAT' ? 'AI Chat Session' : 'Clinical Form Response');
+      const notes = evalItem.counselorComments || 'Reviewed by counselor.';
+      
+      let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      let icon = '🌟';
+      if (stressRating >= 70) {
+        badgeColor = 'bg-red-50 text-red-700 border-red-200';
+        icon = '📉';
+      } else if (stressRating >= 50) {
+        badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+        icon = '⚖️';
+      }
+      
+      return {
+        id: evalItem.id,
+        academicYear,
+        date: dateStr,
+        counselor: evalItem.type === 'AI_CHAT' ? 'Guidi AI' : 'USPF Counselor',
+        stressRating,
+        clinicalScore,
+        focus,
+        notes,
+        badgeColor,
+        icon
+      };
+    });
+    
+    return [...HISTORICAL_FEEDBACKS, ...dbFeedbacks].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [dbEvaluations]);
+
+  const pastYearFeedbacks = useMemo(() => {
+    return allFeedbacks.filter(f => f.academicYear.startsWith('2024'));
+  }, [allFeedbacks]);
+
+  const currentYearFeedbacks = useMemo(() => {
+    return allFeedbacks.filter(f => f.academicYear.startsWith('2025'));
+  }, [allFeedbacks]);
+
+  const pastAvgStress = useMemo(() => {
+    if (pastYearFeedbacks.length === 0) return 73;
+    const sum = pastYearFeedbacks.reduce((acc, f) => acc + f.stressRating, 0);
+    return Math.round(sum / pastYearFeedbacks.length);
+  }, [pastYearFeedbacks]);
+
+  const pastClinicalScore = useMemo(() => {
+    if (pastYearFeedbacks.length === 0) return 6.7;
+    const sum = pastYearFeedbacks.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    return Number((sum / pastYearFeedbacks.length).toFixed(1));
+  }, [pastYearFeedbacks]);
+
+  const currentAvgStress = useMemo(() => {
+    if (currentYearFeedbacks.length === 0) return 42;
+    const sum = currentYearFeedbacks.reduce((acc, f) => acc + f.stressRating, 0);
+    return Math.round(sum / currentYearFeedbacks.length);
+  }, [currentYearFeedbacks]);
+
+  const currentClinicalScore = useMemo(() => {
+    if (currentYearFeedbacks.length === 0) return 8.9;
+    const sum = currentYearFeedbacks.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    return Number((sum / currentYearFeedbacks.length).toFixed(1));
+  }, [currentYearFeedbacks]);
+
+  const stressDropPercent = useMemo(() => {
+    if (pastAvgStress === 0) return 0;
+    return Math.round(((currentAvgStress - pastAvgStress) / pastAvgStress) * 100);
+  }, [pastAvgStress, currentAvgStress]);
+
+  const counselorStatus = useMemo(() => {
+    if (currentAvgStress === 0) return 'No active evaluations for current year.';
+    if (currentAvgStress < 50) return 'Counselor status: Ready for independent graduation transition.';
+    if (currentAvgStress < 75) return 'Counselor status: Recommended for continued support sessions.';
+    return 'Counselor status: Requires active clinical follow-up.';
+  }, [currentAvgStress]);
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
@@ -265,11 +354,11 @@ export default function StudentAssessments() {
                   <div className="pt-8 border-t border-white/10 mt-6 grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Avg Stress</p>
-                      <p className="text-3xl font-black text-red-400">73 <span className="text-xs text-slate-400 font-bold">/100</span></p>
+                      <p className="text-3xl font-black text-red-400">{pastAvgStress} <span className="text-xs text-slate-400 font-bold">/100</span></p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Clinical Score</p>
-                      <p className="text-3xl font-black text-amber-400">6.7 <span className="text-xs text-slate-400 font-bold">/10</span></p>
+                      <p className="text-3xl font-black text-amber-400">{pastClinicalScore} <span className="text-xs text-slate-400 font-bold">/10</span></p>
                     </div>
                   </div>
                 </Card>
@@ -286,11 +375,11 @@ export default function StudentAssessments() {
                   <div className="pt-8 border-t border-white/20 mt-6 grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Avg Stress</p>
-                      <p className="text-3xl font-black text-white">42 <span className="text-xs text-emerald-200 font-bold">/100</span></p>
+                      <p className="text-3xl font-black text-white">{currentAvgStress} <span className="text-xs text-emerald-200 font-bold">/100</span></p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Clinical Score</p>
-                      <p className="text-3xl font-black text-white">8.9 <span className="text-xs text-emerald-200 font-bold">/10</span></p>
+                      <p className="text-3xl font-black text-white">{currentClinicalScore} <span className="text-xs text-emerald-200 font-bold">/10</span></p>
                     </div>
                   </div>
                 </Card>
@@ -305,14 +394,16 @@ export default function StudentAssessments() {
                         <TrendingUp className="h-5 w-5" />
                       </div>
                     </div>
-                    <h3 className="text-3xl font-black text-slate-900 mb-2">-42% Stress Drop</h3>
+                    <h3 className="text-3xl font-black text-slate-900 mb-2">
+                      {stressDropPercent > 0 ? `+${stressDropPercent}%` : `${stressDropPercent}%`} Stress {stressDropPercent > 0 ? 'Increase' : 'Drop'}
+                    </h3>
                     <p className="text-sm font-medium text-slate-500 leading-relaxed">
                       Your clinical progression indicates highly successful stress management adaptation and improved academic coping capacity.
                     </p>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3 mt-6 border border-slate-100">
                     <Sparkles className="h-5 w-5 text-primary shrink-0" />
-                    <p className="text-xs font-bold text-slate-700">Counselor status: Ready for independent graduation transition.</p>
+                    <p className="text-xs font-bold text-slate-700">{counselorStatus}</p>
                   </div>
                 </Card>
               </div>
