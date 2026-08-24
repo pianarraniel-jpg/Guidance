@@ -81,7 +81,6 @@ export default function StudentDashboard() {
   const [trendRange, setTrendRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [sessionCountWeek, setSessionCountWeek] = useState(0);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [wellnessScore, setWellnessScore] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -108,17 +107,11 @@ export default function StudentDashboard() {
       setIsLoading(true);
     }
 
-    const [allAssessments, rawAppointments, allFeedback, { data: insightRow }, { data: profileRow }, { data: aiSessions }] = await Promise.all([
+    const [allAssessments, rawAppointments, allFeedback, { data: profileRow }] = await Promise.all([
       storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
       storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id),
       storageService.getByField<any>('appointment_feedback', 'studentId', user.id),
-      supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle(),
       supabase.from('profiles').select('wellness_score').eq('id', user.id).maybeSingle(),
-      supabase.from('ai_chat_sessions')
-        .select('id, created_at, stress_level, risk_level')
-        .eq('student_id', user.id)
-        .not('stress_level', 'is', null)
-        .order('created_at', { ascending: false }),
     ]);
 
     // Sort feedback descending so we always get the latest one if there are duplicates
@@ -144,7 +137,7 @@ export default function StudentDashboard() {
     const sortedAssessments = [...allAssessments].sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
     const appointments = allAppointments.filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED);
 
-    // Build combined chart data: form assessments (0–10 → ×10) + AI sessions (0–100), aggregated by day
+    // Build combined chart data: form assessments (0–10 → ×10), aggregated by day
     const pointMap = new Map<string, { totalStress: number; count: number; sortKey: number }>();
 
     sortedAssessments.forEach((a: any) => {
@@ -159,20 +152,6 @@ export default function StudentDashboard() {
         existing.sortKey = Math.max(existing.sortKey, ts);
       } else {
         pointMap.set(dateKey, { totalStress: stress, count: 1, sortKey: ts });
-      }
-    });
-
-    (aiSessions ?? []).forEach((s: any) => {
-      if (s.stress_level == null) return;
-      const ts = new Date(s.created_at).getTime();
-      const dateKey = format(new Date(ts), 'yyyy-MM-dd');
-      const existing = pointMap.get(dateKey);
-      if (existing) {
-        existing.totalStress += s.stress_level;
-        existing.count++;
-        existing.sortKey = Math.max(existing.sortKey, ts);
-      } else {
-        pointMap.set(dateKey, { totalStress: s.stress_level, count: 1, sortKey: ts });
       }
     });
 
@@ -201,7 +180,6 @@ export default function StudentDashboard() {
     }));
     setRecentSessions(sessions);
 
-    setAiInsight(insightRow?.insight ?? null);
     setWellnessScore(profileRow?.wellness_score ?? null);
 
     const startOfToday = startOfDay(new Date());
@@ -239,36 +217,7 @@ export default function StudentDashboard() {
           });
         });
       });
-      
-      // 2. Parse AI Insight suggestions
-      if (insightRow?.insight) {
-        const text: string = insightRow.insight;
-        const lines = text
-          .split(/[.\n]/)
-          .map(l => l.trim())
-          .filter(l => l.length > 10 && (
-            l.toLowerCase().includes('try') || 
-            l.toLowerCase().includes('recommend') || 
-            l.toLowerCase().includes('practice') || 
-            l.toLowerCase().includes('limit') || 
-            l.toLowerCase().includes('journal')
-          ));
-        
-        if (lines.length > 0) {
-          lines.slice(0, 2).forEach((line, index) => {
-            const cleanText = line.replace(/^(try to|you should|i recommend|try|recommend)\s+/i, '');
-            newItems.push({
-              id: `ai-${index}`,
-              text: cleanText.charAt(0).toUpperCase() + cleanText.slice(1),
-              category: 'ai',
-              isCompleted: false,
-              dateAssigned: todayStr
-            });
-          });
-        }
-      }
-      
-      // 3. Fallbacks
+      // 2. Fallbacks
       if (newItems.length === 0) {
         newItems.push({
           id: 'default-1',
@@ -280,7 +229,7 @@ export default function StudentDashboard() {
         });
         newItems.push({
           id: 'default-2',
-          text: 'Daily Assessment with Guidi AI',
+          text: 'Daily Wellness Self-Assessment',
           category: 'ai',
           isCompleted: false,
           dateAssigned: todayStr
@@ -523,8 +472,8 @@ export default function StudentDashboard() {
                     </p>
                     <p className="text-xs text-slate-300">
                       {allChartData.length > 0
-                        ? 'Try a wider range or complete a new session with Guidi.'
-                        : 'Complete a session with Guidi to see your trends here.'}
+                        ? 'Try a wider range or complete a wellness task.'
+                        : 'Complete a clinical form to see your trends here.'}
                     </p>
                   </div>
                 )}
@@ -555,15 +504,15 @@ export default function StudentDashboard() {
             </Card>
 
             <div className="flex flex-col gap-6">
-              {/* AI Insights */}
+              {/* Wellness Insights */}
               <Card className="bg-primary border-none shadow-md p-6 text-white relative overflow-hidden group">
                 <div className="relative z-10">
                   <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                     <Brain className="h-6 w-6" />
                   </div>
-                  <h3 className="text-lg font-bold mb-2">AI Insights</h3>
+                  <h3 className="text-lg font-bold mb-2">Wellness Insights</h3>
                   <p className="text-emerald-50/80 text-sm leading-relaxed mb-6">
-                    {aiInsight ?? 'Complete your first check-in with Guidi to receive personalized wellness insights.'}
+                    Check out your clinical evaluation history and explore our mental health resources to learn tips for managing academic stress.
                   </p>
                   <Button asChild variant="secondary" className="bg-white text-primary hover:bg-emerald-50 font-bold w-full rounded-xl">
                     <Link href="/student/resources">Explore Tips</Link>
@@ -722,7 +671,7 @@ export default function StudentDashboard() {
                                 </Badge>
                               ) : item.category === 'ai' ? (
                                 <Badge className="bg-purple-50 hover:bg-purple-50 text-purple-600 border-none font-black text-[9px] h-4.5 px-1.5 py-0 rounded-md">
-                                  Guidi Recommendation
+                                  Wellness Recommendation
                                 </Badge>
                               ) : (
                                 <Badge className="bg-blue-50 hover:bg-blue-50 text-blue-600 border-none font-black text-[9px] h-4.5 px-1.5 py-0 rounded-md">
