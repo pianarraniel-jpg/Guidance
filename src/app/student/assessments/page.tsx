@@ -22,44 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const HISTORICAL_FEEDBACKS = [
-  {
-    id: 'fb-1',
-    academicYear: '2024-2025 (Previous Year)',
-    date: 'November 14, 2024',
-    counselor: 'Dr. Elena Rivera',
-    stressRating: 78,
-    clinicalScore: 6.4,
-    focus: 'Midterm Anxiety & Sleep Deprivation',
-    notes: 'Student reported acute academic burnout and sleep deprivation during midterm examinations. Prescribed progressive muscle relaxation and structured study intervals.',
-    badgeColor: 'bg-red-50 text-red-700 border-red-200',
-    icon: '📉'
-  },
-  {
-    id: 'fb-2',
-    academicYear: '2024-2025 (Previous Year)',
-    date: 'March 22, 2025',
-    counselor: 'Dr. Elena Rivera',
-    stressRating: 68,
-    clinicalScore: 7.1,
-    focus: 'Exam Preparation & Resilience',
-    notes: 'Follow-up evaluation. Coping strategies showing moderate effectiveness. Student successfully managing exam schedule with reduced panic symptoms.',
-    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    icon: '⚖️'
-  },
-  {
-    id: 'fb-3',
-    academicYear: '2025-2026 (Current Year)',
-    date: 'October 05, 2025',
-    counselor: 'Dr. Marcus Santos',
-    stressRating: 42,
-    clinicalScore: 8.9,
-    focus: 'Thesis Resilience & Normalization',
-    notes: 'Excellent emotional regulation and proactive communication demonstrated during thesis preparation. Sleep patterns have normalized. Resiliency protocols fully effective.',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    icon: '🌟'
-  },
-];
+const HISTORICAL_FEEDBACKS: any[] = [];
 
 export default function StudentAssessments() {
   const { user } = useAuth();
@@ -70,21 +33,18 @@ export default function StudentAssessments() {
   const [activeTask, setActiveTask] = useState<any>(null);
   const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
   const [dbEvaluations, setDbEvaluations] = useState<any[]>([]);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
     if (user) {
-      const [allTasks, allAssessments, { data: insightRow }] = await Promise.all([
+      const [allTasks, allAssessments] = await Promise.all([
         storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id),
-        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
-        supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle()
+        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id)
       ]);
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
 
-      const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated');
+      const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated' && a.type === 'CLINICAL_FORM');
       setDbEvaluations(evaluated);
-      setAiInsight(insightRow?.insight ?? null);
     }
   }, [user]);
 
@@ -160,9 +120,11 @@ export default function StudentAssessments() {
   const allFeedbacks = useMemo(() => {
     const dbFeedbacks = dbEvaluations.map(evalItem => {
       const dateStr = evalItem.date || new Date(evalItem.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      let academicYear = '2025-2026 (Current Year)';
+      let academicYear = '2026-2027 (Current Year)';
       if (dateStr.includes('2024')) {
-        academicYear = '2024-2025 (Previous Year)';
+        academicYear = '2024-2025 (Baseline)';
+      } else if (dateStr.includes('2025')) {
+        academicYear = '2025-2026 (Prior Growth)';
       }
       
       const stressRating = evalItem.stressLevel ?? (evalItem.counselorRating ? evalItem.counselorRating * 10 : 50);
@@ -198,40 +160,44 @@ export default function StudentAssessments() {
     return [...HISTORICAL_FEEDBACKS, ...dbFeedbacks].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [dbEvaluations]);
 
-  const pastYearFeedbacks = useMemo(() => {
+  const feedbacks2024 = useMemo(() => {
     return allFeedbacks.filter(f => f.academicYear.startsWith('2024'));
   }, [allFeedbacks]);
 
-  const currentYearFeedbacks = useMemo(() => {
+  const feedbacks2025 = useMemo(() => {
     return allFeedbacks.filter(f => f.academicYear.startsWith('2025'));
   }, [allFeedbacks]);
 
+  const feedbacks2026 = useMemo(() => {
+    return allFeedbacks.filter(f => f.academicYear.startsWith('2026'));
+  }, [allFeedbacks]);
+
   const pastAvgStress = useMemo(() => {
-    if (pastYearFeedbacks.length === 0) return 73;
-    const sum = pastYearFeedbacks.reduce((acc, f) => acc + f.stressRating, 0);
-    return Math.round(sum / pastYearFeedbacks.length);
-  }, [pastYearFeedbacks]);
+    if (feedbacks2025.length === 0) return 0;
+    const sum = feedbacks2025.reduce((acc, f) => acc + f.stressRating, 0);
+    return Math.round(sum / feedbacks2025.length);
+  }, [feedbacks2025]);
 
   const pastClinicalScore = useMemo(() => {
-    if (pastYearFeedbacks.length === 0) return 6.7;
-    const sum = pastYearFeedbacks.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
-    return Number((sum / pastYearFeedbacks.length).toFixed(1));
-  }, [pastYearFeedbacks]);
+    if (feedbacks2025.length === 0) return 0;
+    const sum = feedbacks2025.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    return Number((sum / feedbacks2025.length).toFixed(1));
+  }, [feedbacks2025]);
 
   const currentAvgStress = useMemo(() => {
-    if (currentYearFeedbacks.length === 0) return 42;
-    const sum = currentYearFeedbacks.reduce((acc, f) => acc + f.stressRating, 0);
-    return Math.round(sum / currentYearFeedbacks.length);
-  }, [currentYearFeedbacks]);
+    if (feedbacks2026.length === 0) return 0;
+    const sum = feedbacks2026.reduce((acc, f) => acc + f.stressRating, 0);
+    return Math.round(sum / feedbacks2026.length);
+  }, [feedbacks2026]);
 
   const currentClinicalScore = useMemo(() => {
-    if (currentYearFeedbacks.length === 0) return 8.9;
-    const sum = currentYearFeedbacks.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
-    return Number((sum / currentYearFeedbacks.length).toFixed(1));
-  }, [currentYearFeedbacks]);
+    if (feedbacks2026.length === 0) return 0;
+    const sum = feedbacks2026.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    return Number((sum / feedbacks2026.length).toFixed(1));
+  }, [feedbacks2026]);
 
   const stressDropPercent = useMemo(() => {
-    if (pastAvgStress === 0) return 0;
+    if (pastAvgStress === 0 || currentAvgStress === 0) return 0;
     return Math.round(((currentAvgStress - pastAvgStress) / pastAvgStress) * 100);
   }, [pastAvgStress, currentAvgStress]);
 
@@ -243,14 +209,14 @@ export default function StudentAssessments() {
   }, [currentAvgStress]);
 
   const pastYearDescription = useMemo(() => {
-    if (pastYearFeedbacks.length === 0) return "No academic stress baseline recorded for previous year.";
-    const latestPast = pastYearFeedbacks[0];
-    return `Academic stress baseline recorded. Focus area: ${latestPast.focus.toLowerCase()} with a clinical score of ${latestPast.clinicalScore}/10.`;
-  }, [pastYearFeedbacks]);
+    if (feedbacks2025.length === 0) return "No academic evaluations recorded for prior growth year.";
+    const latestPast = feedbacks2025[0];
+    return `Evaluations progress recorded. Latest focus: ${latestPast.focus.toLowerCase()} with a clinical score of ${latestPast.clinicalScore}/10.`;
+  }, [feedbacks2025]);
 
   const currentYearDescription = useMemo(() => {
-    if (currentYearFeedbacks.length === 0) return "No active progress evaluations recorded for current year.";
-    const latestCurrent = currentYearFeedbacks[0];
+    if (feedbacks2026.length === 0) return "No active progress evaluations recorded for current year.";
+    const latestCurrent = feedbacks2026[0];
     if (currentAvgStress < 50) {
       return `Substantial emotional resilience and normalized coping mechanisms achieved. Latest focus: ${latestCurrent.focus.toLowerCase()}.`;
     } else if (currentAvgStress < 75) {
@@ -258,10 +224,10 @@ export default function StudentAssessments() {
     } else {
       return `Elevated stress patterns noted. Active counselor oversight is recommended. Latest focus: ${latestCurrent.focus.toLowerCase()}.`;
     }
-  }, [currentYearFeedbacks, currentAvgStress]);
+  }, [feedbacks2026, currentAvgStress]);
 
   const yoyImprovementDescription = useMemo(() => {
-    if (pastYearFeedbacks.length === 0 || currentYearFeedbacks.length === 0) {
+    if (feedbacks2025.length === 0 || feedbacks2026.length === 0) {
       return "Complete evaluations across academic years to compare historical growth and progress.";
     }
     if (stressDropPercent < 0) {
@@ -271,37 +237,8 @@ export default function StudentAssessments() {
     } else {
       return "Your average stress levels have remained stable compared to your previous academic year baseline.";
     }
-  }, [pastYearFeedbacks, currentYearFeedbacks, stressDropPercent]);
+  }, [feedbacks2025, feedbacks2026, stressDropPercent]);
 
-  const dynamicAiInsight = useMemo(() => {
-    if (aiInsight) return aiInsight;
-    
-    if (currentYearFeedbacks.length === 0) {
-      return `Welcome, ${user?.name.split(' ')[0]}! Complete your first clinical evaluation or wellness check-in to generate growth insights.`;
-    }
-    
-    const latestEvaluation = currentYearFeedbacks[0];
-    const stressVal = latestEvaluation.stressRating;
-    const focusStr = latestEvaluation.focus || 'wellness';
-    
-    let text = `Based on your recent evaluation for "${focusStr}", your stress rating is at ${stressVal}/100. `;
-    
-    if (stressVal < 50) {
-      text += `You are demonstrating strong emotional regulation and resilience. Keep practicing your coping strategies to maintain this stable baseline.`;
-    } else if (stressVal < 75) {
-      text += `This indicates a moderate level of situational stress. Structured study intervals, progressive muscle relaxation, or a brief chat with your counselor can help normalize your baseline.`;
-    } else {
-      text += `Your stress level is elevated. We recommend scheduling a priority check-in session with USPF Guidance to discuss active coping strategies and academic pacing.`;
-    }
-    
-    if (stressDropPercent < 0) {
-      text += ` Comparing your records shows a positive direction with a ${Math.abs(stressDropPercent)}% decrease in average stress compared to last year's baseline.`;
-    } else if (stressDropPercent > 0) {
-      text += ` There is a ${stressDropPercent}% increase in average stress levels compared to last year's baseline. Consider reviewing your academic load and pacing.`;
-    }
-    
-    return text;
-  }, [aiInsight, currentYearFeedbacks, stressDropPercent, user]);
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
@@ -413,7 +350,7 @@ export default function StudentAssessments() {
                       Previous Year Baseline
                     </Badge>
                     <h3 className="text-2xl font-black mb-1">2024 — 2025</h3>
-                    <p className="text-xs text-slate-300 font-medium leading-relaxed">Academic stress baseline recorded during freshman/sophomore transitions.</p>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed">{pastYearDescription}</p>
                   </div>
                   <div className="pt-8 border-t border-white/10 mt-6 grid grid-cols-2 gap-4">
                     <div>
@@ -434,7 +371,7 @@ export default function StudentAssessments() {
                       Current Year Growth
                     </Badge>
                     <h3 className="text-2xl font-black mb-1">2025 — 2026</h3>
-                    <p className="text-xs text-emerald-100 font-medium leading-relaxed">Substantial emotional resilience and normalized coping mechanisms achieved.</p>
+                    <p className="text-xs text-emerald-100 font-medium leading-relaxed">{currentYearDescription}</p>
                   </div>
                   <div className="pt-8 border-t border-white/20 mt-6 grid grid-cols-2 gap-4">
                     <div>
@@ -462,7 +399,7 @@ export default function StudentAssessments() {
                       {stressDropPercent > 0 ? `+${stressDropPercent}%` : `${stressDropPercent}%`} Stress {stressDropPercent > 0 ? 'Increase' : 'Drop'}
                     </h3>
                     <p className="text-sm font-medium text-slate-500 leading-relaxed">
-                      Your clinical progression indicates highly successful stress management adaptation and improved academic coping capacity.
+                      {yoyImprovementDescription}
                     </p>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3 mt-6 border border-slate-100">
@@ -473,8 +410,8 @@ export default function StudentAssessments() {
               </div>
 
               {/* Side-by-Side Evaluation Timeline */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Past Year Column */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* 2024 — 2025 Column */}
                 <div className="space-y-6">
                   <div className="flex items-center gap-3 p-4 bg-slate-100/80 rounded-2xl border border-slate-200">
                     <div className="h-8 w-8 rounded-xl bg-slate-300 text-slate-700 flex items-center justify-center font-black text-xs">24</div>
@@ -484,7 +421,7 @@ export default function StudentAssessments() {
                     </div>
                   </div>
 
-                  {pastYearFeedbacks.map(fb => (
+                  {feedbacks2024.map(fb => (
                     <Card key={fb.id} className="border-none shadow-lg bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border border-slate-100">
                       <CardHeader className="p-6 pb-3">
                         <div className="flex items-center justify-between mb-3">
@@ -509,19 +446,66 @@ export default function StudentAssessments() {
                       </CardContent>
                     </Card>
                   ))}
+                  {feedbacks2024.length === 0 && (
+                    <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 italic text-xs font-medium">
+                      No evaluations for this year
+                    </div>
+                  )}
                 </div>
 
-                {/* Current Year Column */}
+                {/* 2025 — 2026 Column */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 p-4 bg-slate-100/80 rounded-2xl border border-slate-200">
+                    <div className="h-8 w-8 rounded-xl bg-slate-300 text-slate-700 flex items-center justify-center font-black text-xs">25</div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-base">2025 — 2026 Evaluations</h4>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Prior Year Progress</p>
+                    </div>
+                  </div>
+
+                  {feedbacks2025.map(fb => (
+                    <Card key={fb.id} className="border-none shadow-lg bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border border-slate-100">
+                      <CardHeader className="p-6 pb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-2xl">{fb.icon}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${fb.badgeColor}`}>
+                            Stress Rating: {fb.stressRating}/100
+                          </span>
+                        </div>
+                        <CardTitle className="text-lg font-black text-slate-900">{fb.focus}</CardTitle>
+                        <CardDescription className="flex items-center gap-2 font-bold text-xs pt-1 text-slate-400">
+                          <Clock className="h-3 w-3" /> {fb.date} — {fb.counselor}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-6 pt-2">
+                        <div className="p-4 bg-slate-50 rounded-2xl text-xs font-medium text-slate-600 leading-relaxed italic border border-slate-100">
+                          "{fb.notes}"
+                        </div>
+                        <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span>Clinical Resilience Score</span>
+                          <span className="font-black text-slate-700 text-sm">{fb.clinicalScore} / 10</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {feedbacks2025.length === 0 && (
+                    <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 italic text-xs font-medium">
+                      No evaluations for this year
+                    </div>
+                  )}
+                </div>
+
+                {/* 2026 — 2027 Column */}
                 <div className="space-y-6">
                   <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
-                    <div className="h-8 w-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-xs">25</div>
+                    <div className="h-8 w-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-xs">26</div>
                     <div>
-                      <h4 className="font-black text-emerald-950 text-base">2025 — 2026 Evaluations</h4>
+                      <h4 className="font-black text-emerald-950 text-base">2026 — 2027 Evaluations</h4>
                       <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Current Active Progress</p>
                     </div>
                   </div>
 
-                  {currentYearFeedbacks.map(fb => (
+                  {feedbacks2026.map(fb => (
                     <Card key={fb.id} className="border-none shadow-lg bg-white rounded-3xl overflow-hidden hover:shadow-xl transition-all border-2 border-emerald-100">
                       <CardHeader className="p-6 pb-3">
                         <div className="flex items-center justify-between mb-3">
@@ -546,21 +530,15 @@ export default function StudentAssessments() {
                       </CardContent>
                     </Card>
                   ))}
+                  {feedbacks2026.length === 0 && (
+                    <div className="py-12 text-center border-2 border-dashed border-emerald-200/50 rounded-3xl text-emerald-600/70 italic text-xs font-medium">
+                      No evaluations for this year
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Glowing AI Summary Growth Card */}
-              <Card className="border-none shadow-2xl bg-gradient-to-r from-primary/10 via-emerald-500/10 to-teal-500/10 p-8 rounded-[2.5rem] border border-primary/20 flex flex-col md:flex-row items-center gap-6">
-                <div className="h-16 w-16 rounded-3xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xl shadow-primary/30">
-                  <Sparkles className="h-8 w-8" />
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-slate-900 mb-2">Guidi AI Growth Insight</h4>
-                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
-                    "Comparing your historical clinical intake records from November 2024 with recent evaluations shows exceptional growth. You have successfully replaced exam panic responses with structured study breaks and open counselor communication. Your overall emotional stability score ranks in the top 15% of university progress cohorts."
-                  </p>
-                </div>
-              </Card>
+
             </TabsContent>
           </Tabs>
 

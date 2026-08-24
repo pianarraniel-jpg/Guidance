@@ -407,9 +407,9 @@ export default function StudentAppointments() {
               <Card className="border-none shadow-lg bg-primary rounded-[2rem] p-6 text-white overflow-hidden relative group">
                 <div className="relative z-10">
                   <h3 className="font-black text-lg mb-2">Need Support?</h3>
-                  <p className="text-xs text-white/80 font-medium mb-4">Chat with Guidi AI before your session to clarify your thoughts.</p>
+                  <p className="text-xs text-white/80 font-medium mb-4">Book a session with a counselor to clarify your thoughts and receive support.</p>
                   <Button asChild variant="secondary" className="w-full bg-white text-primary hover:bg-white/90 rounded-xl font-black">
-                    <Link href="/student/chat">Launch Guidi</Link>
+                    <Link href="/student/book">Book Session</Link>
                   </Button>
                 </div>
                 <Timer className="absolute -bottom-4 -right-4 h-32 w-32 text-white/10 group-hover:scale-110 transition-transform" />

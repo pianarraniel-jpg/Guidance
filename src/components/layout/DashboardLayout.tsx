@@ -44,7 +44,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: Calendar, label: 'Appointments', href: '/student/appointments', type: 'appointment' },
         { icon: CalendarPlus, label: 'Book Session', href: '/student/book' },
         { icon: ClipboardCheck, label: 'Student Tasks', href: '/student/assessments', type: 'assessment' },
-        { icon: Sparkles, label: 'Guidi AI Chat', href: '/student/chat' },
         { icon: MessageSquare, label: 'Messages', href: '/student/messages', type: 'message' },
         { icon: FileText, label: 'Resources', href: '/student/resources' },
       ];
@@ -54,7 +53,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
         { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
         { icon: Users, label: 'Students', href: '/counselor/students' },
-        { icon: MonitorSmartphone, label: 'Chat Monitor', href: '/counselor/chat-monitor', type: 'alert' },
         { icon: ClipboardCheck, label: 'Session Notes', href: '/counselor/session-notes' },
       ];
     }
@@ -116,14 +114,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </nav>
 
         <div className="px-3 space-y-2 mt-auto">
-          {isStudent && (
-            <Button asChild className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg flex items-center justify-start gap-3 h-11 mb-2 shadow-md">
-              <Link href="/student/chat">
-                <Sparkles className="h-5 w-5" />
-                Guidi AI Companion
-              </Link>
-            </Button>
-          )}
           <div className="space-y-1">
             <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-muted-foreground hover:bg-muted hover:text-primary transition-all text-left">
               <HelpCircle className="h-5 w-5" />
@@ -183,7 +173,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {sidebarItems.slice(0, 5).map(item => {
               const isActive = pathname.startsWith(item.href);
               const unreadCount = getUnreadCount((item as any).type);
-              const isAiChat = item.href === '/student/chat';
 
               return (
                 <Link
@@ -192,13 +181,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   className={`flex flex-col items-center justify-center gap-1 flex-1 h-full relative transition-all ${
                     isActive 
                       ? 'text-primary scale-105' 
-                      : isAiChat 
-                        ? 'text-emerald-600 hover:text-emerald-700' 
-                        : 'text-slate-400 hover:text-slate-600'
+                      : 'text-slate-400 hover:text-slate-600'
                   }`}
                 >
                   <div className="relative">
-                    <item.icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : ''} ${isAiChat ? 'animate-pulse' : ''}`} />
+                    <item.icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : ''}`} />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1.5 h-4 w-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-md animate-pulse">
                         {unreadCount}
@@ -206,7 +193,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     )}
                   </div>
                   <span className="text-[10px] font-bold tracking-tight line-clamp-1">
-                    {isAiChat ? 'Guidi AI' : item.label}
+                    {item.label}
                   </span>
                   {isActive && <div className="absolute top-0 w-8 h-1 bg-primary rounded-full shadow-sm" />}
                 </Link>
