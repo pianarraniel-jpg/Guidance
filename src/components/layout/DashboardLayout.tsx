@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: LayoutDashboard, label: 'Dashboard', href: '/student/dashboard' },
         { icon: Calendar, label: 'Appointments', href: '/student/appointments', type: 'appointment' },
         { icon: CalendarPlus, label: 'Book Session', href: '/student/book' },
-        { icon: ClipboardCheck, label: 'Clinical Tasks', href: '/student/assessments', type: 'assessment' },
+        { icon: ClipboardCheck, label: 'Student Tasks', href: '/student/assessments', type: 'assessment' },
         { icon: Sparkles, label: 'Guidi AI Chat', href: '/student/chat' },
         { icon: MessageSquare, label: 'Messages', href: '/student/messages', type: 'message' },
         { icon: FileText, label: 'Resources', href: '/student/resources' },

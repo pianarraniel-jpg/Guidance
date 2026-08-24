@@ -70,18 +70,21 @@ export default function StudentAssessments() {
   const [activeTask, setActiveTask] = useState<any>(null);
   const [taskAnswers, setTaskAnswers] = useState<Record<string, string>>({});
   const [dbEvaluations, setDbEvaluations] = useState<any[]>([]);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
     if (user) {
-      const [allTasks, allAssessments] = await Promise.all([
+      const [allTasks, allAssessments, { data: insightRow }] = await Promise.all([
         storageService.getByField<any>(STORAGE_KEYS.ASSESSMENT_TASKS, 'studentId', user.id),
-        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id)
+        storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id),
+        supabase.from('ai_insights').select('insight').eq('student_id', user.id).maybeSingle()
       ]);
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
 
       const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated');
       setDbEvaluations(evaluated);
+      setAiInsight(insightRow?.insight ?? null);
     }
   }, [user]);
 
@@ -238,6 +241,67 @@ export default function StudentAssessments() {
     if (currentAvgStress < 75) return 'Counselor status: Recommended for continued support sessions.';
     return 'Counselor status: Requires active clinical follow-up.';
   }, [currentAvgStress]);
+
+  const pastYearDescription = useMemo(() => {
+    if (pastYearFeedbacks.length === 0) return "No academic stress baseline recorded for previous year.";
+    const latestPast = pastYearFeedbacks[0];
+    return `Academic stress baseline recorded. Focus area: ${latestPast.focus.toLowerCase()} with a clinical score of ${latestPast.clinicalScore}/10.`;
+  }, [pastYearFeedbacks]);
+
+  const currentYearDescription = useMemo(() => {
+    if (currentYearFeedbacks.length === 0) return "No active progress evaluations recorded for current year.";
+    const latestCurrent = currentYearFeedbacks[0];
+    if (currentAvgStress < 50) {
+      return `Substantial emotional resilience and normalized coping mechanisms achieved. Latest focus: ${latestCurrent.focus.toLowerCase()}.`;
+    } else if (currentAvgStress < 75) {
+      return `Moderate stress management adaptation with ongoing resilience tracking. Latest focus: ${latestCurrent.focus.toLowerCase()}.`;
+    } else {
+      return `Elevated stress patterns noted. Active counselor oversight is recommended. Latest focus: ${latestCurrent.focus.toLowerCase()}.`;
+    }
+  }, [currentYearFeedbacks, currentAvgStress]);
+
+  const yoyImprovementDescription = useMemo(() => {
+    if (pastYearFeedbacks.length === 0 || currentYearFeedbacks.length === 0) {
+      return "Complete evaluations across academic years to compare historical growth and progress.";
+    }
+    if (stressDropPercent < 0) {
+      return `Your clinical progression indicates a successful ${Math.abs(stressDropPercent)}% stress drop, reflecting improved academic coping capacity.`;
+    } else if (stressDropPercent > 0) {
+      return `Your average stress has increased by ${stressDropPercent}% YoY. A wellness check-in is recommended to address academic pressure points.`;
+    } else {
+      return "Your average stress levels have remained stable compared to your previous academic year baseline.";
+    }
+  }, [pastYearFeedbacks, currentYearFeedbacks, stressDropPercent]);
+
+  const dynamicAiInsight = useMemo(() => {
+    if (aiInsight) return aiInsight;
+    
+    if (currentYearFeedbacks.length === 0) {
+      return `Welcome, ${user?.name.split(' ')[0]}! Complete your first clinical evaluation or wellness check-in to generate growth insights.`;
+    }
+    
+    const latestEvaluation = currentYearFeedbacks[0];
+    const stressVal = latestEvaluation.stressRating;
+    const focusStr = latestEvaluation.focus || 'wellness';
+    
+    let text = `Based on your recent evaluation for "${focusStr}", your stress rating is at ${stressVal}/100. `;
+    
+    if (stressVal < 50) {
+      text += `You are demonstrating strong emotional regulation and resilience. Keep practicing your coping strategies to maintain this stable baseline.`;
+    } else if (stressVal < 75) {
+      text += `This indicates a moderate level of situational stress. Structured study intervals, progressive muscle relaxation, or a brief chat with your counselor can help normalize your baseline.`;
+    } else {
+      text += `Your stress level is elevated. We recommend scheduling a priority check-in session with USPF Guidance to discuss active coping strategies and academic pacing.`;
+    }
+    
+    if (stressDropPercent < 0) {
+      text += ` Comparing your records shows a positive direction with a ${Math.abs(stressDropPercent)}% decrease in average stress compared to last year's baseline.`;
+    } else if (stressDropPercent > 0) {
+      text += ` There is a ${stressDropPercent}% increase in average stress levels compared to last year's baseline. Consider reviewing your academic load and pacing.`;
+    }
+    
+    return text;
+  }, [aiInsight, currentYearFeedbacks, stressDropPercent, user]);
 
   return (
     <ProtectedRoute allowedRoles={['student']}>

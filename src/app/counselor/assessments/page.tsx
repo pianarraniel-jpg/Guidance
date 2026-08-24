@@ -553,7 +553,7 @@ export default function CounselorAssessmentsPage() {
             </div>
             <DialogFooter className="flex-shrink-0 pt-4">
               <Button onClick={handleCreateTask} disabled={selectedStudentIds.length === 0 || !taskTitle} className="w-full h-12 rounded-xl font-black bg-primary">
-                Assign Clinical Task ({questions.length || 1} {questions.length === 1 ? 'question' : 'questions'})
+                Assign Student Task ({questions.length || 1} {questions.length === 1 ? 'question' : 'questions'})
               </Button>
             </DialogFooter>
           </DialogContent>

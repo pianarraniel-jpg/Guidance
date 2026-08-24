@@ -158,7 +158,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const id = `asmt-task-${t.id}`;
           alerts.push({
             id, type: 'assessment',
-            title: 'New Clinical Task',
+            title: 'New Student Task',
             description: `Dr. ${t.counselorName?.split(' ').pop()} assigned: ${t.title}`,
             timestamp: t.timestamp || Date.now(),
             link: '/student/assessments',
