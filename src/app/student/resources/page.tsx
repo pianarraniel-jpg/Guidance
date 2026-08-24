@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { 
   Wind, 
   BookOpen, 
@@ -16,57 +18,23 @@ import {
   MessageCircle, 
   Clock, 
   Heart,
-  AlertCircle,
   FileText,
   Download,
   MapPin,
   Mail,
   Globe,
   Users,
-  Briefcase,
   Brain,
   Calendar
 } from 'lucide-react';
 
 export default function StudentResources() {
   const [activeCategory, setActiveCategory] = useState('All Resources');
+  const { user } = useAuth();
+  const [customTools, setCustomTools] = useState<any[]>([]);
 
-  const categories = ['All Resources', 'Emergency', 'Campus Services', 'Self-Care Tools', 'Downloadables'];
+  const categories = ['All Resources', 'Campus Services', 'Self-Care Tools', 'Downloadables'];
 
-  const emergencyContacts = [
-    {
-      title: 'USPF Counseling Center',
-      phone: '(02) 555-0123',
-      hours: 'Mon-Fri: 8:00 AM - 5:00 PM',
-      type: 'Crisis & Counseling',
-      icon: Phone,
-      color: 'bg-red-50 text-red-600',
-    },
-    {
-      title: 'Mental Health Crisis Hotline',
-      phone: '1-800-MENTAL-1',
-      hours: '24/7 Available',
-      type: 'Emergency Support',
-      icon: AlertCircle,
-      color: 'bg-red-50 text-red-600',
-    },
-    {
-      title: 'Campus Health Services',
-      phone: '(02) 555-0199',
-      hours: 'Mon-Fri: 9:00 AM - 6:00 PM',
-      type: 'Medical & Wellness',
-      icon: Heart,
-      color: 'bg-emerald-50 text-emerald-600',
-    },
-    {
-      title: 'Student Assistance Program (SAP)',
-      phone: '(02) 555-0456',
-      hours: 'Mon-Fri: 8:30 AM - 4:30 PM',
-      type: 'Academic & Career',
-      icon: Briefcase,
-      color: 'bg-blue-50 text-blue-600',
-    },
-  ];
 
   const campusServices = [
     {
@@ -148,11 +116,64 @@ export default function StudentResources() {
     },
   ];
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchCustomTools = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('self_care_tools')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (!error && data?.self_care_tools) {
+          setCustomTools(data.self_care_tools || []);
+        }
+      } catch (err) {
+        console.error("Error fetching custom tools:", err);
+      }
+    };
+    fetchCustomTools();
+  }, [user?.id]);
+
   const selfCareTools = [
     { icon: Wind, label: 'Box Breathing (4-7-8)', bg: 'bg-blue-50', color: 'text-blue-500', time: '2 min' },
     { icon: BookOpen, label: 'Journaling Prompts', bg: 'bg-purple-50', color: 'text-purple-500', time: '10 min' },
     { icon: Anchor, label: '5-Sense Grounding', bg: 'bg-emerald-50', color: 'text-emerald-500', time: '5 min' },
     { icon: Music, label: 'Guided Meditation', bg: 'bg-indigo-50', color: 'text-indigo-500', time: '15 min' },
+  ];
+
+  const getToolIcon = (type: string) => {
+    switch (type) {
+      case 'breathing': return Wind;
+      case 'journaling': return BookOpen;
+      case 'grounding': return Anchor;
+      case 'meditation': return Music;
+      default: return Heart;
+    }
+  };
+
+  const getToolStyles = (type: string) => {
+    switch (type) {
+      case 'breathing': return { bg: 'bg-blue-50', color: 'text-blue-500' };
+      case 'journaling': return { bg: 'bg-purple-50', color: 'text-purple-500' };
+      case 'grounding': return { bg: 'bg-emerald-50', color: 'text-emerald-500' };
+      case 'meditation': return { bg: 'bg-indigo-50', color: 'text-indigo-500' };
+      default: return { bg: 'bg-rose-50', color: 'text-rose-500' };
+    }
+  };
+
+  const allSelfCareTools = [
+    ...selfCareTools,
+    ...customTools.map(ct => {
+      const styles = getToolStyles(ct.type);
+      return {
+        icon: getToolIcon(ct.type),
+        label: ct.label,
+        bg: styles.bg,
+        color: styles.color,
+        time: ct.time
+      };
+    })
   ];
 
   return (
@@ -181,37 +202,7 @@ export default function StudentResources() {
             ))}
           </div>
 
-          {/* Emergency Contacts - Always Visible */}
-          {(activeCategory === 'All Resources' || activeCategory === 'Emergency') && (
-            <div className="mb-12">
-              <div className="flex items-center gap-2 mb-6">
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                <h2 className="text-2xl font-black text-slate-900">Emergency & Crisis Support</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {emergencyContacts.map((contact) => {
-                  const IconComponent = contact.icon;
-                  return (
-                    <Card key={contact.title} className="border-2 border-slate-100 shadow-lg hover:shadow-xl transition-all">
-                      <CardContent className="p-6">
-                        <div className={`h-10 w-10 rounded-xl ${contact.color} flex items-center justify-center mb-4`}>
-                          <IconComponent className="h-5 w-5" />
-                        </div>
-                        <h3 className="font-black text-sm text-slate-900 mb-1">{contact.title}</h3>
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">{contact.type}</p>
-                        <div className="space-y-2">
-                          <a href={`tel:${contact.phone.replace(/[- ]/g, '')}`} className="text-sm font-black text-primary hover:underline block">
-                            📞 {contact.phone}
-                          </a>
-                          <p className="text-xs text-slate-500 font-bold">{contact.hours}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+
 
           {/* Campus Services Directory */}
           {(activeCategory === 'All Resources' || activeCategory === 'Campus Services') && (
@@ -259,8 +250,8 @@ export default function StudentResources() {
             <div className="mb-12">
               <h2 className="text-2xl font-black text-slate-900 mb-6">Quick Self-Care Tools</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {selfCareTools.map((tool) => (
-                  <Card key={tool.label} className="border-none shadow-md hover:shadow-lg transition-all group cursor-pointer">
+                {allSelfCareTools.map((tool, idx) => (
+                  <Card key={`${tool.label}-${idx}`} className="border-none shadow-md hover:shadow-lg transition-all group cursor-pointer">
                     <CardContent className="p-6">
                       <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center mb-4`}>
                         <tool.icon className="h-5 w-5" />

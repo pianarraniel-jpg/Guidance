@@ -11,7 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   Search, MoreVertical, Trash2, ExternalLink, Users, User,
-  Brain, TrendingUp, GraduationCap, Building2, Pencil, Filter
+  Brain, TrendingUp, GraduationCap, Building2, Pencil, Filter,
+  Heart, Wind, BookOpen, Anchor, Music
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, USER_ROLES, DEPARTMENTS, YEAR_LEVELS } from '@/lib/constants';
@@ -44,6 +45,13 @@ export default function CounselorStudentsPage() {
   // Modals
   const [profileStudent, setProfileStudent] = useState<any>(null);
   const [editStudent, setEditStudent] = useState<any>(null);
+
+  // Self-care assignment states
+  const [assignedSelfCare, setAssignedSelfCare] = useState<any[]>([]);
+  const [newToolLabel, setNewToolLabel] = useState('');
+  const [newToolTime, setNewToolTime] = useState('');
+  const [newToolType, setNewToolType] = useState('wellness');
+  const [isAddingTool, setIsAddingTool] = useState(false);
 
   // Enroll form
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
@@ -86,6 +94,17 @@ export default function CounselorStudentsPage() {
   };
 
   useEffect(() => { loadStudents(); }, []);
+
+  useEffect(() => {
+    if (profileStudent) {
+      setAssignedSelfCare(profileStudent.selfCareTools || []);
+    } else {
+      setAssignedSelfCare([]);
+      setNewToolLabel('');
+      setNewToolTime('');
+      setNewToolType('wellness');
+    }
+  }, [profileStudent]);
 
   // ── Enroll ────────────────────────────────────────────────────────────────
   const handleEnrollSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -169,6 +188,58 @@ export default function CounselorStudentsPage() {
       toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not save changes. Please try again.' });
     } finally {
       setIsEditSubmitting(false);
+    }
+  };
+
+  // ── Self-Care Tool Actions ────────────────────────────────────────────────
+  const handleAddSelfCare = async () => {
+    if (!profileStudent || !newToolLabel || !newToolTime) return;
+    setIsAddingTool(true);
+    const newTool = {
+      label: newToolLabel.trim(),
+      time: newToolTime.trim(),
+      type: newToolType
+    };
+    const updatedTools = [...assignedSelfCare, newTool];
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ self_care_tools: updatedTools })
+        .eq('id', profileStudent.id);
+
+      if (error) throw error;
+
+      setAssignedSelfCare(updatedTools);
+      // Update in local students array too
+      setStudents(prev => prev.map(s => s.id === profileStudent.id ? { ...s, selfCareTools: updatedTools } : s));
+      setNewToolLabel('');
+      setNewToolTime('');
+      toast({ title: 'Self-Care Tool Added', description: `Assigned "${newTool.label}" to ${profileStudent.name}.` });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign self-care tool.' });
+    } finally {
+      setIsAddingTool(false);
+    }
+  };
+
+  const handleRemoveSelfCare = async (idxToRemove: number) => {
+    if (!profileStudent) return;
+    const updatedTools = assignedSelfCare.filter((_, idx) => idx !== idxToRemove);
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ self_care_tools: updatedTools })
+        .eq('id', profileStudent.id);
+
+      if (error) throw error;
+
+      setAssignedSelfCare(updatedTools);
+      setStudents(prev => prev.map(s => s.id === profileStudent.id ? { ...s, selfCareTools: updatedTools } : s));
+      toast({ title: 'Self-Care Tool Removed', description: 'Unassigned the tool from student.' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove self-care tool.' });
     }
   };
 
@@ -687,6 +758,96 @@ export default function CounselorStudentsPage() {
               ) : (
                 <p className="text-xs text-slate-400 italic font-bold">No assessments recorded yet.</p>
               )}
+            </div>
+
+            {/* Quick Self-Care Tools Section */}
+            <div className="space-y-4 pt-6 border-t border-slate-100">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Heart className="h-3.5 w-3.5 text-rose-500" /> Assigned Self-Care Tools
+              </p>
+              
+              {/* Display existing custom self-care tools */}
+              {assignedSelfCare.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {assignedSelfCare.map((tool: any, idx: number) => {
+                    const typeIcon = tool.type === 'breathing' ? Wind : tool.type === 'journaling' ? BookOpen : tool.type === 'grounding' ? Anchor : tool.type === 'meditation' ? Music : Brain;
+                    return (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center border border-slate-100 shrink-0">
+                            {React.createElement(typeIcon, { className: "h-4 w-4 text-primary" })}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-700 truncate">{tool.label}</p>
+                            <p className="text-[10px] text-slate-400 font-bold capitalize">{tool.time} • {tool.type}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleRemoveSelfCare(idx)}
+                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic font-bold">No custom self-care tools assigned yet.</p>
+              )}
+
+              {/* Form to add self-care tool */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-3">
+                <p className="text-xs font-bold text-slate-700">Assign New Self-Care Tool</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black text-slate-400 uppercase">Tool Name</Label>
+                    <Input
+                      placeholder="e.g. Gratitude Journaling"
+                      value={newToolLabel}
+                      onChange={e => setNewToolLabel(e.target.value)}
+                      className="h-9 text-xs bg-white border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black text-slate-400 uppercase">Duration</Label>
+                    <Input
+                      placeholder="e.g. 10 min"
+                      value={newToolTime}
+                      onChange={e => setNewToolTime(e.target.value)}
+                      className="h-9 text-xs bg-white border-slate-200"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black text-slate-400 uppercase">Category</Label>
+                    <Select value={newToolType} onValueChange={setNewToolType}>
+                      <SelectTrigger className="h-9 text-xs bg-white border-slate-200">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="breathing">Breathing</SelectItem>
+                        <SelectItem value="journaling">Journaling</SelectItem>
+                        <SelectItem value="grounding">Grounding</SelectItem>
+                        <SelectItem value="meditation">Meditation</SelectItem>
+                        <SelectItem value="wellness">Other / General Wellness</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddSelfCare}
+                    disabled={isAddingTool || !newToolLabel || !newToolTime}
+                    className="h-9 bg-primary hover:bg-primary/95 text-white font-bold text-xs rounded-xl w-full"
+                  >
+                    Add Tool
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </DialogContent>

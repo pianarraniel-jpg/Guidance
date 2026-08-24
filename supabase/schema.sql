@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   year_level  TEXT,
   course      TEXT,
   year        TEXT,
+  self_care_tools JSONB DEFAULT '[]'::jsonb,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
