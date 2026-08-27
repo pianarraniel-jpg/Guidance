@@ -27,15 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from '@/components/ui/slider';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useLiveSync } from '@/hooks/useLiveSync';
-import { analyzeClinicalForm } from '@/ai/flows/analyze-clinical-form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-
-const RISK_COLORS: Record<string, string> = {
-  low: 'bg-emerald-50 text-emerald-600',
-  moderate: 'bg-amber-50 text-amber-600',
-  high: 'bg-red-50 text-red-600',
-};
 
 const FEEDBACK_TEMPLATES = [
   {
@@ -229,64 +222,44 @@ export default function CounselorAssessmentsPage() {
     if (!selectedAssessment || !counselor) return;
     setIsAnalyzing(true);
 
-    let aiAnalysis: { summary?: string; mainConcerns?: string[]; emotionalState?: string; riskLevel?: string } = {};
-
-    // Run AI analysis on clinical form responses
-    if (selectedAssessment.type === 'CLINICAL_FORM' && selectedAssessment.questions?.length > 0) {
-      try {
-        const analysis = await analyzeClinicalForm({
-          questions: selectedAssessment.questions,
-          answers: selectedAssessment.answers ?? {},
-          studentName: selectedAssessment.studentName,
-        });
-        aiAnalysis = analysis;
-      } catch (e) {
-        console.error('AI analysis failed:', e);
-      }
-    }
-
-    await storageService.update(STORAGE_KEYS.ASSESSMENTS, selectedAssessment.id, {
-      status: 'evaluated',
-      counselorRating: evalRating[0],
-      counselorComments: evalComments,
-      evaluatedAt: Date.now(),
-      stressLevel: evalRating[0] * 10,
-      ...(aiAnalysis.mainConcerns ? { mainConcerns: aiAnalysis.mainConcerns } : {}),
-      ...(aiAnalysis.emotionalState ? { emotionalState: aiAnalysis.emotionalState } : {}),
-    });
-
-    if (selectedAssessment.taskId) {
-      await storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, selectedAssessment.taskId, {
-        status: 'completed',
+    try {
+      await storageService.update(STORAGE_KEYS.ASSESSMENTS, selectedAssessment.id, {
+        status: 'evaluated',
         counselorRating: evalRating[0],
         counselorComments: evalComments,
+        evaluatedAt: Date.now(),
       });
+
+      if (selectedAssessment.taskId) {
+        await storageService.update(STORAGE_KEYS.ASSESSMENT_TASKS, selectedAssessment.taskId, {
+          status: 'completed',
+          counselorRating: evalRating[0],
+          counselorComments: evalComments,
+        });
+      }
+
+      toast({
+        title: "Evaluation Submitted",
+        description: "Student data has been updated with your clinical analysis.",
+      });
+
+      setIsEvalOpen(false);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to submit evaluation.' });
+    } finally {
+      setIsAnalyzing(false);
     }
-
-    toast({
-      title: "Evaluation Submitted",
-      description: aiAnalysis.mainConcerns
-        ? "Clinical analysis and AI insights have been saved to the student profile."
-        : "Student data has been updated with your clinical analysis.",
-    });
-
-    setIsAnalyzing(false);
-    setIsEvalOpen(false);
-    loadData();
   };
 
   const pendingEvaluations = assessments.filter(a => a.type === 'CLINICAL_FORM' && a.status === 'submitted');
-  const aiInsights = assessments.filter(a => a.type === 'AI_CHAT');
 
   const selectAssessment = (a: any) => {
     setSelectedAssessment(a);
     markAsRead(`asmt-${a.id}`);
   };
 
-  const riskFlag = selectedAssessment?.stressLevel > 75 ? 'Critical'
-    : selectedAssessment?.stressLevel > 50 ? 'Moderate' : 'Routine';
-  const riskBg = selectedAssessment?.stressLevel > 75 ? 'bg-red-50 text-red-600'
-    : selectedAssessment?.stressLevel > 50 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
 
   return (
     <div className="w-full pb-10">
@@ -563,106 +536,60 @@ export default function CounselorAssessmentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left column: assessment list */}
         <div className="lg:col-span-4 space-y-6">
-          <Tabs defaultValue="clinical" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/50 p-1 rounded-2xl h-12 shadow-sm">
-              <TabsTrigger value="clinical" className="rounded-xl font-black text-[10px] uppercase tracking-widest relative">
-                Form Response
-                {pendingEvaluations.length > 0 && (
-                  <span className="ml-2 h-4 w-4 rounded-full bg-primary text-[8px] text-white flex items-center justify-center">
-                    {pendingEvaluations.length}
-                  </span>
+          <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-headline text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Form Responses</h3>
+              {pendingEvaluations.length > 0 && (
+                <span className="h-5 w-5 rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-black">
+                  {pendingEvaluations.length}
+                </span>
+              )}
+            </div>
+            <ScrollArea className="h-[500px]">
+              <div className="p-3 space-y-1">
+                {pendingEvaluations.map((a) => (
+                  <div
+                    key={a.id}
+                    onClick={() => handleOpenEvaluation(a)}
+                    className="p-4 rounded-2xl cursor-pointer flex items-center gap-3 bg-primary/5 ring-1 ring-primary/10 hover:bg-primary/10 transition-all"
+                  >
+                    <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
+                      <AvatarImage src={`https://picsum.photos/seed/${a.studentId}/64/64`} />
+                      <AvatarFallback>{a.studentName?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{a.studentName}</p>
+                      <p className="text-[10px] text-primary font-black uppercase tracking-tighter">Needs Evaluation</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-primary" />
+                  </div>
+                ))}
+                {assessments.filter(a => a.type === 'CLINICAL_FORM' && a.status === 'evaluated').map(a => (
+                  <div
+                    key={a.id}
+                    onClick={() => selectAssessment(a)}
+                    className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${selectedAssessment?.id === a.id ? 'bg-slate-50 ring-1 ring-slate-100' : 'hover:bg-slate-50/50'}`}
+                  >
+                    <Avatar className="h-8 w-8 opacity-60">
+                      <AvatarImage src={`https://picsum.photos/seed/${a.studentId}/64/64`} />
+                      <AvatarFallback>{a.studentName?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-500 truncate">{a.studentName}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">{a.date}</p>
+                    </div>
+                    <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black uppercase h-5">Evaluated</Badge>
+                  </div>
+                ))}
+                {pendingEvaluations.length === 0 && assessments.filter(a => a.type === 'CLINICAL_FORM').length === 0 && (
+                  <div className="p-10 text-center space-y-3">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto opacity-20" />
+                    <p className="text-xs font-bold text-slate-400 italic">No forms awaiting review.</p>
+                  </div>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="rounded-xl font-black text-[10px] uppercase tracking-widest">
-                AI Chat
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="clinical">
-              <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
-                <ScrollArea className="h-[500px]">
-                  <div className="p-3 space-y-1">
-                    {pendingEvaluations.map((a) => (
-                      <div
-                        key={a.id}
-                        onClick={() => handleOpenEvaluation(a)}
-                        className="p-4 rounded-2xl cursor-pointer flex items-center gap-3 bg-primary/5 ring-1 ring-primary/10 hover:bg-primary/10 transition-all"
-                      >
-                        <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
-                          <AvatarImage src={`https://picsum.photos/seed/${a.studentId}/64/64`} />
-                          <AvatarFallback>{a.studentName?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">{a.studentName}</p>
-                          <p className="text-[10px] text-primary font-black uppercase tracking-tighter">Needs Evaluation</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-primary" />
-                      </div>
-                    ))}
-                    {assessments.filter(a => a.type === 'CLINICAL_FORM' && a.status === 'evaluated').map(a => (
-                      <div
-                        key={a.id}
-                        onClick={() => selectAssessment(a)}
-                        className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${selectedAssessment?.id === a.id ? 'bg-slate-50 ring-1 ring-slate-100' : 'hover:bg-slate-50/50'}`}
-                      >
-                        <Avatar className="h-8 w-8 opacity-60">
-                          <AvatarImage src={`https://picsum.photos/seed/${a.studentId}/64/64`} />
-                          <AvatarFallback>{a.studentName?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-500 truncate">{a.studentName}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase">{a.date}</p>
-                        </div>
-                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black uppercase h-5">Evaluated</Badge>
-                      </div>
-                    ))}
-                    {pendingEvaluations.length === 0 && assessments.filter(a => a.type === 'CLINICAL_FORM').length === 0 && (
-                      <div className="p-10 text-center space-y-3">
-                        <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto opacity-20" />
-                        <p className="text-xs font-bold text-slate-400 italic">No forms awaiting review.</p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="ai">
-              <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
-                <ScrollArea className="h-[500px]">
-                  <div className="p-3 space-y-1">
-                    {aiInsights.map((a) => (
-                      <div
-                        key={a.id}
-                        onClick={() => selectAssessment(a)}
-                        className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3 ${selectedAssessment?.id === a.id ? 'bg-primary/5 ring-1 ring-primary/10' : 'hover:bg-slate-50'}`}
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={`https://picsum.photos/seed/${a.studentId}/64/64`} />
-                          <AvatarFallback>{a.studentName?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">{a.studentName}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">AI Analysis • {a.date}</p>
-                        </div>
-                        {a.emotionalState && (
-                          <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black capitalize h-5">
-                            {a.emotionalState}
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                    {aiInsights.length === 0 && (
-                      <div className="p-10 text-center space-y-3">
-                        <Brain className="h-10 w-10 text-primary mx-auto opacity-20" />
-                        <p className="text-xs font-bold text-slate-400 italic">No AI chat sessions yet.</p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </Card>
-            </TabsContent>
-          </Tabs>
+              </div>
+            </ScrollArea>
+          </Card>
         </div>
 
         {/* Right column: detail view */}
@@ -689,40 +616,19 @@ export default function CounselorAssessmentsPage() {
                 </CardHeader>
                 <CardContent className="p-8 pt-4">
                   <div className="flex flex-col md:flex-row items-start gap-10">
-                    {/* Stress ring */}
                     <div className="shrink-0 space-y-4 w-full md:w-auto">
-                      <div className="relative h-36 w-36 mx-auto">
-                        <svg className="h-full w-full -rotate-90">
-                          <circle cx="72" cy="72" r="62" fill="none" stroke="#F1F5F9" strokeWidth="14" />
-                          <circle
-                            cx="72" cy="72" r="62" fill="none"
-                            stroke={selectedAssessment.stressLevel > 75 ? "#EF4444" : "#248F7D"}
-                            strokeWidth="14"
-                            strokeDasharray="389.6"
-                            strokeDashoffset={389.6 * (1 - (selectedAssessment.stressLevel ?? 0) / 100)}
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-3xl font-black text-slate-900 leading-none">{selectedAssessment.stressLevel ?? '--'}%</span>
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Stress</span>
-                        </div>
-                      </div>
-
-                      {selectedAssessment.emotionalState && (
-                        <div className="p-3 rounded-2xl bg-primary/5 border border-primary/10 text-center">
-                          <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-1">Emotional State</p>
-                          <p className="text-sm font-black text-slate-800 capitalize">{selectedAssessment.emotionalState}</p>
-                        </div>
-                      )}
-
-                      {selectedAssessment.status === 'evaluated' && (
-                        <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
+                      {selectedAssessment.status === 'evaluated' ? (
+                        <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 text-center w-full md:w-36">
                           <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Clinical Rating</p>
                           <div className="flex items-center justify-center gap-1">
-                            <span className="text-xl font-black text-emerald-700">{selectedAssessment.counselorRating}</span>
+                            <span className="text-2xl font-black text-emerald-700">{selectedAssessment.counselorRating}</span>
                             <span className="text-xs font-bold text-emerald-400">/10</span>
                           </div>
+                        </div>
+                      ) : (
+                        <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100 text-center w-full md:w-36">
+                          <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Status</p>
+                          <p className="text-xs font-black text-amber-700 uppercase">Needs Evaluation</p>
                         </div>
                       )}
                     </div>
@@ -792,28 +698,6 @@ export default function CounselorAssessmentsPage() {
                 </CardContent>
               </Card>
 
-              {/* Analytics card */}
-              <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
-                <CardHeader className="px-8 pt-8 pb-4 flex flex-row items-center justify-between">
-                  <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-emerald-500" /> Clinical Synchronization Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 pt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">AI Stress Baseline</p>
-                    <p className="text-xl font-black text-slate-900">{selectedAssessment.stressLevel ?? '--'}%</p>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Emotional State</p>
-                    <p className="text-xl font-black text-slate-700 capitalize">{selectedAssessment.emotionalState ?? 'Unknown'}</p>
-                  </div>
-                  <div className={`p-5 rounded-2xl border text-center ${riskBg}`}>
-                    <p className="text-[9px] font-black uppercase mb-2 opacity-70">Priority Flag</p>
-                    <p className="text-xl font-black">{riskFlag}</p>
-                  </div>
-                </CardContent>
-              </Card>
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-20">

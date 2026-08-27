@@ -32,8 +32,10 @@ import {
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function SessionNotesPage() {
+  const router = useRouter();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [selectedAptId, setSelectedAptId] = useState<string>("");
   const [selectedApt, setSelectedApt] = useState<any>(null);
@@ -150,6 +152,9 @@ export default function SessionNotesPage() {
         privateNotes: privateNotesText,
         actionItems: homework,
       }));
+
+      // Redirect to Session Records page
+      router.push('/counselor/session-records');
     } catch {
       toast({
         variant: "destructive",

@@ -155,12 +155,8 @@ export default function CounselorMessagesPage() {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Turn-based: counselor can only reply if last message was from the student (or no messages)
-  const canCounselorSend = useMemo(() => {
-    if (messages.length === 0) return true;
-    const last = messages[messages.length - 1];
-    return last.senderId !== user?.id;
-  }, [messages, user?.id]);
+  // Counselor can send messages at any time (no turn-based restriction)
+  const canCounselorSend = true;
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -382,13 +378,6 @@ export default function CounselorMessagesPage() {
 
             <div className="p-8 border-t border-slate-50 bg-white">
               <div>
-                {/* Turn-lock indicator */}
-                {!canCounselorSend && (
-                  <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2 text-amber-700">
-                    <Lock className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-black">Waiting for the student's reply before you can respond again.</span>
-                  </div>
-                )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-4">
                   <div className="flex-1 relative flex items-center gap-2">
                     <Button

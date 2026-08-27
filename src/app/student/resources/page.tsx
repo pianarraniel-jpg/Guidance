@@ -32,6 +32,8 @@ export default function StudentResources() {
   const [activeCategory, setActiveCategory] = useState('All Resources');
   const { user } = useAuth();
   const [customTools, setCustomTools] = useState<any[]>([]);
+  const [globalTools, setGlobalTools] = useState<any[]>([]);
+  const [downloadables, setDownloadables] = useState<any[]>([]);
 
   const categories = ['All Resources', 'Campus Services', 'Self-Care Tools', 'Downloadables'];
 
@@ -71,54 +73,35 @@ export default function StudentResources() {
     },
   ];
 
-  const downloadables = [
-    {
-      title: 'Exam Anxiety Management Guide',
-      description: 'Evidence-based strategies and techniques to reduce exam-related stress.',
-      category: 'Stress Management',
-      pages: '8 pages',
-      fileSize: '2.4 MB'
-    },
-    {
-      title: 'Sleep Hygiene Checklist',
-      description: 'Daily routine template to improve sleep quality and academic performance.',
-      category: 'Self-Care',
-      pages: '4 pages',
-      fileSize: '1.1 MB'
-    },
-    {
-      title: 'Cognitive Reframing Worksheet',
-      description: 'Interactive tool to challenge negative thoughts and build resilience.',
-      category: 'Mental Wellness',
-      pages: '6 pages',
-      fileSize: '1.8 MB'
-    },
-    {
-      title: 'Time Management & Study Planning',
-      description: 'Semester planner and weekly study schedule templates.',
-      category: 'Academic',
-      pages: '10 pages',
-      fileSize: '3.2 MB'
-    },
-    {
-      title: 'Mindfulness & Grounding Techniques',
-      description: 'Step-by-step guides for 5, 10, and 15-minute mindfulness practices.',
-      category: 'Mindfulness',
-      pages: '7 pages',
-      fileSize: '2.1 MB'
-    },
-    {
-      title: 'Stress Level Assessment Tool',
-      description: 'Self-diagnostic tool to track stress levels and identify triggers.',
-      category: 'Assessment',
-      pages: '5 pages',
-      fileSize: '1.5 MB'
-    },
-  ];
-
   useEffect(() => {
-    if (!user?.id) return;
-    const fetchCustomTools = async () => {
+    const fetchToolsAndWorksheets = async () => {
+      // 1. Fetch global tools
+      try {
+        const { data: gData, error: gError } = await supabase
+          .from('global_self_care_tools')
+          .select('*');
+        if (!gError && gData) {
+          setGlobalTools(gData);
+        }
+      } catch (err) {
+        console.error("Error fetching global tools:", err);
+      }
+
+      // 2. Fetch worksheets
+      try {
+        const { data: wData, error: wError } = await supabase
+          .from('worksheets')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!wError && wData) {
+          setDownloadables(wData);
+        }
+      } catch (err) {
+        console.error("Error fetching worksheets:", err);
+      }
+
+      // 3. Fetch student-specific tools
+      if (!user?.id) return;
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -132,15 +115,8 @@ export default function StudentResources() {
         console.error("Error fetching custom tools:", err);
       }
     };
-    fetchCustomTools();
+    fetchToolsAndWorksheets();
   }, [user?.id]);
-
-  const selfCareTools = [
-    { icon: Wind, label: 'Box Breathing (4-7-8)', bg: 'bg-blue-50', color: 'text-blue-500', time: '2 min' },
-    { icon: BookOpen, label: 'Journaling Prompts', bg: 'bg-purple-50', color: 'text-purple-500', time: '10 min' },
-    { icon: Anchor, label: '5-Sense Grounding', bg: 'bg-emerald-50', color: 'text-emerald-500', time: '5 min' },
-    { icon: Music, label: 'Guided Meditation', bg: 'bg-indigo-50', color: 'text-indigo-500', time: '15 min' },
-  ];
 
   const getToolIcon = (type: string) => {
     switch (type) {
@@ -163,7 +139,16 @@ export default function StudentResources() {
   };
 
   const allSelfCareTools = [
-    ...selfCareTools,
+    ...globalTools.map(gt => {
+      const styles = getToolStyles(gt.type);
+      return {
+        icon: getToolIcon(gt.type),
+        label: gt.label,
+        bg: styles.bg,
+        color: styles.color,
+        time: gt.time
+      };
+    }),
     ...customTools.map(ct => {
       const styles = getToolStyles(ct.type);
       return {
@@ -249,22 +234,29 @@ export default function StudentResources() {
           {(activeCategory === 'All Resources' || activeCategory === 'Self-Care Tools') && (
             <div className="mb-12">
               <h2 className="text-2xl font-black text-slate-900 mb-6">Quick Self-Care Tools</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {allSelfCareTools.map((tool, idx) => (
-                  <Card key={`${tool.label}-${idx}`} className="border-none shadow-md hover:shadow-lg transition-all group cursor-pointer">
-                    <CardContent className="p-6">
-                      <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center mb-4`}>
-                        <tool.icon className="h-5 w-5" />
-                      </div>
-                      <h4 className="font-black text-sm text-slate-900 mb-1">{tool.label}</h4>
-                      <p className="text-xs text-slate-500 font-bold mb-3">{tool.time}</p>
-                      <button className="text-xs font-black text-primary uppercase flex items-center gap-1 hover:gap-2 transition-all">
-                        Start <ChevronRight className="h-3 w-3" />
-                      </button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {allSelfCareTools.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {allSelfCareTools.map((tool, idx) => (
+                    <Card key={`${tool.label}-${idx}`} className="border-none shadow-md hover:shadow-lg transition-all group cursor-pointer">
+                      <CardContent className="p-6">
+                        <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center mb-4`}>
+                          <tool.icon className="h-5 w-5" />
+                        </div>
+                        <h4 className="font-black text-sm text-slate-900 mb-1">{tool.label}</h4>
+                        <p className="text-xs text-slate-500 font-bold mb-3">{tool.time}</p>
+                        <button className="text-xs font-black text-primary uppercase flex items-center gap-1 hover:gap-2 transition-all">
+                          Start <ChevronRight className="h-3 w-3" />
+                        </button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center flex flex-col items-center gap-2 bg-slate-50/50 rounded-2xl border border-slate-100 p-6">
+                  <Heart className="h-6 w-6 text-slate-200" />
+                  <p className="text-xs text-slate-400 italic font-medium">No self-care tools assigned yet.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -272,31 +264,40 @@ export default function StudentResources() {
           {(activeCategory === 'All Resources' || activeCategory === 'Downloadables') && (
             <div className="mb-12">
               <h2 className="text-2xl font-black text-slate-900 mb-6">Downloadable Worksheets & Guides</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {downloadables.map((resource) => (
-                  <Card key={resource.title} className="border-none shadow-lg hover:shadow-xl transition-all group">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                          <FileText className="h-6 w-6" />
+              {downloadables.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {downloadables.map((resource) => (
+                    <Card key={resource.id || resource.title} className="border-none shadow-lg hover:shadow-xl transition-all group">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                            <FileText className="h-6 w-6" />
+                          </div>
+                          <Badge variant="outline" className="text-xs font-black uppercase tracking-wider border-primary/20 bg-primary/5 text-primary">
+                            {resource.category}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs font-black uppercase tracking-wider border-primary/20 bg-primary/5 text-primary">
-                          {resource.category}
-                        </Badge>
-                      </div>
-                      <h3 className="font-black text-sm text-slate-900 mb-2 line-clamp-2">{resource.title}</h3>
-                      <p className="text-xs text-slate-600 font-medium mb-4 line-clamp-2">{resource.description}</p>
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-[11px] font-bold text-slate-500 mb-4">
-                        <span>{resource.pages}</span>
-                        <span>{resource.fileSize}</span>
-                      </div>
-                      <Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white font-black rounded-xl text-xs uppercase flex items-center justify-center gap-2">
-                        <Download className="h-4 w-4" /> Download PDF
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        <h3 className="font-black text-sm text-slate-900 mb-2 line-clamp-2">{resource.title}</h3>
+                        <p className="text-xs text-slate-600 font-medium mb-4 line-clamp-2">{resource.description}</p>
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-[11px] font-bold text-slate-500 mb-4">
+                          <span>{resource.pages}</span>
+                          <span>{resource.file_size}</span>
+                        </div>
+                        <Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white font-black rounded-xl text-xs uppercase flex items-center justify-center gap-2" asChild>
+                          <a href={resource.file_url} target="_blank" rel="noopener noreferrer">
+                            <Download className="h-4 w-4" /> Download PDF
+                          </a>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center flex flex-col items-center gap-2 bg-slate-50/50 rounded-2xl border border-slate-100 p-6">
+                  <FileText className="h-6 w-6 text-slate-200" />
+                  <p className="text-xs text-slate-400 italic font-medium">No downloadable resources uploaded yet.</p>
+                </div>
+              )}
             </div>
           )}
 

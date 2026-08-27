@@ -39,7 +39,6 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
     { icon: Users, label: 'Students', href: '/counselor/students' },
     { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
     { icon: FileText, label: 'Assessments', href: '/counselor/assessments', type: 'assessment' },
-    { icon: MonitorSmartphone, label: 'Chat Monitor', href: '/counselor/chat-monitor', type: 'alert' },
     { icon: ClipboardList, label: 'Session Records', href: '/counselor/session-records' },
     { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
   ];

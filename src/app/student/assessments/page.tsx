@@ -246,18 +246,18 @@ export default function StudentAssessments() {
         <main className="p-8 w-full min-h-screen">
           <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Clinical Oversight & Growth</h1>
-              <p className="text-sm text-muted-foreground font-medium">Review your assigned clinical forms and compare historical counselor feedback across academic years.</p>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Student Oversight and Growth</h1>
+              <p className="text-sm text-muted-foreground font-medium">Review your assigned student forms and compare historical counselor feedback across academic years.</p>
             </div>
             <Badge variant="outline" className="h-9 px-5 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[9px] tracking-widest flex items-center gap-2 shadow-sm">
-              <ShieldCheck className="h-4 w-4" /> Professional Clinical Space
+              <ShieldCheck className="h-4 w-4" /> Professional Counseling Space
             </Badge>
           </header>
 
           <Tabs defaultValue="tasks" className="w-full">
             <TabsList className="grid w-full grid-cols-2 max-w-md mb-8 bg-slate-100/60 p-1.5 h-14 rounded-2xl shadow-inner">
               <TabsTrigger value="tasks" className="rounded-xl font-black text-sm gap-2 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all relative">
-                <ClipboardList className="h-4 w-4" /> Clinical Tasks
+                <ClipboardList className="h-4 w-4" /> Student Tasks
                 {tasks.filter(t => t.status === 'pending').length > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-red-500 text-[10px] text-white font-black rounded-full flex items-center justify-center shadow-md animate-pulse">
                     {tasks.filter(t => t.status === 'pending').length}
@@ -302,7 +302,7 @@ export default function StudentAssessments() {
                         <div className="flex flex-col justify-center shrink-0 min-w-[200px] md:border-l md:border-slate-50 md:pl-6">
                           {task.status === 'pending' ? (
                             <Button onClick={() => handleOpenTask(task)} className="h-11 rounded-xl bg-primary hover:bg-primary/90 font-black gap-2 group/btn shadow-lg shadow-primary/20 w-full md:w-auto">
-                              Complete Clinical Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
+                              Complete Student Form <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
                             </Button>
                           ) : task.status === 'submitted' ? (
                             <div className="flex items-center gap-2 text-emerald-600 font-black text-xs">
@@ -311,7 +311,7 @@ export default function StudentAssessments() {
                           ) : (
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Rating</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Counselor Rating</span>
                                 <div className="flex items-center gap-1">
                                   <span className="text-base font-black text-primary">{task.counselorRating}</span>
                                   <span className="text-[10px] font-bold text-slate-300">/10</span>
@@ -333,7 +333,7 @@ export default function StudentAssessments() {
                       <ClipboardList className="h-8 w-8" />
                     </div>
                     <p className="font-black text-xl text-slate-700 mb-1">No assigned tasks currently</p>
-                    <p className="text-sm font-medium text-slate-400">Your counselor has not assigned any clinical intake forms or follow-up questionnaires.</p>
+                    <p className="text-sm font-medium text-slate-400">Your counselor has not assigned any student intake forms or follow-up questionnaires.</p>
                   </div>
                 )}
               </div>
@@ -551,7 +551,7 @@ export default function StudentAssessments() {
                   </div>
                   <div>
                     <DialogTitle className="text-2xl font-black text-slate-900">{activeTask?.title}</DialogTitle>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Clinical Evaluation Form</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Student Evaluation Form</p>
                   </div>
                 </div>
               </DialogHeader>
@@ -567,7 +567,7 @@ export default function StudentAssessments() {
                         {q}
                       </Label>
                       <Textarea
-                        placeholder="Your clinical response..."
+                        placeholder="Your response..."
                         className="min-h-[120px] rounded-2xl bg-slate-50 border-none p-4 text-sm font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
                         value={taskAnswers[i] || ''}
                         onChange={(e) => setTaskAnswers(prev => ({ ...prev, [i]: e.target.value }))}

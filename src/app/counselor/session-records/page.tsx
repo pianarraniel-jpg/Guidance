@@ -49,9 +49,37 @@ export default function SessionRecordsPage() {
   useEffect(() => {
     const loadData = async () => {
       const allApts = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+      const allNotes = await storageService.getAll<any>(STORAGE_KEYS.SESSION_NOTES);
+      
+      const notesMap = new Map();
+      allNotes.forEach(note => {
+        if (note.appointmentId) {
+          notesMap.set(note.appointmentId, note);
+        }
+      });
+      
+      const aptsWithNotes = allApts.map(apt => {
+        const note = notesMap.get(apt.id);
+        if (note) {
+          return {
+            ...apt,
+            stressLevel: note.stressLevel,
+            topics: note.topics || [],
+            counselorNotes: note.clientReflections,
+            privateNotes: note.privateNotes,
+            actionItems: Array.isArray(note.homework) ? note.homework : [],
+          };
+        }
+        return {
+          ...apt,
+          topics: [],
+          actionItems: [],
+        };
+      });
+
       // Sort newest first
-      allApts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setAppointments(allApts);
+      aptsWithNotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setAppointments(aptsWithNotes);
     };
     loadData();
   }, []);

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Search, MoreVertical, Trash2, ExternalLink, Users, User,
   Brain, TrendingUp, GraduationCap, Building2, Pencil, Filter,
@@ -46,11 +47,12 @@ export default function CounselorStudentsPage() {
   const [profileStudent, setProfileStudent] = useState<any>(null);
   const [editStudent, setEditStudent] = useState<any>(null);
 
-  // Self-care assignment states
   const [assignedSelfCare, setAssignedSelfCare] = useState<any[]>([]);
+  const [globalSelfCare, setGlobalSelfCare] = useState<any[]>([]);
   const [newToolLabel, setNewToolLabel] = useState('');
   const [newToolTime, setNewToolTime] = useState('');
   const [newToolType, setNewToolType] = useState('wellness');
+  const [applyToAll, setApplyToAll] = useState(false);
   const [isAddingTool, setIsAddingTool] = useState(false);
 
   // Enroll form
@@ -96,15 +98,40 @@ export default function CounselorStudentsPage() {
   useEffect(() => { loadStudents(); }, []);
 
   useEffect(() => {
-    if (profileStudent) {
-      setAssignedSelfCare(profileStudent.selfCareTools || []);
-    } else {
-      setAssignedSelfCare([]);
-      setNewToolLabel('');
-      setNewToolTime('');
-      setNewToolType('wellness');
-    }
+    const fetchGlobalAndStudentTools = async () => {
+      // 1. Fetch global tools
+      try {
+        const { data, error } = await supabase
+          .from('global_self_care_tools')
+          .select('*');
+        if (!error && data) {
+          setGlobalSelfCare(data);
+        }
+      } catch (err) {
+        console.error("Error fetching global tools:", err);
+      }
+
+      // 2. Set student-specific tools
+      if (profileStudent) {
+        setAssignedSelfCare(profileStudent.selfCareTools || []);
+      } else {
+        setAssignedSelfCare([]);
+        setGlobalSelfCare([]);
+        setNewToolLabel('');
+        setNewToolTime('');
+        setNewToolType('wellness');
+        setApplyToAll(false);
+      }
+    };
+
+    fetchGlobalAndStudentTools();
   }, [profileStudent]);
+
+  useEffect(() => {
+    if (!profileStudent && !editStudent) {
+      document.body.style.pointerEvents = 'auto';
+    }
+  }, [profileStudent, editStudent]);
 
   // ── Enroll ────────────────────────────────────────────────────────────────
   const handleEnrollSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -200,22 +227,38 @@ export default function CounselorStudentsPage() {
       time: newToolTime.trim(),
       type: newToolType
     };
-    const updatedTools = [...assignedSelfCare, newTool];
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ self_care_tools: updatedTools })
-        .eq('id', profileStudent.id);
+      if (applyToAll) {
+        const { data, error } = await supabase
+          .from('global_self_care_tools')
+          .insert(newTool)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setAssignedSelfCare(updatedTools);
-      // Update in local students array too
-      setStudents(prev => prev.map(s => s.id === profileStudent.id ? { ...s, selfCareTools: updatedTools } : s));
-      setNewToolLabel('');
-      setNewToolTime('');
-      toast({ title: 'Self-Care Tool Added', description: `Assigned "${newTool.label}" to ${profileStudent.name}.` });
+        setGlobalSelfCare(prev => [...prev, data]);
+        setNewToolLabel('');
+        setNewToolTime('');
+        setApplyToAll(false);
+        toast({ title: 'Global Self-Care Tool Added', description: `Assigned "${newTool.label}" to all students.` });
+      } else {
+        const updatedTools = [...assignedSelfCare, newTool];
+        const { error } = await supabase
+          .from('profiles')
+          .update({ self_care_tools: updatedTools })
+          .eq('id', profileStudent.id);
+
+        if (error) throw error;
+
+        setAssignedSelfCare(updatedTools);
+        // Update in local students array too
+        setStudents(prev => prev.map(s => s.id === profileStudent.id ? { ...s, selfCareTools: updatedTools } : s));
+        setNewToolLabel('');
+        setNewToolTime('');
+        toast({ title: 'Self-Care Tool Added', description: `Assigned "${newTool.label}" to ${profileStudent.name}.` });
+      }
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign self-care tool.' });
     } finally {
@@ -240,6 +283,22 @@ export default function CounselorStudentsPage() {
       toast({ title: 'Self-Care Tool Removed', description: 'Unassigned the tool from student.' });
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove self-care tool.' });
+    }
+  };
+
+  const handleRemoveGlobalSelfCare = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('global_self_care_tools')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setGlobalSelfCare(prev => prev.filter(t => t.id !== id));
+      toast({ title: 'Global Self-Care Tool Removed', description: 'Removed the tool for all students.' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove global self-care tool.' });
     }
   };
 
@@ -539,13 +598,19 @@ export default function CounselorStudentsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
                           <DropdownMenuItem
-                            onSelect={() => setProfileStudent(student)}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setProfileStudent(student);
+                            }}
                             className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                           >
                             <ExternalLink className="h-4 w-4 text-slate-400" /> Clinical Profile
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onSelect={() => openEditDialog(student)}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              openEditDialog(student);
+                            }}
                             className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                           >
                             <Pencil className="h-4 w-4 text-slate-400" /> Update Profile
@@ -767,12 +832,45 @@ export default function CounselorStudentsPage() {
               </p>
               
               {/* Display existing custom self-care tools */}
-              {assignedSelfCare.length > 0 ? (
+              {(assignedSelfCare.length > 0 || globalSelfCare.length > 0) ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Global Tools */}
+                  {globalSelfCare.map((tool: any) => {
+                    const typeIcon = tool.type === 'breathing' ? Wind : tool.type === 'journaling' ? BookOpen : tool.type === 'grounding' ? Anchor : tool.type === 'meditation' ? Music : Brain;
+                    return (
+                      <div key={`global-${tool.id}`} className="flex items-center justify-between p-3 rounded-xl bg-purple-50/50 border border-purple-100">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center border border-purple-100 shrink-0">
+                            {React.createElement(typeIcon, { className: "h-4 w-4 text-purple-600" })}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-slate-700 truncate">{tool.label}</p>
+                              <Badge className="bg-purple-100 hover:bg-purple-100 text-purple-700 border-none font-black text-[8px] h-3.5 px-1 py-0 rounded-sm shrink-0">
+                                Global
+                              </Badge>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-bold capitalize">{tool.time} • {tool.type}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleRemoveGlobalSelfCare(tool.id)}
+                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Individual Tools */}
                   {assignedSelfCare.map((tool: any, idx: number) => {
                     const typeIcon = tool.type === 'breathing' ? Wind : tool.type === 'journaling' ? BookOpen : tool.type === 'grounding' ? Anchor : tool.type === 'meditation' ? Music : Brain;
                     return (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div key={`individual-${idx}`} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center border border-slate-100 shrink-0">
                             {React.createElement(typeIcon, { className: "h-4 w-4 text-primary" })}
@@ -822,6 +920,18 @@ export default function CounselorStudentsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="flex items-center space-x-2 pt-1 pb-1">
+                  <Checkbox 
+                    id="apply-to-all"
+                    checked={applyToAll}
+                    onCheckedChange={(checked) => setApplyToAll(!!checked)}
+                  />
+                  <Label htmlFor="apply-to-all" className="text-xs font-bold text-slate-600 cursor-pointer">
+                    Apply to all students
+                  </Label>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="space-y-1">
                     <Label className="text-[9px] font-black text-slate-400 uppercase">Category</Label>

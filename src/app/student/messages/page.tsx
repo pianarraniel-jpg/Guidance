@@ -151,12 +151,8 @@ export default function StudentMessages() {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
-  // Turn-based: student can only send if the last message was from the counselor (or no messages)
-  const canStudentSend = useMemo(() => {
-    if (chatHistory.length === 0) return true;
-    const last = chatHistory[chatHistory.length - 1];
-    return last.senderId !== user?.id;
-  }, [chatHistory, user?.id]);
+  // Student can send messages at any time (no turn-based restriction)
+  const canStudentSend = true;
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -339,13 +335,6 @@ export default function StudentMessages() {
                       </div>
                     </div>
 
-                    {/* Turn-lock indicator */}
-                    {!canStudentSend && (
-                      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2 text-amber-700">
-                        <Lock className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-black">Waiting for your counselor's reply before you can send another message.</span>
-                      </div>
-                    )}
 
                     <form onSubmit={handleSend} className="flex items-center gap-4">
                       <div className="flex-1 relative">

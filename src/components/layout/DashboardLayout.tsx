@@ -60,6 +60,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       return [
         { icon: LayoutDashboard, label: 'Analytics', href: '/admin/dashboard' },
         { icon: FileText, label: 'Reports', href: '/admin/reports' },
+        { icon: Sparkles, label: 'Resources Management', href: '/admin/resources' },
       ];
     }
     return [];

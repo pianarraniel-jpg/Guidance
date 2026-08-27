@@ -404,3 +404,44 @@ CREATE POLICY "chat_alerts_insert" ON chat_alerts FOR INSERT TO authenticated
   WITH CHECK (student_id = auth.uid());
 CREATE POLICY "chat_alerts_update" ON chat_alerts FOR UPDATE TO authenticated
   USING (coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') IN ('counselor', 'admin'));
+
+-- ============================================================
+-- GLOBAL SELF-CARE TOOLS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS global_self_care_tools (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  label        TEXT NOT NULL,
+  time         TEXT NOT NULL,
+  type         TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE global_self_care_tools ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "global_self_care_select" ON global_self_care_tools;
+DROP POLICY IF EXISTS "global_self_care_all" ON global_self_care_tools;
+
+CREATE POLICY "global_self_care_select" ON global_self_care_tools FOR SELECT TO authenticated USING (true);
+CREATE POLICY "global_self_care_all" ON global_self_care_tools FOR ALL TO authenticated USING (true);
+
+-- ============================================================
+-- WORKSHEETS & DOWNLOADABLES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS worksheets (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title        TEXT NOT NULL,
+  description  TEXT NOT NULL,
+  category     TEXT NOT NULL,
+  pages        TEXT NOT NULL,
+  file_size    TEXT NOT NULL,
+  file_url     TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE worksheets ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "worksheets_select" ON worksheets;
+DROP POLICY IF EXISTS "worksheets_all" ON worksheets;
+
+CREATE POLICY "worksheets_select" ON worksheets FOR SELECT TO authenticated USING (true);
+CREATE POLICY "worksheets_all" ON worksheets FOR ALL TO authenticated USING (true);

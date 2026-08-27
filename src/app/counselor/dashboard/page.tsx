@@ -213,24 +213,6 @@ export default function CounselorDashboard() {
 
   return (
     <div className="p-8 w-full">
-      {unackAlertCount > 0 && (
-        <Link href="/counselor/chat-monitor">
-          <div className="mb-6 flex items-center gap-4 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 cursor-pointer hover:bg-red-100 transition-colors">
-            <div className="h-10 w-10 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
-              <ShieldAlert className="h-5 w-5 text-red-600" />
-            </div>
-            <div className="flex-1">
-              <p className="font-black text-red-800 text-sm">
-                {unackAlertCount} unacknowledged high-risk alert{unackAlertCount > 1 ? 's' : ''} require your attention
-              </p>
-              <p className="text-xs text-red-600 font-medium">Click to open Chat Monitor and review</p>
-            </div>
-            <Badge className="bg-red-600 text-white font-black rounded-full px-3">
-              <MonitorSmartphone className="h-3 w-3 mr-1.5" /> Review
-            </Badge>
-          </div>
-        </Link>
-      )}
       <header className="mb-10">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
           Maayong Adlaw, Guidance Office
