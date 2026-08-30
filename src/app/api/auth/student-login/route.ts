@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   // Look up profile by student_id — fetch full profile to avoid a second round-trip on the client
   const { data: profileData, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('id, name, email, role, student_id')
+    .select('id, name, email, role, student_id, department')
     .eq('student_id', studentId.trim())
     .maybeSingle();
 
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       email: profileData.email,
       role: profileData.role,
       studentId: profileData.student_id ?? undefined,
+      department: profileData.department ?? undefined,
     },
   });
 }

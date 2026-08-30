@@ -54,7 +54,7 @@ async function fetchProfile(userId: string): Promise<User | null> {
     // Ensure Supabase session metadata has these fields for instant future reloads
     try {
       await supabase.auth.updateUser({
-        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId }
+        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId, department: userObj.department }
       });
     } catch {
       // ignore non-critical update errors
@@ -86,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: sessionUser.email || meta.email || '',
         role: meta.role as UserRole,
         studentId: meta.student_id ?? undefined,
+        department: meta.department ?? undefined,
       };
       activeUserRef.current = sessionUser.id;
       if (isMounted) {

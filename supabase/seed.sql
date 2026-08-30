@@ -143,7 +143,7 @@ IF v_counselor_ccs_id IS NULL THEN
       'authenticated', 'authenticated', 'counselor_ccs@uspf.edu.ph',
       crypt('password123', gen_salt('bf')), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"name":"CCS Counselor","role":"counselor"}'::jsonb,
+      '{"name":"CBA / CCS / CJEA Counselor","role":"counselor"}'::jsonb,
       now(), now(), false
     );
 
@@ -175,7 +175,7 @@ IF v_counselor_cea_id IS NULL THEN
       'authenticated', 'authenticated', 'counselor_cea@uspf.edu.ph',
       crypt('password123', gen_salt('bf')), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"name":"CEA Counselor","role":"counselor"}'::jsonb,
+      '{"name":"CEA / CHS Counselor","role":"counselor"}'::jsonb,
       now(), now(), false
     );
 
@@ -207,7 +207,7 @@ IF v_counselor_cteas_id IS NULL THEN
       'authenticated', 'authenticated', 'counselor_cteas@uspf.edu.ph',
       crypt('password123', gen_salt('bf')), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"name":"CTEAS Counselor","role":"counselor"}'::jsonb,
+      '{"name":"CTEAS / CSW Counselor","role":"counselor"}'::jsonb,
       now(), now(), false
     );
 
@@ -227,9 +227,9 @@ INSERT INTO profiles (id, name, email, role, student_id, department, created_at)
 VALUES
   (v_admin_id,     'Admin User',     'admin@uspf.edu.ph',     'admin',     NULL, NULL, now()),
   (v_counselor_id, 'USPF Counselor', 'counselor@uspf.edu.ph', 'counselor', NULL, NULL, now()),
-  (v_counselor_ccs_id, 'CCS Counselor', 'counselor_ccs@uspf.edu.ph', 'counselor', NULL, 'CCS', now()),
-  (v_counselor_cea_id, 'CEA Counselor', 'counselor_cea@uspf.edu.ph', 'counselor', NULL, 'CEA', now()),
-  (v_counselor_cteas_id, 'CTEAS Counselor', 'counselor_cteas@uspf.edu.ph', 'counselor', NULL, 'CTEAS', now())
+  (v_counselor_ccs_id, 'CBA / CCS / CJEA Counselor', 'counselor_ccs@uspf.edu.ph', 'counselor', NULL, 'CBA, CCS, CJEA', now()),
+  (v_counselor_cea_id, 'CEA / CHS Counselor', 'counselor_cea@uspf.edu.ph', 'counselor', NULL, 'CEA, CHS', now()),
+  (v_counselor_cteas_id, 'CTEAS / CSW Counselor', 'counselor_cteas@uspf.edu.ph', 'counselor', NULL, 'CTEAS, CSW', now())
 ON CONFLICT (id) DO UPDATE
   SET name       = EXCLUDED.name,
       role       = EXCLUDED.role,

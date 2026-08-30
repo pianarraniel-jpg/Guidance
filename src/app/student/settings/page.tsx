@@ -35,11 +35,47 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DEPARTMENTS } from '@/lib/constants';
 
 export default function StudentSettings() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  
+
+  const [selectedDept, setSelectedDept] = useState(user?.department || '');
+  const [isSavingDept, setIsSavingDept] = useState(false);
+
+  const handleUpdateDepartment = async (dept: string) => {
+    if (!user) return;
+    setIsSavingDept(true);
+    setSelectedDept(dept);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ department: dept })
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
+      // Update local auth context user object
+      user.department = dept;
+      
+      toast({
+        title: "Department Updated",
+        description: `Your department has been set to ${dept}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating department",
+        description: err.message,
+      });
+    } finally {
+      setIsSavingDept(false);
+    }
+  };
+
   // Password Change State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -133,17 +169,18 @@ export default function StudentSettings() {
             {/* Profile Section */}
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-slate-50/50 border-b pb-6">
-                <div className="flex items-center gap-6">
-                  <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border-4 border-white shadow-lg shrink-0">
-                    <User className="h-10 w-10" />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border-4 border-white shadow-lg shrink-0">
+                      <User className="h-10 w-10" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-bold font-headline">{user?.name}</CardTitle>
+                      <CardDescription className="flex items-center gap-2 mt-1">
+                        <Mail className="h-3 w-3" /> {user?.email}
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-2xl font-bold">{user?.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
-                      <Mail className="h-3 w-3" /> {user?.email}
-                    </CardDescription>
-                  </div>
-                  <Button variant="outline" className="ml-auto font-bold rounded-xl">Edit Profile</Button>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
@@ -155,6 +192,21 @@ export default function StudentSettings() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Role</p>
                     <p className="font-bold text-slate-700 capitalize">{user?.role}</p>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">Department</Label>
+                    <Select value={selectedDept} onValueChange={handleUpdateDepartment} disabled={isSavingDept}>
+                      <SelectTrigger className="w-full md:w-[320px] h-12 rounded-xl bg-slate-50 border-none font-bold text-sm">
+                        <SelectValue placeholder="Select your department..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-none shadow-2xl bg-white text-slate-800">
+                        {DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept.value} value={dept.value} className="focus:bg-primary/5 focus:text-primary rounded-lg p-2.5 cursor-pointer font-semibold">
+                            {dept.value} - {dept.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </CardContent>

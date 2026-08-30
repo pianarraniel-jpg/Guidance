@@ -73,8 +73,21 @@ export default function BookAppointment() {
 
   const loadCounselors = useCallback(async () => {
     const all = await storageService.getAll<any>(STORAGE_KEYS.USERS);
-    setCounselors(all.filter(u => u.role === 'counselor'));
-  }, []);
+    const counselorList = all.filter(u => u.role === 'counselor');
+    setCounselors(counselorList);
+
+    if (user?.department) {
+      const studentDept = user.department.trim().toUpperCase();
+      const matched = counselorList.find(c => {
+        if (!c.department) return false;
+        const depts = c.department.split(',').map((d: string) => d.trim().toUpperCase());
+        return depts.includes(studentDept);
+      });
+      if (matched) {
+        setSelectedCounselor(matched.id);
+      }
+    }
+  }, [user]);
 
   useEffect(() => { loadCounselors(); }, [loadCounselors]);
 
@@ -247,7 +260,9 @@ export default function BookAppointment() {
                             </SelectTrigger>
                             <SelectContent>
                               {counselors.map(c => (
-                                <SelectItem key={c.id} value={c.id} className="font-bold">{c.name}</SelectItem>
+                                <SelectItem key={c.id} value={c.id} className="font-bold">
+                                  {c.name} {c.department ? `(${c.department})` : ''}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
