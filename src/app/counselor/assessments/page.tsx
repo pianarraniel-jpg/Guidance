@@ -265,8 +265,8 @@ export default function CounselorAssessmentsPage() {
     <div className="w-full pb-10">
       <header className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-1">Clinical Analysis</h1>
-          <p className="text-sm text-slate-500 font-medium">Review student responses and synchronize clinical ratings.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-1">Student Oversight and Growth</h1>
+          <p className="text-sm text-slate-500 font-medium">Review student responses.</p>
         </div>
         <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
           <DialogTrigger asChild>
@@ -538,7 +538,7 @@ export default function CounselorAssessmentsPage() {
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-headline text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Form Responses</h3>
+              <h3 className="font-headline text-[10px] font-black text-slate-400 uppercase tracking-widest">Assessment Form Responses</h3>
               {pendingEvaluations.length > 0 && (
                 <span className="h-5 w-5 rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-black">
                   {pendingEvaluations.length}
