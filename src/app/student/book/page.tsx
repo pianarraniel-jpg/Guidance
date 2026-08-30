@@ -270,25 +270,29 @@ export default function BookAppointment() {
 
                         <div className="space-y-3">
                           <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Session Type</Label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
                             {SESSION_TYPES.map(({ value, label, icon: Icon, color }) => (
                               <button
                                 key={value}
                                 type="button"
                                 onClick={() => setSelectedSessionType(value)}
                                 className={cn(
-                                  'flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all',
+                                  'relative flex flex-col items-center justify-center text-center p-4 rounded-2xl border-2 transition-all min-h-[110px]',
                                   selectedSessionType === value
-                                    ? 'border-primary bg-primary/5 shadow-md'
-                                    : 'border-slate-100 bg-slate-50 hover:border-primary/30'
+                                    ? 'border-primary bg-primary/5 shadow-md ring-1 ring-primary/20'
+                                    : 'border-slate-100 bg-slate-50 hover:border-primary/20'
                                 )}
                               >
-                                <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center shrink-0', color)}>
+                                <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2 shrink-0', color)}>
                                   <Icon className="h-4 w-4" />
                                 </div>
-                                <span className={cn('text-xs font-bold', selectedSessionType === value ? 'text-primary' : 'text-slate-700')}>{label}</span>
+                                <span className={cn('text-[11px] leading-tight font-black uppercase tracking-wider', selectedSessionType === value ? 'text-primary' : 'text-slate-700')}>
+                                  {label}
+                                </span>
                                 {selectedSessionType === value && (
-                                  <CheckCircle2 className="h-4 w-4 text-primary ml-auto" />
+                                  <div className="absolute top-2.5 right-2.5 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-white text-[8px] font-bold shadow-sm">
+                                    ✓
+                                  </div>
                                 )}
                               </button>
                             ))}
