@@ -224,7 +224,7 @@ export default function StudentAppointments() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 w-full min-h-screen">
+        <div className="p-4 sm:p-8 w-full min-h-screen">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
@@ -277,12 +277,12 @@ export default function StudentAppointments() {
             <div className="lg:col-span-9">
               <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
                 {/* Tab bar */}
-                <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1">
+                <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {tabs.map(t => (
                     <button
                       key={t.key}
                       onClick={() => setActiveTab(t.key)}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                      className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                         activeTab === t.key
                           ? 'bg-primary text-white shadow-sm'
                           : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'

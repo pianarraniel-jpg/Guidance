@@ -187,7 +187,7 @@ export default function BookAppointment() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="min-h-screen bg-slate-50/50 p-8">
+        <div className="min-h-screen bg-slate-50/50 p-4 sm:p-8">
           <div className="w-full">
             <header className="mb-10">
               {currentStep < STEPS.CONFIRM && (
@@ -246,7 +246,7 @@ export default function BookAppointment() {
 
                   {/* Step 1: Counselor + Session Type */}
                   {currentStep === STEPS.DETAILS && (
-                    <Card className="border-none shadow-xl rounded-3xl p-8 bg-white">
+                    <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
                         <CardTitle className="text-2xl font-black">Session Details</CardTitle>
                         <p className="text-sm text-slate-400 font-medium mt-1">Choose your counselor and session type.</p>
@@ -277,20 +277,23 @@ export default function BookAppointment() {
                                 type="button"
                                 onClick={() => setSelectedSessionType(value)}
                                 className={cn(
-                                  'relative flex flex-col items-center justify-center text-center p-4 rounded-2xl border-2 transition-all min-h-[110px]',
+                                  'relative flex flex-col items-center justify-center text-center p-2 sm:p-4 rounded-2xl border-2 transition-all min-h-[100px]',
                                   selectedSessionType === value
                                     ? 'border-primary bg-primary/5 shadow-md ring-1 ring-primary/20'
                                     : 'border-slate-100 bg-slate-50 hover:border-primary/20'
                                 )}
                               >
-                                <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2 shrink-0', color)}>
+                                <div className={cn('h-8 w-8 rounded-xl flex items-center justify-center mb-2 shrink-0', color)}>
                                   <Icon className="h-4 w-4" />
                                 </div>
-                                <span className={cn('text-[11px] leading-tight font-black uppercase tracking-wider', selectedSessionType === value ? 'text-primary' : 'text-slate-700')}>
+                                <span className={cn(
+                                  'text-[9px] sm:text-[10px] md:text-[11px] leading-tight font-black uppercase tracking-wider whitespace-nowrap',
+                                  selectedSessionType === value ? 'text-primary' : 'text-slate-700'
+                                )}>
                                   {label}
                                 </span>
                                 {selectedSessionType === value && (
-                                  <div className="absolute top-2.5 right-2.5 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-white text-[8px] font-bold shadow-sm">
+                                  <div className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-primary flex items-center justify-center text-white text-[7px] font-bold shadow-sm">
                                     ✓
                                   </div>
                                 )}
@@ -317,7 +320,7 @@ export default function BookAppointment() {
 
                   {/* Step 2: Date */}
                   {currentStep === STEPS.DATE && (
-                    <Card className="border-none shadow-xl rounded-3xl p-8 bg-white">
+                    <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
                         <CardTitle className="text-2xl font-black">Select Date</CardTitle>
                         <p className="text-sm text-slate-400 font-medium mt-1">Choose an available weekday.</p>
@@ -340,7 +343,7 @@ export default function BookAppointment() {
 
                   {/* Step 3: Time */}
                   {currentStep === STEPS.TIME && (
-                    <Card className="border-none shadow-xl rounded-3xl p-8 bg-white">
+                    <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
                         <div className="flex items-center justify-between">
                           <div>
@@ -397,7 +400,7 @@ export default function BookAppointment() {
 
                   {/* Step 4: Reason */}
                   {currentStep === STEPS.REASON && (
-                    <Card className="border-none shadow-xl rounded-3xl p-8 bg-white">
+                    <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
                         <CardTitle className="text-2xl font-black">Session Goal</CardTitle>
                         <p className="text-sm text-slate-400 font-medium mt-1">Help your counselor prepare for your session.</p>
