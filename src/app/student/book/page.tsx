@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +21,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   CalendarDays,
@@ -33,9 +42,10 @@ import {
   Heart,
   BookOpen,
   Briefcase,
-  Brain
+  Brain,
+  AlertTriangle
 } from 'lucide-react';
-import { format, isBefore, isWeekend, startOfDay } from 'date-fns';
+import { format, parseISO, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -51,6 +61,22 @@ const TIME_SLOTS = [
   '09:00 AM', '10:00 AM', '11:00 AM',
   '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
 ];
+
+const getSlotDateTime = (date: Date, slotStr: string): Date => {
+  const [timePart, modifier] = slotStr.split(' ');
+  let [hours, minutes] = timePart.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+
+  const slotDate = new Date(date);
+  slotDate.setHours(hours, minutes, 0, 0);
+  return slotDate;
+};
+
+const isSlotInPast = (date: Date, slotStr: string): boolean => {
+  const slotDate = getSlotDateTime(date, slotStr);
+  return isBefore(slotDate, new Date());
+};
 
 const STEPS = { DETAILS: 1, DATE: 2, TIME: 3, REASON: 4, CONFIRM: 5 } as const;
 type Step = typeof STEPS[keyof typeof STEPS];
@@ -70,6 +96,11 @@ export default function BookAppointment() {
   const [counselors, setCounselors] = useState<any[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [isSlotLoading, setIsSlotLoading] = useState(false);
+  const [studentAppointments, setStudentAppointments] = useState<any[]>([]);
+  const [conflictingAppointments, setConflictingAppointments] = useState<any[]>([]);
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [conflictModalTitle, setConflictModalTitle] = useState('Daily Limit Reached (Max 3 Sessions)');
+  const [conflictModalDescription, setConflictModalDescription] = useState('You already have 3 appointments scheduled on this day.');
 
   const loadCounselors = useCallback(async () => {
     const all = await storageService.getAll<any>(STORAGE_KEYS.USERS);
@@ -90,6 +121,33 @@ export default function BookAppointment() {
   }, [user]);
 
   useEffect(() => { loadCounselors(); }, [loadCounselors]);
+
+  const loadStudentAppointments = useCallback(async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('student_id', user.id)
+      .neq('status', APPOINTMENT_STATUS.CANCELLED);
+    setStudentAppointments(data || []);
+  }, [user?.id]);
+
+  useEffect(() => { loadStudentAppointments(); }, [loadStudentAppointments]);
+
+  // Realtime: refresh student appointments when modified
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`student-appointments-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `student_id=eq.${user.id}`,
+      }, () => loadStudentAppointments())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, loadStudentAppointments]);
 
   const loadBookedSlots = useCallback(async () => {
     if (!selectedDate || !selectedCounselor) { setBookedSlots([]); return; }
@@ -122,10 +180,58 @@ export default function BookAppointment() {
   }, [selectedDate, selectedCounselor, loadBookedSlots]);
 
   const isDateDisabled = useCallback((date: Date) => {
-    return isBefore(startOfDay(date), startOfDay(new Date())) || isWeekend(date);
+    if (isBefore(startOfDay(date), startOfDay(new Date())) || isWeekend(date)) return true;
+    if (isToday(date)) {
+      const lastSlot = TIME_SLOTS[TIME_SLOTS.length - 1];
+      const lastSlotTime = getSlotDateTime(date, lastSlot);
+      if (isBefore(lastSlotTime, new Date())) {
+        return true;
+      }
+    }
+    return false;
   }, []);
 
-  const availableSlots = useMemo(() => TIME_SLOTS.filter(s => !bookedSlots.includes(s)), [bookedSlots]);
+  const handleDateSelect = (d: Date | undefined) => {
+    if (!d) {
+      setSelectedDate(undefined);
+      setSelectedTime('');
+      return;
+    }
+
+    const dateStr = format(d, 'yyyy-MM-dd');
+    const sameDayAppointments = studentAppointments.filter(a => a.date === dateStr);
+
+    if (sameDayAppointments.length >= 3) {
+      setConflictingAppointments(sameDayAppointments);
+      setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
+      setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+      setIsConflictModalOpen(true);
+      setSelectedDate(undefined);
+      setSelectedTime('');
+      return;
+    }
+
+    setSelectedDate(d);
+    setSelectedTime('');
+  };
+
+  const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+
+  const studentBookedTimesOnSelectedDate = useMemo(() => {
+    if (!selectedDateStr) return [];
+    return studentAppointments
+      .filter(a => a.date === selectedDateStr)
+      .map(a => a.time);
+  }, [studentAppointments, selectedDateStr]);
+
+  const availableSlots = useMemo(() => {
+    return TIME_SLOTS.filter(s => {
+      if (bookedSlots.includes(s)) return false;
+      if (studentBookedTimesOnSelectedDate.includes(s)) return false;
+      if (selectedDate && isSlotInPast(selectedDate, s)) return false;
+      return true;
+    });
+  }, [bookedSlots, studentBookedTimesOnSelectedDate, selectedDate]);
 
   const canProceed = useCallback((step: Step): boolean => {
     switch (step) {
@@ -138,6 +244,18 @@ export default function BookAppointment() {
   }, [selectedCounselor, selectedSessionType, selectedDate, selectedTime, reason, availableSlots]);
 
   const next = () => {
+    if (currentStep === STEPS.DATE && selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const sameDayAppointments = studentAppointments.filter(a => a.date === dateStr);
+      if (sameDayAppointments.length >= 3) {
+        setConflictingAppointments(sameDayAppointments);
+        setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
+        setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+        setIsConflictModalOpen(true);
+        setSelectedDate(undefined);
+        return;
+      }
+    }
     if (canProceed(currentStep)) {
       if (currentStep === STEPS.DATE) setSelectedTime('');
       setCurrentStep(prev => (prev + 1) as Step);
@@ -149,12 +267,68 @@ export default function BookAppointment() {
   };
 
   const handleBooking = async () => {
-    if (!canProceed(STEPS.REASON)) return;
-    if (!availableSlots.includes(selectedTime)) {
-      toast({ variant: 'destructive', title: 'Slot Unavailable', description: 'This slot was just taken. Please choose another.' });
+    if (!canProceed(STEPS.REASON) || !selectedDate) return;
+    if (!availableSlots.includes(selectedTime) || isSlotInPast(selectedDate, selectedTime)) {
+      toast({ variant: 'destructive', title: 'Slot Unavailable', description: 'This slot has expired or is unavailable. Please choose another.' });
       setCurrentStep(STEPS.TIME);
+      setSelectedTime('');
       return;
     }
+
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+    // 1. Check max 3 appointments per day in database
+    const { data: studentDayApps } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('student_id', user?.id)
+      .eq('date', dateStr)
+      .neq('status', APPOINTMENT_STATUS.CANCELLED);
+
+    if ((studentDayApps || []).length >= 3) {
+      setConflictingAppointments(studentDayApps || []);
+      setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
+      setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+      setIsConflictModalOpen(true);
+      setCurrentStep(STEPS.DATE);
+      setSelectedDate(undefined);
+      return;
+    }
+
+    // 2. Check if student already has a session at this exact time
+    if ((studentDayApps || []).some(a => a.time === selectedTime)) {
+      toast({
+        variant: 'destructive',
+        title: 'Time Slot Conflict',
+        description: `You already have another session scheduled at ${selectedTime} on this date.`,
+      });
+      setCurrentStep(STEPS.TIME);
+      setSelectedTime('');
+      return;
+    }
+
+    // 3. Check if counselor slot is still free
+    const { data: counselorSlot } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('counselor_id', selectedCounselor)
+      .eq('date', dateStr)
+      .eq('time', selectedTime)
+      .neq('status', APPOINTMENT_STATUS.CANCELLED)
+      .maybeSingle();
+
+    if (counselorSlot) {
+      toast({
+        variant: 'destructive',
+        title: 'Slot Already Booked',
+        description: 'This counselor slot was just taken by another student. Please choose another time.',
+      });
+      await loadBookedSlots();
+      setCurrentStep(STEPS.TIME);
+      setSelectedTime('');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const counselor = counselors.find(c => c.id === selectedCounselor);
@@ -163,7 +337,7 @@ export default function BookAppointment() {
         studentName: user?.name,
         counselorId: selectedCounselor,
         counselorName: counselor?.name,
-        date: format(selectedDate!, 'yyyy-MM-dd'),
+        date: dateStr,
         time: selectedTime,
         type: selectedSessionType,
         status: APPOINTMENT_STATUS.PENDING,
@@ -329,7 +503,7 @@ export default function BookAppointment() {
                         <Calendar
                           mode="single"
                           selected={selectedDate}
-                          onSelect={(d) => { setSelectedDate(d); setSelectedTime(''); }}
+                          onSelect={handleDateSelect}
                           disabled={isDateDisabled}
                           className="rounded-3xl border shadow-sm p-6"
                         />
@@ -365,24 +539,35 @@ export default function BookAppointment() {
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                           {TIME_SLOTS.map(slot => {
-                            const taken = bookedSlots.includes(slot);
+                            const takenByCounselor = bookedSlots.includes(slot);
+                            const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
+                            const isPast = selectedDate ? isSlotInPast(selectedDate, slot) : false;
+                            const isUnavailable = takenByCounselor || takenByStudent || isPast;
                             return (
                               <button
                                 key={slot}
                                 type="button"
-                                disabled={taken}
-                                onClick={() => !taken && setSelectedTime(slot)}
+                                disabled={isUnavailable}
+                                onClick={() => !isUnavailable && setSelectedTime(slot)}
                                 className={cn(
                                   'h-16 rounded-2xl font-bold text-sm border-2 transition-all flex flex-col items-center justify-center gap-0.5',
-                                  taken
+                                  isUnavailable
                                     ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
                                     : selectedTime === slot
                                       ? 'border-primary bg-primary text-white shadow-lg shadow-primary/25'
                                       : 'border-slate-100 bg-white text-slate-700 hover:border-primary/40 hover:shadow-sm'
                                 )}
                               >
-                                <span>{slot}</span>
-                                {taken && <span className="text-[9px] font-black uppercase tracking-wider text-slate-300">Booked</span>}
+                                <span className={isUnavailable ? 'text-slate-400' : ''}>{slot}</span>
+                                {isPast ? (
+                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Past Time</span>
+                                ) : takenByStudent ? (
+                                  <span className="text-[8px] font-black uppercase tracking-wider text-amber-500">Your Session</span>
+                                ) : takenByCounselor ? (
+                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Already Booked</span>
+                                ) : selectedTime === slot ? (
+                                  <span className="text-[8px] font-black uppercase tracking-wider text-white">Selected</span>
+                                ) : null}
                               </button>
                             );
                           })}
@@ -489,6 +674,84 @@ export default function BookAppointment() {
             )}
           </div>
         </div>
+
+        {/* Appointment Conflict / Limit Warning Modal */}
+        <Dialog open={isConflictModalOpen} onOpenChange={setIsConflictModalOpen}>
+          <DialogContent className="max-w-md p-6 sm:p-8 rounded-[2rem] border-none shadow-2xl bg-white animate-in fade-in-50 zoom-in-95 duration-200">
+            <DialogHeader className="flex flex-col items-center text-center pb-2">
+              <div className="h-16 w-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 ring-8 ring-amber-50/60 shadow-inner">
+                <AlertTriangle className="h-8 w-8" />
+              </div>
+              <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">
+                {conflictModalTitle}
+              </DialogTitle>
+              <DialogDescription className="text-xs font-semibold text-slate-500 mt-1">
+                {conflictModalDescription}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                {conflictingAppointments.map((app, idx) => (
+                  <div key={app.id || idx} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Session {idx + 1}
+                      </span>
+                      <Badge className={cn(
+                        "text-[10px] font-black py-0.5 px-2.5 rounded-full border shadow-none",
+                        app.status === 'confirmed'
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      )} variant="outline">
+                        {app.status === 'confirmed' ? 'Confirmed' : 'Pending Review'}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs font-bold text-slate-700">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>{app.time}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <User className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="truncate">{app.counselor_name || app.counselorName || 'Counselor'}</span>
+                      </div>
+                      {app.type && (
+                        <div className="col-span-2 flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>{app.type}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed text-center px-2 font-medium">
+                Students may book up to 3 appointments per day across available time slots. Please choose another date or manage your existing bookings.
+              </p>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 sm:space-x-0">
+              <Button
+                variant="outline"
+                onClick={() => setIsConflictModalOpen(false)}
+                className="w-full sm:flex-1 h-12 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-700"
+              >
+                Choose Another Date
+              </Button>
+              <Button
+                asChild
+                className="w-full sm:flex-1 h-12 rounded-xl font-black bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90"
+              >
+                <Link href="/student/appointments">
+                  View Appointments
+                </Link>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </ProtectedRoute>
   );
