@@ -246,7 +246,16 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
 
-          <div className="text-center space-y-6">
+          <div className="text-center space-y-5">
+            <div className="pt-2">
+              <p className="text-sm text-slate-600 font-medium">
+                Don&apos;t have an account?{' '}
+                <Link href="/register" className="font-bold text-primary hover:underline">
+                  Register as Student
+                </Link>
+              </p>
+            </div>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-muted" />
@@ -260,7 +269,7 @@ export default function LoginPage() {
               Sign in with University Google Account
             </Button>
 
-            <div className="pt-8 flex items-center justify-center gap-6 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+            <div className="pt-4 flex items-center justify-center gap-6 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3 w-3" />
                 <span>University Protocol</span>
