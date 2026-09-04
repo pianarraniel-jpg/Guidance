@@ -12,11 +12,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Send, Plus, Clock, AlertCircle, Search, MessageSquare,
-  Calendar, ChevronRight, EyeOff, Lock,
+  Calendar, ChevronRight, EyeOff, Lock, ArrowLeft,
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type ChatMessage = {
@@ -96,7 +97,9 @@ export default function StudentMessages() {
     });
 
     if (!activeCounselor && counselorsWithMetadata.length > 0) {
-      setActiveCounselor(counselorsWithMetadata[0]);
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        setActiveCounselor(counselorsWithMetadata[0]);
+      }
     }
 
     if (activeCounselor) {
@@ -184,9 +187,12 @@ export default function StudentMessages() {
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="flex h-[calc(100vh-64px)] overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-80 bg-white border-r flex flex-col shrink-0">
-            <div className="p-6 border-b">
+          {/* Sidebar / Counselor List */}
+          <div className={cn(
+            "w-full md:w-80 lg:w-96 bg-white border-r flex flex-col shrink-0 h-full",
+            activeCounselor ? "hidden md:flex" : "flex"
+          )}>
+            <div className="p-4 sm:p-6 border-b">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input
@@ -203,14 +209,15 @@ export default function StudentMessages() {
                   <div
                     key={counselor.id}
                     onClick={() => setActiveCounselor(counselor)}
-                    className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
+                    className={cn(
+                      'p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group',
                       activeCounselor?.id === counselor.id
                         ? 'bg-primary/5 ring-1 ring-primary/20 shadow-sm'
-                        : 'hover:bg-slate-50'
-                    }`}
+                        : 'hover:bg-slate-50 active:bg-slate-100'
+                    )}
                   >
-                    <div className="relative">
-                      <Avatar className="h-10 w-10 ring-2 ring-white">
+                    <div className="relative shrink-0">
+                      <Avatar className="h-12 w-12 ring-2 ring-white">
                         <AvatarImage src={`https://picsum.photos/seed/${counselor.id}/64/64`} />
                         <AvatarFallback className="font-bold text-primary bg-primary/5">{counselor.name[0]}</AvatarFallback>
                       </Avatar>
@@ -220,14 +227,20 @@ export default function StudentMessages() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-0.5">
-                        <h4 className={`text-sm ${counselor.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-700'} truncate`}>
+                        <h4 className={cn(
+                          'text-sm truncate',
+                          counselor.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-800'
+                        )}>
                           {counselor.name}
                         </h4>
                         {counselor.lastMessage && (
-                          <span className="text-[9px] text-slate-300 font-bold uppercase">{counselor.lastMessage.time}</span>
+                          <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0 ml-2">{counselor.lastMessage.time}</span>
                         )}
                       </div>
-                      <p className={`text-[11px] truncate ${counselor.isUnread ? 'font-bold text-slate-600' : 'text-slate-400'}`}>
+                      <p className={cn(
+                        'text-xs truncate',
+                        counselor.isUnread ? 'font-bold text-slate-700' : 'text-slate-400'
+                      )}>
                         {counselor.lastMessage
                           ? (counselor.lastMessage.text === '[BOOKING_REQUEST]' ? '📅 Session Invitation' : counselor.lastMessage.hidden && counselor.lastMessage.senderId === user?.id ? '[Message hidden]' : counselor.lastMessage.text)
                           : 'Wellness Counselor'}
@@ -243,44 +256,61 @@ export default function StudentMessages() {
           </div>
 
           {/* Chat area */}
-          <div className="flex-1 flex flex-col bg-white">
+          <div className={cn(
+            "flex-1 flex flex-col bg-white h-full min-w-0",
+            activeCounselor ? "flex" : "hidden md:flex"
+          )}>
             {activeCounselor ? (
               <>
-                <header className="h-20 border-b px-8 flex items-center justify-between shrink-0 bg-white/50 backdrop-blur-md">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-11 w-11 ring-2 ring-primary/5">
+                <header className="h-16 sm:h-20 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-md">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setActiveCounselor(null)}
+                      className="md:hidden h-9 w-9 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 shrink-0"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0">
                       <AvatarImage src={`https://picsum.photos/seed/${activeCounselor.id}/64/64`} />
                       <AvatarFallback className="font-bold text-primary bg-primary/5">{activeCounselor.name[0]}</AvatarFallback>
                     </Avatar>
-                    <div>
-                      <h3 className="font-black text-slate-900 text-lg">{activeCounselor.name}</h3>
-                      <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        Synchronized Support Channel
+                    <div className="min-w-0">
+                      <h3 className="font-black text-slate-900 text-sm sm:text-lg truncate">{activeCounselor.name}</h3>
+                      <p className="text-[9px] sm:text-[10px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1.5 truncate">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="truncate">Synchronized Support Channel</span>
                       </p>
                     </div>
                   </div>
-                  <div className="hidden md:flex items-center gap-2 bg-[#F1F5F9] px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-[#334155]">
+                  <div className="hidden sm:flex items-center gap-2 bg-[#F1F5F9] px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-[#334155] shrink-0">
                     <Clock className="h-3.5 w-3.5 text-primary" />
-                    University Support Line
+                    Support Line
                   </div>
                 </header>
 
-                <ScrollArea className="flex-1 p-8 bg-[#F8FAFC]">
-                  <div className="space-y-8">
+                <ScrollArea className="flex-1 p-4 sm:p-8 bg-[#F8FAFC]">
+                  <div className="space-y-6 sm:space-y-8">
                     {chatHistory.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex items-start gap-4 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}
+                        className={cn(
+                          'flex items-start gap-2.5 sm:gap-4 animate-in fade-in slide-in-from-bottom-2',
+                          msg.senderId === user?.id ? 'justify-end' : 'justify-start'
+                        )}
                       >
                         {msg.senderId !== user?.id && (
-                          <Avatar className="h-8 w-8 border border-white shadow-sm shrink-0">
+                          <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border border-white shadow-sm shrink-0 mt-0.5">
                             <AvatarImage src={`https://picsum.photos/seed/${msg.senderId}/64/64`} />
                             <AvatarFallback>{msg.senderRole === 'student' ? 'S' : 'C'}</AvatarFallback>
                           </Avatar>
                         )}
-                        <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
-                          {/* Hidden message placeholder (student's own hidden msg) */}
+                        <div className={cn(
+                          'max-w-[85%] sm:max-w-[70%] flex flex-col',
+                          msg.senderId === user?.id ? 'items-end' : 'items-start'
+                        )}>
+                          {/* Hidden message placeholder */}
                           {msg.hidden && msg.senderId === user?.id ? (
                             <div className="p-3 rounded-2xl bg-slate-100 border border-dashed border-slate-300 flex items-center gap-2">
                               <EyeOff className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -290,18 +320,18 @@ export default function StudentMessages() {
                             </div>
                           ) : msg.text === '[BOOKING_REQUEST]' ? (
                             <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden max-w-sm">
-                              <div className="bg-primary p-5 text-white">
+                              <div className="bg-primary p-4 sm:p-5 text-white">
                                 <div className="flex items-center gap-2 mb-1">
                                   <Calendar className="h-4 w-4" />
                                   <span className="text-[10px] font-black uppercase tracking-[0.2em]">Session Invitation</span>
                                 </div>
-                                <h4 className="text-lg font-black">Book Your Next Session</h4>
+                                <h4 className="text-base sm:text-lg font-black">Book Your Next Session</h4>
                               </div>
-                              <CardContent className="p-6">
-                                <p className="text-xs text-slate-500 mb-6 leading-relaxed font-medium">
+                              <CardContent className="p-4 sm:p-6">
+                                <p className="text-xs text-slate-500 mb-4 sm:mb-6 leading-relaxed font-medium">
                                   Your counselor has requested that you schedule a follow-up appointment.
                                 </p>
-                                <Button asChild className="w-full h-12 rounded-xl bg-primary font-black text-xs shadow-lg shadow-primary/20">
+                                <Button asChild className="w-full h-11 sm:h-12 rounded-xl bg-primary font-black text-xs shadow-lg shadow-primary/20">
                                   <Link href="/student/book" className="flex items-center justify-center gap-2">
                                     Complete Booking Form <ChevronRight className="h-4 w-4" />
                                   </Link>
@@ -309,15 +339,16 @@ export default function StudentMessages() {
                               </CardContent>
                             </Card>
                           ) : (
-                            <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
+                            <div className={cn(
+                              'p-3.5 sm:p-4 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm font-medium',
                               msg.senderId === user?.id
                                 ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                                 : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
-                            }`}>
+                            )}>
                               {msg.text}
                             </div>
                           )}
-                          <span className="text-[9px] text-slate-300 font-bold mt-2 uppercase tracking-widest">{msg.time}</span>
+                          <span className="text-[9px] text-slate-300 font-bold mt-1.5 uppercase tracking-widest">{msg.time}</span>
                         </div>
                       </div>
                     ))}
@@ -325,40 +356,39 @@ export default function StudentMessages() {
                   </div>
                 </ScrollArea>
 
-                <div className="p-8 border-t bg-white">
+                <div className="p-3 sm:p-6 border-t bg-white shrink-0">
                   <div>
-                    <div className="mb-4 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 text-red-700">
-                      <AlertCircle className="h-5 w-5 shrink-0" />
-                      <div className="text-[10px] font-bold uppercase tracking-wide">
+                    <div className="mb-2.5 sm:mb-4 bg-red-50 border border-red-100 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-start gap-2.5 text-red-700">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide">
                         <p className="font-black">Emergency Protocol</p>
                         <p className="opacity-80">This channel is not for crises. Call 988 or 911 if in immediate danger.</p>
                       </div>
                     </div>
 
-
-                    <form onSubmit={handleSend} className="flex items-center gap-4">
+                    <form onSubmit={handleSend} className="flex items-center gap-2 sm:gap-4">
                       <div className="flex-1 relative">
                         <Input
                           placeholder={canStudentSend ? 'Type a message to your counselor...' : 'Waiting for counselor reply...'}
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
                           disabled={!canStudentSend}
-                          className="h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-4 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="h-12 sm:h-14 bg-[#F8FAFC] border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl sm:rounded-2xl pl-4 sm:pl-6 pr-4 text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
                       <Button
                         type="submit"
-                        className="h-14 w-14 rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95"
+                        className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-primary shadow-lg shadow-primary/20 transition-all active:scale-95 shrink-0"
                         disabled={!inputValue.trim() || !canStudentSend}
                       >
-                        <Send className="h-5 w-5" />
+                        <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Button>
                     </form>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4 p-8 text-center">
                 <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
                   <MessageSquare className="h-8 w-8 opacity-20" />
                 </div>

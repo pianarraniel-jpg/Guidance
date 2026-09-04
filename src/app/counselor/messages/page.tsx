@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import {
   Send, Search, Sparkles, MoreVertical, Clock,
-  CheckCircle2, MessageSquare, Plus, Calendar, EyeOff, Lock,
+  CheckCircle2, MessageSquare, Plus, Calendar, EyeOff, Lock, ArrowLeft,
 } from 'lucide-react';
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { STORAGE_KEYS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 type Message = {
   id: string;
@@ -100,7 +101,9 @@ export default function CounselorMessagesPage() {
     });
 
     if (!activeStudent && studentsWithMetadata.length > 0) {
-      setActiveStudent(studentsWithMetadata[0]);
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        setActiveStudent(studentsWithMetadata[0]);
+      }
     }
 
     if (activeStudent) {
@@ -227,10 +230,13 @@ export default function CounselorMessagesPage() {
 
   return (
     <div className="h-[calc(100vh-120px)] flex gap-6">
-      {/* Sidebar */}
-      <Card className="w-80 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-slate-50">
-          <div className="relative group mb-4">
+      {/* Sidebar / Student Roster */}
+      <Card className={cn(
+        "w-full md:w-80 lg:w-96 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col shrink-0 h-full",
+        activeStudent ? "hidden md:flex" : "flex"
+      )}>
+        <div className="p-4 sm:p-6 border-b border-slate-50">
+          <div className="relative group mb-3 sm:mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
             <Input
               placeholder="Search students..."
@@ -246,17 +252,18 @@ export default function CounselorMessagesPage() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-3 space-y-1">
+          <div className="p-2 sm:p-3 space-y-1">
             {filteredContacts.map(contact => (
               <div
                 key={contact.id}
                 onClick={() => setActiveStudent(contact)}
-                className={`p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group ${
-                  activeStudent?.id === contact.id ? 'bg-primary/5 ring-1 ring-primary/10' : 'hover:bg-slate-50'
-                }`}
+                className={cn(
+                  'p-3.5 sm:p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3.5 sm:gap-4 group',
+                  activeStudent?.id === contact.id ? 'bg-primary/5 ring-1 ring-primary/10' : 'hover:bg-slate-50 active:bg-slate-100'
+                )}
               >
-                <div className="relative">
-                  <Avatar className="h-10 w-10 ring-2 ring-white">
+                <div className="relative shrink-0">
+                  <Avatar className="h-11 w-11 ring-2 ring-white">
                     <AvatarImage src={`https://picsum.photos/seed/${contact.id}/64/64`} />
                     <AvatarFallback className="bg-primary/5 text-primary font-bold">{contact.name[0]}</AvatarFallback>
                   </Avatar>
@@ -266,12 +273,20 @@ export default function CounselorMessagesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
-                    <h4 className={`text-sm ${contact.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-900'} truncate`}>{contact.name}</h4>
+                    <h4 className={cn(
+                      'text-sm truncate',
+                      contact.isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-900'
+                    )}>
+                      {contact.name}
+                    </h4>
                     {contact.lastMessage && (
-                      <span className="text-[9px] text-slate-300 font-bold uppercase">{contact.lastMessage.time}</span>
+                      <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0 ml-2">{contact.lastMessage.time}</span>
                     )}
                   </div>
-                  <p className={`text-xs truncate ${contact.isUnread ? 'font-bold text-slate-700' : 'font-medium text-slate-400'}`}>
+                  <p className={cn(
+                    'text-xs truncate',
+                    contact.isUnread ? 'font-bold text-slate-700' : 'font-medium text-slate-400'
+                  )}>
                     {contact.lastMessage
                       ? (contact.lastMessage.text === '[BOOKING_REQUEST]' ? 'Sent session invitation' : contact.lastMessage.text)
                       : 'Click to open chat'}
@@ -284,70 +299,91 @@ export default function CounselorMessagesPage() {
       </Card>
 
       {/* Chat area */}
-      <Card className="flex-1 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col">
+      <Card className={cn(
+        "flex-1 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col h-full min-w-0",
+        activeStudent ? "flex" : "hidden md:flex"
+      )}>
         {activeStudent ? (
           <>
-            <header className="px-8 py-5 border-b border-slate-50 flex items-center justify-between shrink-0 bg-white/50 backdrop-blur-md">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-11 w-11 ring-2 ring-primary/5">
+            <header className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-slate-50 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-md">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setActiveStudent(null)}
+                  className="md:hidden h-9 w-9 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 shrink-0"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0">
                   <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/64/64`} />
                   <AvatarFallback className="bg-primary/5 text-primary font-bold">{activeStudent.name[0]}</AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-slate-900 text-lg">{activeStudent.name}</h3>
-                    <Badge className="text-[9px] font-black uppercase tracking-tighter border-none bg-emerald-50 text-emerald-600">Active Session</Badge>
+                    <h3 className="font-black text-slate-900 text-sm sm:text-lg truncate">{activeStudent.name}</h3>
+                    <Badge className="text-[8px] sm:text-[9px] font-black uppercase tracking-tighter border-none bg-emerald-50 text-emerald-600 shrink-0">Active Session</Badge>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
-                    <Clock className="h-3 w-3" /> University Support Channel
+                  <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5 truncate">
+                    <Clock className="h-3 w-3 shrink-0" /> University Support Channel
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleAISummarize}
                   disabled={isSummarizing || messages.length === 0}
-                  className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 font-black text-xs gap-2 h-10 px-4"
+                  className="rounded-xl border-primary/20 text-primary hover:bg-primary/5 font-black text-xs gap-1 sm:gap-2 h-9 sm:h-10 px-2.5 sm:px-4"
                 >
                   {isSummarizing ? (
-                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   )}
-                  AI Insight
+                  <span className="hidden sm:inline">AI Insight</span>
                 </Button>
-                <div className="h-8 w-px bg-slate-100 mx-2" />
-                <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-primary">
+                <div className="hidden sm:block h-8 w-px bg-slate-100 mx-2" />
+                <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-primary h-9 w-9">
                   <MoreVertical className="h-5 w-5" />
                 </Button>
               </div>
             </header>
 
-            <ScrollArea className="flex-1 p-8 bg-slate-50/30">
-              <div className="space-y-8">
+            <ScrollArea className="flex-1 p-4 sm:p-8 bg-slate-50/30">
+              <div className="space-y-6 sm:space-y-8">
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2`}
+                    className={cn(
+                      'flex group animate-in fade-in slide-in-from-bottom-2',
+                      msg.senderId === user?.id ? 'justify-end' : 'justify-start'
+                    )}
                   >
-                    <div className={`max-w-[70%] flex flex-col ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
+                    <div className={cn(
+                      'max-w-[85%] sm:max-w-[70%] flex flex-col',
+                      msg.senderId === user?.id ? 'items-end' : 'items-start'
+                    )}>
                       {msg.text === '[BOOKING_REQUEST]' ? (
-                        <div className="bg-slate-100 border border-slate-200 rounded-2xl p-6 flex flex-col items-center gap-3 w-64">
-                          <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
-                            <Calendar className="h-5 w-5 text-slate-500" />
+                        <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 sm:p-6 flex flex-col items-center gap-3 w-56 sm:w-64">
+                          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-slate-200 flex items-center justify-center">
+                            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
                           </div>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Session Invitation Sent</p>
                         </div>
                       ) : msg.hidden ? (
                         /* Hidden message — counselor sees full content with warning */
-                        <div className={`flex flex-col gap-1 ${msg.senderId === user?.id ? 'items-end' : 'items-start'}`}>
-                          <div className={`p-4 rounded-2xl text-sm leading-relaxed font-medium border-2 border-dashed ${
+                        <div className={cn(
+                          'flex flex-col gap-1',
+                          msg.senderId === user?.id ? 'items-end' : 'items-start'
+                        )}>
+                          <div className={cn(
+                            'p-3.5 sm:p-4 rounded-2xl text-xs sm:text-sm leading-relaxed font-medium border-2 border-dashed',
                             msg.senderId === user?.id
                               ? 'bg-orange-50 border-orange-300 text-orange-800 rounded-tr-none'
                               : 'bg-red-50 border-red-300 text-red-800 rounded-tl-none'
-                          }`}>
+                          )}>
                             {msg.text}
                           </div>
                           <span className="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1 px-1">
@@ -355,16 +391,17 @@ export default function CounselorMessagesPage() {
                           </span>
                         </div>
                       ) : (
-                        <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm font-medium ${
+                        <div className={cn(
+                          'p-4 sm:p-5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm font-medium',
                           msg.senderId === user?.id
                             ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                             : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
-                        }`}>
+                        )}>
                           {msg.text}
                         </div>
                       )}
                       {msg.text !== '[BOOKING_REQUEST]' && !msg.hidden && (
-                        <div className="flex items-center gap-2 mt-2 px-1">
+                        <div className="flex items-center gap-2 mt-1.5 px-1">
                           <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">{msg.time}</span>
                           {msg.senderId === user?.id && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
                         </div>
@@ -376,41 +413,41 @@ export default function CounselorMessagesPage() {
               </div>
             </ScrollArea>
 
-            <div className="p-8 border-t border-slate-50 bg-white">
+            <div className="p-3 sm:p-8 border-t border-slate-50 bg-white shrink-0">
               <div>
-                <form onSubmit={handleSendMessage} className="flex items-center gap-4">
-                  <div className="flex-1 relative flex items-center gap-2">
+                <form onSubmit={handleSendMessage} className="flex items-center gap-2 sm:gap-4">
+                  <div className="flex-1 relative flex items-center gap-1.5 sm:gap-2">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       onClick={handleSendBookingForm}
                       disabled={!canCounselorSend}
-                      className="h-14 w-14 rounded-2xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-11 w-11 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <Plus className="h-6 w-6" />
+                      <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
                     </Button>
                     <Input
-                      placeholder={canCounselorSend ? 'Type your clinical response...' : 'Waiting for student reply...'}
+                      placeholder={canCounselorSend ? 'Type your response...' : 'Waiting for student reply...'}
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       disabled={!canCounselorSend}
-                      className="h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-2xl pl-6 pr-6 text-sm font-medium w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-11 sm:h-14 bg-slate-50 border-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl sm:rounded-2xl pl-4 sm:pl-6 pr-4 sm:pr-6 text-xs sm:text-sm font-medium w-full disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="h-14 w-14 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-all active:scale-95"
+                    className="h-11 w-11 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 shrink-0 transition-all active:scale-95"
                     disabled={!inputValue.trim() || !canCounselorSend}
                   >
-                    <Send className="h-5 w-5" />
+                    <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </form>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4 p-8 text-center">
             <MessageSquare className="h-12 w-12 opacity-20" />
             <p className="font-bold text-sm italic">Select a student to begin consultation</p>
           </div>
