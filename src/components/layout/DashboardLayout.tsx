@@ -19,7 +19,8 @@ import {
   Sparkles,
   Users,
   MonitorSmartphone,
-  User
+  User,
+  Heart
 } from 'lucide-react';
 import logo from '@/app/assets/logo.png';
 import Link from 'next/link';
@@ -51,9 +52,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (isCounselor) {
       return [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
-        { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
         { icon: Users, label: 'Students', href: '/counselor/students' },
-        { icon: ClipboardCheck, label: 'Session Notes', href: '/counselor/session-notes' },
+        { icon: Calendar, label: 'Appointments', href: '/counselor/appointments', type: 'appointment' },
+        { icon: FileText, label: 'Assessments', href: '/counselor/assessments', type: 'assessment' },
+        { icon: Heart, label: 'Self-Care Protocols', href: '/counselor/self-care' },
+        { icon: ClipboardCheck, label: 'Session Records', href: '/counselor/session-records' },
+        { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
       ];
     }
     if (isAdmin) {

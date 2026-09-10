@@ -22,8 +22,11 @@ import {
   YEAR_LEVELS, 
   COLLEGES_AND_PROGRAMS, 
   getProgramsForCollege, 
-  getCollegeByCode 
+  getCollegeByCode,
+  getCollegesForCounselor,
+  getProgramsForCounselor
 } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -41,15 +44,33 @@ import {
 import { supabase } from '@/lib/supabase';
 
 export default function CounselorStudentsPage() {
+  const { user: counselor } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [assessmentsMap, setAssessmentsMap] = useState<Record<string, any[]>>({});
   const [insightsMap, setInsightsMap] = useState<Record<string, string>>({});
+
+  // Handled Colleges for this counselor based on assigned department
+  const handledColleges = useMemo(() => {
+    return getCollegesForCounselor(counselor?.department);
+  }, [counselor?.department]);
+
+  const isDepartmentScoped = useMemo(() => {
+    return Boolean(counselor?.department && counselor.department.trim().toLowerCase() !== 'all');
+  }, [counselor?.department]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [collegeFilter, setCollegeFilter] = useState<string>('all');
   const [programFilter, setProgramFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
+
+  // Auto-focus to counselor's college if they handle a single college (e.g. CCS)
+  useEffect(() => {
+    if (isDepartmentScoped && handledColleges.length === 1) {
+      setCollegeFilter(handledColleges[0].code);
+      setEnrollDepartment(handledColleges[0].code);
+    }
+  }, [isDepartmentScoped, handledColleges]);
 
   // Modals
   const [profileStudent, setProfileStudent] = useState<any>(null);
@@ -161,8 +182,11 @@ export default function CounselorStudentsPage() {
   };
 
   const availableProgramsForFilter = useMemo(() => {
-    return getProgramsForCollege(collegeFilter === 'all' || collegeFilter === 'unassigned' ? undefined : collegeFilter);
-  }, [collegeFilter]);
+    return getProgramsForCounselor(
+      counselor?.department, 
+      collegeFilter === 'all' || collegeFilter === 'unassigned' ? undefined : collegeFilter
+    );
+  }, [counselor?.department, collegeFilter]);
 
   // ── Enroll ────────────────────────────────────────────────────────────────
   const handleEnrollSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -394,6 +418,13 @@ export default function CounselorStudentsPage() {
     return counts;
   }, [students]);
 
+  const handledStudentCount = useMemo(() => {
+    if (!isDepartmentScoped) return students.length;
+    return students.filter(s => 
+      !s.department || handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department))
+    ).length;
+  }, [students, isDepartmentScoped, handledColleges]);
+
   const filteredStudents = useMemo(() => students.filter(s => {
     const matchSearch =
       s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -401,7 +432,9 @@ export default function CounselorStudentsPage() {
       s.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchCollege =
-      collegeFilter === 'all' ? true :
+      collegeFilter === 'all' ? (
+        !isDepartmentScoped || !s.department || handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department))
+      ) :
       collegeFilter === 'unassigned' ? !s.department :
       (s.department === collegeFilter || getCollegeByCode(collegeFilter)?.aliases?.includes(s.department));
 
@@ -416,7 +449,7 @@ export default function CounselorStudentsPage() {
       s.yearLevel === yearFilter;
 
     return matchSearch && matchCollege && matchProgram && matchYear;
-  }), [students, searchTerm, collegeFilter, programFilter, yearFilter]);
+  }), [students, searchTerm, collegeFilter, programFilter, yearFilter, isDepartmentScoped, handledColleges]);
 
   const getWellnessLabel = (stressLevel?: number) => {
     if (stressLevel == null) return { label: 'No data', color: 'bg-slate-100 text-slate-400' };
@@ -499,7 +532,7 @@ export default function CounselorStudentsPage() {
                         <SelectValue placeholder="Select college" />
                       </SelectTrigger>
                       <SelectContent className="max-h-64">
-                        {COLLEGES_AND_PROGRAMS.map(d => (
+                        {handledColleges.map(d => (
                           <SelectItem key={d.code} value={d.code} className="text-xs font-bold">
                             <span className="font-black text-primary">[{d.code}]</span> — {d.name}
                           </SelectItem>
@@ -554,7 +587,9 @@ export default function CounselorStudentsPage() {
 
           <div className="bg-primary/5 px-4 h-12 rounded-2xl flex items-center gap-2 border border-primary/10">
             <Users className="h-4 w-4 text-primary" />
-            <span className="text-xs font-black text-primary">{students.length} Enrolled</span>
+            <span className="text-xs font-black text-primary">
+              {isDepartmentScoped ? `${handledStudentCount} Assigned` : `${students.length} Enrolled`}
+            </span>
           </div>
         </div>
       </header>
@@ -593,9 +628,11 @@ export default function CounselorStudentsPage() {
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 <SelectItem value="all" className="text-xs font-bold">
-                  All Colleges ({students.length})
+                  {isDepartmentScoped && handledColleges.length < COLLEGES_AND_PROGRAMS.length
+                    ? `All Handled Colleges (${handledStudentCount})`
+                    : `All Colleges (${students.length})`}
                 </SelectItem>
-                {COLLEGES_AND_PROGRAMS.map(c => (
+                {handledColleges.map(c => (
                   <SelectItem key={c.code} value={c.code} className="text-xs font-bold py-2">
                     <span className="font-black text-primary mr-1.5">[{c.code}]</span>
                     <span>{c.name}</span>
@@ -859,7 +896,7 @@ export default function CounselorStudentsPage() {
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     <SelectItem value="none" className="text-xs font-bold text-slate-400">— None —</SelectItem>
-                    {COLLEGES_AND_PROGRAMS.map(d => (
+                    {handledColleges.map(d => (
                       <SelectItem key={d.code} value={d.code} className="text-xs font-bold">
                         <span className="font-black text-primary">[{d.code}]</span> — {d.name}
                       </SelectItem>

@@ -129,6 +129,32 @@ export function getCollegeByCode(collegeCode?: string): CollegeDefinition | unde
   );
 }
 
+export function getCollegesForCounselor(departmentStr?: string): CollegeDefinition[] {
+  if (!departmentStr || departmentStr.trim().toLowerCase() === 'all') {
+    return COLLEGES_AND_PROGRAMS;
+  }
+  const codes = departmentStr
+    .split(',')
+    .map(d => d.trim().toUpperCase())
+    .filter(Boolean);
+  if (codes.length === 0) return COLLEGES_AND_PROGRAMS;
+
+  const matched = COLLEGES_AND_PROGRAMS.filter(c =>
+    codes.some(code => code === c.code || c.aliases?.map(a => a.toUpperCase()).includes(code))
+  );
+  return matched.length > 0 ? matched : COLLEGES_AND_PROGRAMS;
+}
+
+export function getProgramsForCounselor(departmentStr?: string, selectedCollegeCode?: string): string[] {
+  if (selectedCollegeCode && selectedCollegeCode !== 'all' && selectedCollegeCode !== 'unassigned') {
+    return getProgramsForCollege(selectedCollegeCode);
+  }
+  const handledColleges = getCollegesForCounselor(departmentStr);
+  const programs = new Set<string>();
+  handledColleges.forEach(c => c.programs.forEach(p => programs.add(p)));
+  return Array.from(programs);
+}
+
 export const YEAR_LEVELS = [
   '1st Year',
   '2nd Year',

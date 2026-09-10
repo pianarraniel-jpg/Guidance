@@ -46,9 +46,10 @@ import {
   Terminal,
   RefreshCw,
   Info,
+  User,
 } from 'lucide-react';
 
-type AdminTab = 'overview' | 'appointments' | 'users' | 'assessments' | 'telemetry';
+type AdminTab = 'overview' | 'appointments' | 'users' | 'telemetry';
 
 interface SystemLog {
   timestamp: string;
@@ -60,7 +61,6 @@ interface SystemLog {
 export default function AdminDashboard() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [assessments, setAssessments] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -69,11 +69,10 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [stressFilter, setStressFilter] = useState<string>('all');
 
   // Dialog / Details States
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [detailType, setDetailType] = useState<'appointment' | 'assessment' | null>(null);
+  const [detailType, setDetailType] = useState<'appointment' | null>(null);
 
   // System telemetry mock logs
   const [telemetryLogs, setTelemetryLogs] = useState<SystemLog[]>([]);
@@ -124,10 +123,9 @@ export default function AdminDashboard() {
     if (!isBackground) setIsLoading(true);
 
     try {
-      const [allApts, allUsers, allAssessments] = await Promise.all([
+      const [allApts, allUsers] = await Promise.all([
         storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
         storageService.getAll<any>(STORAGE_KEYS.USERS),
-        storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
       ]);
 
       setAppointments(prev => {
@@ -142,12 +140,6 @@ export default function AdminDashboard() {
         return hasDiff ? allUsers : prev;
       });
 
-      setAssessments(prev => {
-        if (prev.length !== allAssessments.length) return allAssessments;
-        const hasDiff = prev.some((as, i) => as.id !== allAssessments[i].id || as.stressLevel !== allAssessments[i].stressLevel || as.emotionalState !== allAssessments[i].emotionalState);
-        return hasDiff ? allAssessments : prev;
-      });
-
       // Chart sessions computation (Last 7 Days)
       const last7Days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() });
       const nextChartData = last7Days.map(day => {
@@ -155,13 +147,9 @@ export default function AdminDashboard() {
         return { name: format(day, 'EEE'), sessions: allApts.filter(a => a.date === dateStr).length };
       });
 
-      setChartData(prev => {
-        if (prev.length !== nextChartData.length) return nextChartData;
-        const hasDiff = prev.some((d, i) => d.name !== nextChartData[i].name || d.sessions !== nextChartData[i].sessions);
-        return hasDiff ? nextChartData : prev;
-      });
-    } catch (error) {
-      console.error('Error fetching admin dashboard metrics:', error);
+      setChartData(nextChartData);
+    } catch (err) {
+      console.error('Failed to load admin dashboard data', err);
     } finally {
       setIsLoading(false);
     }
@@ -169,24 +157,23 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData();
-
-    // Initial logs setup
-    const initialLogs: SystemLog[] = [
-      { timestamp: '18:00:00', type: 'info', source: 'AuthService', message: 'Admin session token handshake approved.' },
-      { timestamp: '18:00:02', type: 'success', source: 'SupabaseDB', message: 'Connected cleanly to Supabase PostgreSQL cluster (active pools = 2).' },
-      { timestamp: '18:00:05', type: 'success', source: 'RealtimeSync', message: 'WebSocket realtime sync channel listening to updates on table: appointments.' },
-      { timestamp: '18:00:08', type: 'info', source: 'ClinicalEngine', message: 'Cognitive check-in evaluator loaded with default neural weighting.' }
-    ];
-    setTelemetryLogs(initialLogs);
   }, [loadData]);
 
-  // Supabase Realtime: reactively refresh when any subscribed table changes
-  const stableLoadData = useCallback(() => loadData(true), [loadData]);
-  useLiveSync(stableLoadData);
+  useLiveSync(loadData);
 
-  // Live telemetry logs generation (cosmetic UI animation only)
+  // Background mock logs generator for telemetry
   useEffect(() => {
     if (activeTab !== 'telemetry') return;
+
+    const initialLogs: SystemLog[] = [
+      generateMockLog('success'),
+      generateMockLog('info'),
+      generateMockLog('info'),
+      generateMockLog('warn'),
+      generateMockLog('success')
+    ];
+    setTelemetryLogs(initialLogs);
+
     const logInterval = setInterval(() => {
       setTelemetryLogs(prev => [generateMockLog(), ...prev].slice(0, 50));
     }, 4500);
@@ -202,7 +189,6 @@ export default function AdminDashboard() {
   const completedAptsCount = appointments.filter(a => a.status === 'completed').length;
   const completionRate = appointments.length > 0 ? Math.round((completedAptsCount / appointments.length) * 100) : 0;
 
-  const urgentAssessments = assessments.filter(a => (a.stressLevel ?? a.stress_level ?? 0) > 75);
   const pendingAptsCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;
 
   const handleManualLogGeneration = () => {
@@ -226,20 +212,6 @@ export default function AdminDashboard() {
     return (nameMatch || emailMatch) && roleMatch;
   });
 
-  const filteredAssessmentsList = assessments.filter(a => {
-    const studentMatch = a.studentName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const emotionalMatch = (a.emotionalState || a.emotional_state || '')?.toLowerCase().includes(searchTerm.toLowerCase());
-    const queryMatch = studentMatch || emotionalMatch || false;
-
-    let stressMatch = true;
-    const stressScore = a.stressLevel ?? a.stress_level ?? 0;
-    if (stressFilter === 'high') stressMatch = stressScore > 75;
-    else if (stressFilter === 'moderate') stressMatch = stressScore >= 40 && stressScore <= 75;
-    else if (stressFilter === 'low') stressMatch = stressScore < 40;
-
-    return queryMatch && stressMatch;
-  });
-
   const renderStatusBadge = (status: string) => {
     switch (status) {
       case APPOINTMENT_STATUS.CONFIRMED:
@@ -255,11 +227,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const renderStressBadge = (score: number) => {
-    if (score > 75) return <Badge className="bg-red-50 text-red-600 border-red-100 font-black text-[10px] animate-pulse">Urgent ({score})</Badge>;
-    if (score >= 40) return <Badge className="bg-orange-50 text-orange-600 border-orange-100 font-bold text-[10px]">Moderate ({score})</Badge>;
-    return <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 font-bold text-[10px]">Stable ({score})</Badge>;
-  };
+
 
   return (
     <ProtectedRoute allowedRoles={['admin']}>
@@ -331,16 +299,16 @@ export default function AdminDashboard() {
 
             <Card className="border-none shadow-sm bg-white rounded-3xl overflow-hidden p-6 relative">
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-2xl bg-red-50 text-red-500">
-                  <ShieldAlert className="h-5 w-5" />
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-500">
+                  <Clock className="h-5 w-5" />
                 </div>
-                <Badge variant="outline" className="text-[9px] font-black tracking-widest border-slate-100 text-slate-400 bg-slate-50/50">CLINICAL</Badge>
+                <Badge variant="outline" className="text-[9px] font-black tracking-widest border-slate-100 text-slate-400 bg-slate-50/50">OPERATIONS</Badge>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Priority Review</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Action Queue</p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-black text-red-500">{urgentAssessments.length}</p>
-                  <span className="text-xs text-red-400 font-bold">Urgent cases flagged</span>
+                  <p className="text-3xl font-black text-amber-600">{pendingAptsCount}</p>
+                  <span className="text-xs text-slate-400 font-bold">Pending sessions</span>
                 </div>
               </div>
             </Card>
@@ -368,7 +336,7 @@ export default function AdminDashboard() {
             {/* Roster tab bar */}
             <div className="px-8 pt-8 pb-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-1.5 flex-wrap">
-                {(['overview', 'appointments', 'users', 'assessments', 'telemetry'] as const).map(tab => (
+                {(['overview', 'appointments', 'users', 'telemetry'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => {
@@ -434,24 +402,6 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
-
-                  {activeTab === 'assessments' && (
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-xl p-1 border border-slate-100">
-                      {['all', 'high', 'moderate', 'low'].map(f => (
-                        <button
-                          key={f}
-                          onClick={() => setStressFilter(f)}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
-                            stressFilter === f 
-                              ? 'bg-white text-slate-800 shadow-sm'
-                              : 'text-slate-400 hover:text-slate-600'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -491,26 +441,26 @@ export default function AdminDashboard() {
                     {/* Live active queue alert */}
                     <Card className="border-none shadow-sm bg-slate-50 rounded-2xl p-6">
                       <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-500 animate-bounce" /> Attention Required
+                        <AlertTriangle className="h-4 w-4 text-amber-500" /> Pending Review
                       </h4>
                       <div className="space-y-3">
-                        {urgentAssessments.slice(0, 3).map((u, i) => (
-                          <div key={i} className="p-3 bg-white border border-slate-100 rounded-xl flex items-center gap-3">
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className="bg-red-50 text-red-500 font-bold text-xs">{u.studentName?.[0] || 'S'}</AvatarFallback>
-                            </Avatar>
+                        {appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).slice(0, 3).map((apt) => (
+                          <div key={apt.id} className="p-3 bg-white border border-slate-100 rounded-xl flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs shrink-0">
+                              <User className="h-4 w-4" />
+                            </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-slate-900 truncate">{u.studentName}</p>
-                              <p className="text-[10px] font-bold text-red-500 flex items-center gap-1 mt-0.5">
-                                Extreme Stress Level: {u.stressLevel ?? u.stress_level}%
+                              <p className="text-xs font-black text-slate-900 truncate">{apt.studentName || 'Student'}</p>
+                              <p className="text-[10px] font-bold text-amber-600 truncate">
+                                {apt.type} • {apt.date}
                               </p>
                             </div>
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               onClick={() => {
-                                setSelectedItem(u);
-                                setDetailType('assessment');
+                                setSelectedItem(apt);
+                                setDetailType('appointment');
                               }}
                               className="text-[10px] font-black text-slate-400 hover:text-primary rounded-lg px-2 h-7"
                             >
@@ -518,8 +468,8 @@ export default function AdminDashboard() {
                             </Button>
                           </div>
                         ))}
-                        {urgentAssessments.length === 0 && (
-                          <p className="text-xs text-slate-400 font-medium italic text-center py-4">No critical cases reported.</p>
+                        {pendingAptsCount === 0 && (
+                          <p className="text-xs text-slate-400 font-medium italic text-center py-4">All sessions up to date.</p>
                         )}
                       </div>
                     </Card>
@@ -675,68 +625,6 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* assessments tab */}
-              {activeTab === 'assessments' && (
-                <div className="border border-slate-50 rounded-2xl overflow-hidden bg-white">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Student Name</th>
-                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Check-in Date</th>
-                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Emotional State</th>
-                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Stress Severity</th>
-                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Details</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredAssessmentsList.map((asmt) => {
-                          const stressVal = asmt.stressLevel ?? asmt.stress_level ?? 0;
-                          return (
-                            <tr key={asmt.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <p className="text-xs font-black text-slate-900">{asmt.studentName || 'Student check-in'}</p>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-[10px] font-bold text-slate-500">
-                                  {asmt.timestamp ? format(new Date(asmt.timestamp), 'yyyy-MM-dd HH:mm') : asmt.date || '—'}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge className="bg-slate-100 border-none text-slate-700 font-bold text-[10px] rounded-lg">
-                                  {asmt.emotionalState || asmt.emotional_state || 'Not specified'}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
-                                {renderStressBadge(stressVal)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedItem(asmt);
-                                    setDetailType('assessment');
-                                  }}
-                                  className="h-8 font-black text-primary hover:bg-primary/5 rounded-lg text-[10px]"
-                                >
-                                  Clinical View
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {filteredAssessmentsList.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="text-center py-12 text-slate-400 font-bold italic text-xs">No completed assessments recorded.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
               {/* telemetry tab */}
               {activeTab === 'telemetry' && (
                 <div className="space-y-6">
@@ -854,65 +742,6 @@ export default function AdminDashboard() {
                     <p className="text-xs font-medium text-slate-600 leading-relaxed italic">
                       "{selectedItem?.reason || 'Student requested generic support guidelines to optimize stress handling and work workloads.'}"
                     </p>
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-2">
-                    <Button onClick={() => setSelectedItem(null)} className="h-11 px-5 rounded-xl bg-primary text-white font-bold text-xs">
-                      Dismiss View
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {detailType === 'assessment' && (
-              <>
-                <DialogHeader className="p-8 bg-slate-50 border-b border-slate-100">
-                  <DialogTitle className="text-2xl font-black text-slate-900">Clinical Review</DialogTitle>
-                  <div className="flex items-center gap-2 mt-2">
-                    {selectedItem && renderStressBadge(selectedItem.stressLevel ?? selectedItem.stress_level ?? 0)}
-                    <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">#{selectedItem?.id?.slice(-8).toUpperCase()}</span>
-                  </div>
-                </DialogHeader>
-                
-                <div className="p-8 space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Student</p>
-                      <p className="text-xs font-bold text-slate-800">{selectedItem?.studentName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Check-in Timestamp</p>
-                      <p className="text-xs font-bold text-slate-800">
-                        {selectedItem?.timestamp ? format(new Date(selectedItem.timestamp), 'yyyy-MM-dd HH:mm') : selectedItem?.date || '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Active Emotion</p>
-                      <p className="text-xs font-bold text-slate-800">{selectedItem?.emotionalState || selectedItem?.emotional_state || 'Not specified'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Stress Score</p>
-                      <p className="text-xs font-bold text-slate-800">{selectedItem?.stressLevel ?? selectedItem?.stress_level ?? 0} / 100</p>
-                    </div>
-                  </div>
-
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-4">
-                    <div>
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Check-in Summary</h4>
-                      <p className="text-xs font-medium text-slate-600 leading-relaxed italic">
-                        "{selectedItem?.summary || 'Student logged stress symptoms and requested wellness analysis insights.'}"
-                      </p>
-                    </div>
-                    
-                    {selectedItem?.counselorFeedback && (
-                      <div className="pt-3 border-t border-slate-200">
-                        <h4 className="text-[10px] font-black text-primary uppercase tracking-wider mb-2">Counselor Feedback</h4>
-                        <p className="text-xs font-bold text-slate-700 leading-relaxed">
-                          {selectedItem.counselorFeedback}
-                        </p>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-2">

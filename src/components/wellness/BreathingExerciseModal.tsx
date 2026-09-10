@@ -28,6 +28,8 @@ interface BreathingExerciseModalProps {
   duration: number; // in seconds (e.g. 600 for 10 mins)
   title: string;
   onComplete?: () => void;
+  type?: string;
+  autoStart?: boolean;
 }
 
 type BreathPhase = 'inhale' | 'holdIn' | 'exhale' | 'holdOut';
@@ -41,20 +43,31 @@ const MINDFULNESS_QUOTES = [
   "Inhale the future, exhale the past."
 ];
 
+const GROUNDING_STEPS = [
+  { label: '5: See', desc: '👀 Look around: Notice 5 distinct things you can see.' },
+  { label: '4: Touch', desc: '✋ Touch: Notice 4 physical textures or sensations near you.' },
+  { label: '3: Hear', desc: '👂 Listen: Tune into 3 subtle sounds in your environment.' },
+  { label: '2: Smell', desc: '👃 Scent: Notice 2 scents or take deep refreshing breaths.' },
+  { label: '1: Taste', desc: '👅 Taste: Focus on 1 taste or gently swallow and breathe.' }
+];
+
 export default function BreathingExerciseModal({
   isOpen,
   onClose,
   duration,
   title,
-  onComplete
+  onComplete,
+  type = 'breathing',
+  autoStart = true
 }: BreathingExerciseModalProps) {
   const { toast } = useToast();
   
   // Timer States
-  const [isActive, setIsActive] = useState(false);
+  const [isActive, setIsActive] = useState(autoStart);
   const [secondsLeft, setSecondsLeft] = useState(duration);
   const [breathPhase, setBreathPhase] = useState<BreathPhase>('inhale');
   const [phaseSecondsLeft, setPhaseSecondsLeft] = useState(4); // 4-second box breathing
+  const [groundingStep, setGroundingStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState('');
 
@@ -66,16 +79,17 @@ export default function BreathingExerciseModal({
   useEffect(() => {
     if (isOpen) {
       setSecondsLeft(duration);
-      setIsActive(false);
+      setIsActive(autoStart !== undefined ? autoStart : true);
       setBreathPhase('inhale');
       setPhaseSecondsLeft(4);
+      setGroundingStep(0);
       setIsCompleted(false);
       setSelectedQuote(MINDFULNESS_QUOTES[Math.floor(Math.random() * MINDFULNESS_QUOTES.length)]);
     }
     return () => {
       clearTimers();
     };
-  }, [isOpen, duration]);
+  }, [isOpen, duration, autoStart]);
 
   const clearTimers = () => {
     if (mainIntervalRef.current) clearInterval(mainIntervalRef.current);
@@ -96,6 +110,7 @@ export default function BreathingExerciseModal({
     setSecondsLeft(duration);
     setBreathPhase('inhale');
     setPhaseSecondsLeft(4);
+    setGroundingStep(0);
     setIsCompleted(false);
   };
 
@@ -110,7 +125,7 @@ export default function BreathingExerciseModal({
     }
     toast({
       title: "Mindfulness Accomplished!",
-      description: "You have completed your daily breathing session.",
+      description: "You have completed your guided session.",
     });
   };
 
@@ -142,6 +157,8 @@ export default function BreathingExerciseModal({
                 default: return 'inhale';
               }
             });
+            // Also progress grounding steps every 16 seconds
+            setGroundingStep((step) => (step + 1) % GROUNDING_STEPS.length);
             return 4; // Reset phase duration to 4 seconds
           }
           return prev - 1;
@@ -217,7 +234,14 @@ export default function BreathingExerciseModal({
         {/* Upper Header Nav / Dev Shortcut */}
         <div className="absolute top-4 left-6 right-6 flex items-center justify-between z-20">
           <Badge className="bg-slate-900 border-slate-800 text-teal-400 font-bold px-3 py-1 flex items-center gap-1.5">
-            <Timer className="h-3.5 w-3.5" /> Guided Mindfulness
+            <Timer className="h-3.5 w-3.5" /> 
+            {type === 'journaling' 
+              ? 'Guided Journaling' 
+              : type === 'grounding' 
+              ? '5-4-3-2-1 Grounding' 
+              : type === 'meditation' 
+              ? 'Mindful Meditation' 
+              : 'Box Breathing'} ({Math.max(1, Math.round(duration / 60))} Mins)
           </Badge>
 
           <div className="flex items-center gap-3">
@@ -252,10 +276,10 @@ export default function BreathingExerciseModal({
 
             <div className="mb-4">
               <h3 className="text-xl font-black text-slate-100 tracking-tight">{title}</h3>
-              <p className="text-xs text-slate-400 font-medium mt-1">Focus on your breathing and allow stress to melt away.</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">Focus on the session and allow your mind to settle.</p>
             </div>
 
-            {/* PULSING BOX BREATHING CIRCLE CONTAINER */}
+            {/* PULSING BOX BREATHING / COUNTDOWN CIRCLE CONTAINER */}
             <div className="h-72 flex items-center justify-center w-full my-6">
               <div 
                 className={`w-48 h-48 rounded-full bg-gradient-to-tr ${activeStyles.bgGradient} ${activeStyles.shadow} ${activeStyles.scale} flex flex-col items-center justify-center relative`}
@@ -268,25 +292,40 @@ export default function BreathingExerciseModal({
                   <span className={`absolute inset-0 rounded-full bg-inherit opacity-25 animate-ping duration-1000 pointer-events-none`} />
                 )}
                 
-                {/* Inner White Matte Ring */}
+                {/* Inner Matte Ring with Big Countdown Display */}
                 <div className="w-[88%] h-[88%] rounded-full bg-slate-950/85 flex flex-col items-center justify-center p-4">
                   {isActive ? (
                     <>
-                      <span className="text-[10px] uppercase font-black tracking-widest text-teal-400/80 mb-1">
-                        {activeStyles.label}
+                      <span className="text-[10px] uppercase font-black tracking-widest text-teal-400/90 mb-1">
+                        {type === 'grounding' 
+                          ? GROUNDING_STEPS[groundingStep]?.label 
+                          : type === 'journaling' 
+                          ? 'Reflect & Write' 
+                          : type === 'meditation'
+                          ? 'Mindful Scan'
+                          : activeStyles.label}
                       </span>
-                      <span className="text-4xl font-black text-white tracking-tighter leading-none mb-1">
-                        {phaseSecondsLeft}s
+                      <span className="text-4xl sm:text-5xl font-black text-white tracking-tighter leading-none mb-1 font-mono">
+                        {formatTime(secondsLeft)}
                       </span>
-                      <span className="text-[9px] text-slate-400 font-bold max-w-[120px] leading-tight">
-                        {formatTime(secondsLeft)} left
+                      <span className="text-[10px] text-slate-400 font-bold max-w-[130px] leading-tight text-center">
+                        {type === 'breathing' 
+                          ? `${phaseSecondsLeft}s in phase` 
+                          : type === 'grounding' 
+                          ? `Sense ${groundingStep + 1} of 5`
+                          : `${Math.ceil(secondsLeft / 60)} min remaining`}
                       </span>
                     </>
                   ) : (
                     <>
                       <Heart className="h-8 w-8 text-rose-500 fill-current mb-2 animate-pulse" />
-                      <span className="text-xs font-black uppercase text-slate-300 tracking-wider">Ready?</span>
-                      <span className="text-[10px] text-slate-400 mt-1">Click Start to Begin</span>
+                      <span className="text-xs font-black uppercase text-slate-300 tracking-wider">
+                        {secondsLeft === duration ? 'Ready' : 'Paused'}
+                      </span>
+                      <span className="text-3xl font-black text-white font-mono mt-1">
+                        {formatTime(secondsLeft)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-1">Click Play to Resume</span>
                     </>
                   )}
                 </div>
@@ -294,9 +333,17 @@ export default function BreathingExerciseModal({
             </div>
 
             {/* Instruction description prompt */}
-            <div className="h-12 max-w-sm flex items-center justify-center mb-6">
-              <p className="text-sm font-semibold text-slate-200 animate-pulse leading-snug">
-                {isActive ? activeStyles.desc : "Find a comfortable sitting position and close your eyes."}
+            <div className="h-14 max-w-md flex items-center justify-center mb-6 px-4">
+              <p className="text-sm font-semibold text-slate-200 leading-snug text-center">
+                {!isActive
+                  ? "Find a comfortable sitting position and click Play to start."
+                  : type === 'grounding'
+                  ? GROUNDING_STEPS[groundingStep]?.desc
+                  : type === 'journaling'
+                  ? "Take deep breaths and write down whatever thoughts or feelings arise freely."
+                  : type === 'meditation'
+                  ? "Close your eyes, breathe naturally, and let go of any tension in your body."
+                  : activeStyles.desc}
               </p>
             </div>
 
@@ -316,6 +363,7 @@ export default function BreathingExerciseModal({
                 onClick={resetExercise}
                 disabled={secondsLeft === duration && !isActive}
                 className="h-12 w-12 rounded-full border-slate-800 bg-slate-900 hover:bg-slate-800 hover:text-white text-slate-400 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                title="Reset Exercise"
               >
                 <RotateCcw className="h-5 w-5" />
               </Button>
@@ -328,11 +376,12 @@ export default function BreathingExerciseModal({
                     ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/10' 
                     : 'bg-primary hover:bg-primary/95 shadow-primary/20'
                 }`}
+                title={isActive ? "Pause" : "Play"}
               >
                 {isActive ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current ml-1" />}
               </Button>
 
-              <div className="h-12 w-12 flex items-center justify-center text-sm font-black text-slate-400">
+              <div className="h-12 px-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-sm font-black font-mono text-teal-400 shadow-inner">
                 {formatTime(secondsLeft)}
               </div>
             </div>

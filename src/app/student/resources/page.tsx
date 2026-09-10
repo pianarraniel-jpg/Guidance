@@ -27,6 +27,38 @@ import {
   Brain,
   Calendar
 } from 'lucide-react';
+import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
+
+const DEFAULT_SELF_CARE = [
+  {
+    id: 'default-1',
+    label: 'Breathing',
+    time: '10 min',
+    duration: 10,
+    type: 'breathing',
+  },
+  {
+    id: 'default-2',
+    label: 'Gratitude Journaling',
+    time: '10 min',
+    duration: 10,
+    type: 'journaling',
+  },
+  {
+    id: 'default-3',
+    label: '5-4-3-2-1 Sensory Grounding',
+    time: '8 min',
+    duration: 8,
+    type: 'grounding',
+  },
+  {
+    id: 'default-4',
+    label: 'Mindful Body Scan Meditation',
+    time: '12 min',
+    duration: 12,
+    type: 'meditation',
+  }
+];
 
 export default function StudentResources() {
   const [activeCategory, setActiveCategory] = useState('All Resources');
@@ -34,6 +66,14 @@ export default function StudentResources() {
   const [customTools, setCustomTools] = useState<any[]>([]);
   const [globalTools, setGlobalTools] = useState<any[]>([]);
   const [downloadables, setDownloadables] = useState<any[]>([]);
+
+  // Interactive Countdown Timer Modal State
+  const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<{
+    title: string;
+    duration: number; // in seconds
+    type: string;
+  } | null>(null);
 
   const categories = ['All Resources', 'Campus Services', 'Self-Care Tools', 'Downloadables'];
 
@@ -80,8 +120,18 @@ export default function StudentResources() {
         const { data: gData, error: gError } = await supabase
           .from('global_self_care_tools')
           .select('*');
-        if (!gError && gData) {
+        if (!gError && gData && gData.length > 0) {
           setGlobalTools(gData);
+        } else if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem('guidance_global_self_care');
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setGlobalTools(parsed);
+              }
+            } catch {}
+          }
         }
       } catch (err) {
         console.error("Error fetching global tools:", err);
@@ -138,28 +188,52 @@ export default function StudentResources() {
     }
   };
 
-  const allSelfCareTools = [
-    ...globalTools.map(gt => {
-      const styles = getToolStyles(gt.type);
-      return {
-        icon: getToolIcon(gt.type),
-        label: gt.label,
-        bg: styles.bg,
-        color: styles.color,
-        time: gt.time
-      };
-    }),
-    ...customTools.map(ct => {
-      const styles = getToolStyles(ct.type);
-      return {
-        icon: getToolIcon(ct.type),
-        label: ct.label,
-        bg: styles.bg,
-        color: styles.color,
-        time: ct.time
-      };
-    })
+  // Helper to parse duration integer minutes and convert to seconds
+  const parseDurationToSeconds = (timeVal: any, durationVal?: any): number => {
+    if (typeof durationVal === 'number' && durationVal > 0) {
+      return durationVal * 60;
+    }
+    if (typeof timeVal === 'number' && timeVal > 0) {
+      return timeVal * 60;
+    }
+    if (typeof timeVal === 'string') {
+      const num = parseInt(timeVal.replace(/\D/g, ''), 10);
+      if (!isNaN(num) && num > 0) return num * 60;
+    }
+    return 10 * 60; // 10 minutes default
+  };
+
+  // Handler to launch active counting timer modal
+  const handleStartTool = (tool: any) => {
+    const seconds = parseDurationToSeconds(tool.time, tool.duration);
+    setSelectedTool({
+      title: tool.label || 'Mindfulness Exercise',
+      duration: seconds,
+      type: tool.type || 'breathing',
+    });
+    setIsTimerOpen(true);
+  };
+
+  const rawTools = [
+    ...globalTools.map(gt => ({ ...gt, isGlobal: true })),
+    ...customTools.map(ct => ({ ...ct, isGlobal: false }))
   ];
+
+  const toolsToRender = rawTools.length > 0 ? rawTools : DEFAULT_SELF_CARE;
+
+  const allSelfCareTools = toolsToRender.map((tool, idx) => {
+    const styles = getToolStyles(tool.type);
+    return {
+      id: tool.id || `tool-${idx}`,
+      icon: getToolIcon(tool.type),
+      label: tool.label,
+      type: tool.type || 'breathing',
+      bg: styles.bg,
+      color: styles.color,
+      time: tool.time,
+      duration: tool.duration,
+    };
+  });
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
@@ -233,18 +307,39 @@ export default function StudentResources() {
           {/* Self-Care Tools */}
           {(activeCategory === 'All Resources' || activeCategory === 'Self-Care Tools') && (
             <div className="mb-12">
-              <h2 className="text-2xl font-black text-slate-900 mb-6">Quick Self-Care Tools</h2>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Quick Self-Care Tools</h2>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">Click &quot;Start&quot; on any protocol to begin a guided countdown session.</p>
+                </div>
+                <Badge variant="outline" className="text-xs font-bold border-teal-200 text-teal-700 bg-teal-50/60 px-3 py-1">
+                  Active Mindfulness Timers
+                </Badge>
+              </div>
+
               {allSelfCareTools.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {allSelfCareTools.map((tool, idx) => (
-                    <Card key={`${tool.label}-${idx}`} className="border-none shadow-md hover:shadow-lg transition-all group cursor-pointer">
+                    <Card 
+                      key={`${tool.label}-${idx}`}
+                      onClick={() => handleStartTool(tool)}
+                      className="border-none shadow-md hover:shadow-xl transition-all group cursor-pointer hover:-translate-y-1 bg-white"
+                    >
                       <CardContent className="p-6">
-                        <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center mb-4`}>
+                        <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center mb-4 transition-transform group-hover:scale-110`}>
                           <tool.icon className="h-5 w-5" />
                         </div>
-                        <h4 className="font-black text-sm text-slate-900 mb-1">{tool.label}</h4>
-                        <p className="text-xs text-slate-500 font-bold mb-3">{tool.time}</p>
-                        <button className="text-xs font-black text-primary uppercase flex items-center gap-1 hover:gap-2 transition-all">
+                        <h4 className="font-black text-sm text-slate-900 mb-1 group-hover:text-primary transition-colors">{tool.label}</h4>
+                        <p className="text-xs text-slate-500 font-bold mb-3">
+                          {typeof tool.time === 'number' ? `${tool.time} min` : (tool.time || `${tool.duration || 10} min`)}
+                        </p>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartTool(tool);
+                          }}
+                          className="text-xs font-black text-primary uppercase flex items-center gap-1 group-hover:gap-2 transition-all"
+                        >
                           Start <ChevronRight className="h-3 w-3" />
                         </button>
                       </CardContent>
@@ -306,7 +401,7 @@ export default function StudentResources() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black text-slate-900 mb-2">Need Immediate Support?</h3>
-                <p className="text-sm text-slate-600 font-medium">If you're experiencing a crisis, please reach out to the USPF Counseling Center or call the Mental Health Crisis Hotline immediately.</p>
+                <p className="text-sm text-slate-600 font-medium">If you&apos;re experiencing a crisis, please reach out to the USPF Counseling Center or call the Mental Health Crisis Hotline immediately.</p>
               </div>
               <Button className="bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl px-8 py-6 h-auto flex items-center gap-2 shrink-0">
                 <Phone className="h-5 w-5" /> Call Now
@@ -314,6 +409,21 @@ export default function StudentResources() {
             </div>
           </Card>
         </main>
+
+        {/* Functional Interactive Exercise Timer Modal */}
+        {selectedTool && (
+          <BreathingExerciseModal
+            isOpen={isTimerOpen}
+            onClose={() => {
+              setIsTimerOpen(false);
+              setSelectedTool(null);
+            }}
+            duration={selectedTool.duration}
+            title={selectedTool.title}
+            type={selectedTool.type}
+            autoStart={true}
+          />
+        )}
       </DashboardLayout>
     </ProtectedRoute>
   );

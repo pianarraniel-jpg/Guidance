@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Calendar,
   Clock,
@@ -30,6 +29,7 @@ import {
   Activity,
   ShieldAlert,
   MonitorSmartphone,
+  User,
 } from "lucide-react";
 import { format, isThisWeek, isThisMonth } from "date-fns";
 import Link from "next/link";
@@ -209,6 +209,11 @@ export default function CounselorDashboard() {
 
   const incomingQueue = appointments
     .filter((a) => a.status === APPOINTMENT_STATUS.PENDING)
+    .sort((a, b) => {
+      const timeB = new Date(b.createdAt || b.created_at || b.date).getTime();
+      const timeA = new Date(a.createdAt || a.created_at || a.date).getTime();
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    })
     .slice(0, 4);
 
   return (
@@ -579,14 +584,9 @@ export default function CounselorDashboard() {
                   href="/counselor/appointments"
                   className="p-3 rounded-2xl border border-slate-50 hover:bg-slate-50 transition-colors flex items-center gap-3 cursor-pointer group"
                 >
-                  <Avatar className="h-10 w-10 ring-2 ring-white">
-                    <AvatarImage
-                      src={`https://picsum.photos/seed/${student.studentId}/64/64`}
-                    />
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                      {student.studentName?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 ring-2 ring-white shadow-sm shrink-0">
+                    <User className="h-5 w-5" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-black text-slate-900 mb-0.5">
                       {student.studentName}

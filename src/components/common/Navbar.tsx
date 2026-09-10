@@ -32,13 +32,16 @@ const Navbar = () => {
               <>
                 <Link href="/counselor/dashboard" className="text-sm font-medium hover:text-primary transition-colors">Dashboard</Link>
                 <Link href="/counselor/students" className="text-sm font-medium hover:text-primary transition-colors">Students</Link>
-                <Link href="/counselor/session-notes" className="text-sm font-medium hover:text-primary transition-colors">Session Notes</Link>
+                <Link href="/counselor/appointments" className="text-sm font-medium hover:text-primary transition-colors">Appointments</Link>
+                <Link href="/counselor/assessments" className="text-sm font-medium hover:text-primary transition-colors">Assessments</Link>
+                <Link href="/counselor/session-records" className="text-sm font-medium hover:text-primary transition-colors">Session Records</Link>
               </>
             )}
             {user?.role === 'admin' && (
               <>
                 <Link href="/admin/dashboard" className="text-sm font-medium hover:text-primary transition-colors">Analytics</Link>
                 <Link href="/admin/reports" className="text-sm font-medium hover:text-primary transition-colors">Reports</Link>
+                <Link href="/admin/resources" className="text-sm font-medium hover:text-primary transition-colors">Resources</Link>
               </>
             )}
           </div>

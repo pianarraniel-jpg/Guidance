@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   Search,
@@ -40,7 +39,9 @@ import {
   Heart,
   BookOpen,
   Briefcase,
-  ChevronDown
+  ChevronDown,
+  User,
+  ArrowUpDown
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
@@ -83,6 +84,7 @@ export default function CounselorAppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest-booked');
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -132,9 +134,28 @@ export default function CounselorAppointmentsPage() {
   const { toast } = useToast();
   const { notifications, markAsRead, realtimeStatus } = useNotifications();
 
+  const getBookingTimestamp = (app: any) => {
+    const raw = app.createdAt || app.created_at;
+    if (raw) {
+      const t = new Date(raw).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (app.date) {
+      const fallback = new Date(`${app.date} ${app.time || '00:00'}`).getTime();
+      if (!isNaN(fallback)) return fallback;
+    }
+    return 0;
+  };
+
+  const getSessionTimestamp = (app: any) => {
+    if (!app.date) return 0;
+    const t = new Date(`${app.date} ${app.time || '00:00'}`).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
   const loadAppointments = useCallback(async () => {
     const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-    data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    data.sort((a, b) => getBookingTimestamp(b) - getBookingTimestamp(a));
     setAppointments(data);
   }, []);
 
@@ -337,13 +358,38 @@ export default function CounselorAppointmentsPage() {
     setIsFeedbackOpen(false);
   };
 
-  const filteredAppointments = appointments.filter(app => {
-    const matchesSearch =
-      app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.type?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || app.status?.toLowerCase() === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
-  });
+  const filteredAppointments = React.useMemo(() => {
+    return appointments
+      .filter(app => {
+        const matchesSearch =
+          app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          app.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (app.id && app.id.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesStatus = statusFilter === 'all' || app.status?.toLowerCase() === statusFilter.toLowerCase();
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'newest-booked') {
+          return getBookingTimestamp(b) - getBookingTimestamp(a);
+        }
+        if (sortBy === 'pending-first') {
+          const aPending = a.status === APPOINTMENT_STATUS.PENDING ? 1 : 0;
+          const bPending = b.status === APPOINTMENT_STATUS.PENDING ? 1 : 0;
+          if (bPending !== aPending) return bPending - aPending;
+          return getBookingTimestamp(b) - getBookingTimestamp(a);
+        }
+        if (sortBy === 'schedule-upcoming') {
+          return getSessionTimestamp(a) - getSessionTimestamp(b);
+        }
+        if (sortBy === 'schedule-desc') {
+          return getSessionTimestamp(b) - getSessionTimestamp(a);
+        }
+        if (sortBy === 'oldest-booked') {
+          return getBookingTimestamp(a) - getBookingTimestamp(b);
+        }
+        return getBookingTimestamp(b) - getBookingTimestamp(a);
+      });
+  }, [appointments, searchTerm, statusFilter, sortBy]);
 
   const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;
 
@@ -426,6 +472,19 @@ export default function CounselorAppointmentsPage() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[185px] h-10 bg-white border-none shadow-sm rounded-xl font-bold text-xs gap-1.5">
+              <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <SelectValue placeholder="Sort / Shortlist" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest-booked">Newest Booked First</SelectItem>
+              <SelectItem value="pending-first">Pending Approval First</SelectItem>
+              <SelectItem value="schedule-upcoming">Upcoming Schedule</SelectItem>
+              <SelectItem value="schedule-desc">Schedule Date (Latest)</SelectItem>
+              <SelectItem value="oldest-booked">Oldest Booked First</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             onClick={() => setIsBookingOpen(true)}
             className="h-10 px-4 rounded-xl font-black bg-primary text-white hover:bg-primary/90 shadow-md flex items-center gap-2"
@@ -469,14 +528,9 @@ export default function CounselorAppointmentsPage() {
                   <TableCell className="pl-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="relative">
-                        <Avatar className="h-10 w-10 ring-2 ring-white shadow-sm">
-                          <AvatarImage
-                            src={`https://picsum.photos/seed/${app.studentName}/64/64`}
-                          />
-                          <AvatarFallback className="bg-primary/5 text-primary font-bold">
-                            {app.studentName?.[0]}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 ring-2 ring-white shadow-sm shrink-0">
+                          <User className="h-5 w-5" />
+                        </div>
                         {app.status === APPOINTMENT_STATUS.PENDING && (
                           <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-amber-400 border-2 border-white animate-pulse" />
                         )}
@@ -689,14 +743,9 @@ export default function CounselorAppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-8 bg-slate-50 border-b">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 ring-4 ring-white shadow-md">
-                <AvatarImage
-                  src={`https://picsum.photos/seed/${selectedApp?.studentName}/128/128`}
-                />
-                <AvatarFallback className="text-xl font-bold bg-primary text-white">
-                  {selectedApp?.studentName?.[0]}
-                </AvatarFallback>
-              </Avatar>
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center ring-4 ring-white shadow-md shrink-0">
+                <User className="h-8 w-8 text-primary" />
+              </div>
               <div>
                 <DialogTitle className="text-2xl font-black text-slate-900">
                   {selectedApp?.studentName}
