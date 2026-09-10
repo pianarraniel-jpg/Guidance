@@ -7,16 +7,23 @@ import {
   Table, TableBody, TableCell, TableHead,
   TableHeader, TableRow
 } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Search, MoreVertical, Trash2, ExternalLink, Users, User,
   Brain, TrendingUp, GraduationCap, Building2, Pencil, Filter,
-  Heart, Wind, BookOpen, Anchor, Music
+  Heart, Wind, BookOpen, Anchor, Music, X
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS, USER_ROLES, DEPARTMENTS, YEAR_LEVELS } from '@/lib/constants';
+import { 
+  STORAGE_KEYS, 
+  USER_ROLES, 
+  DEPARTMENTS, 
+  YEAR_LEVELS, 
+  COLLEGES_AND_PROGRAMS, 
+  getProgramsForCollege, 
+  getCollegeByCode 
+} from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +47,8 @@ export default function CounselorStudentsPage() {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [deptFilter, setDeptFilter] = useState<string>('all');
+  const [collegeFilter, setCollegeFilter] = useState<string>('all');
+  const [programFilter, setProgramFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
 
   // Modals
@@ -61,6 +69,7 @@ export default function CounselorStudentsPage() {
   const [enrollEmail, setEnrollEmail] = useState('');
   const [enrollStudentId, setEnrollStudentId] = useState('');
   const [enrollDepartment, setEnrollDepartment] = useState('');
+  const [enrollProgram, setEnrollProgram] = useState('');
   const [enrollYearLevel, setEnrollYearLevel] = useState('');
   const [enrollError, setEnrollError] = useState('');
   const [isEnrollSubmitting, setIsEnrollSubmitting] = useState(false);
@@ -68,6 +77,7 @@ export default function CounselorStudentsPage() {
   // Edit form
   const [editName, setEditName] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editProgram, setEditProgram] = useState('');
   const [editYearLevel, setEditYearLevel] = useState('');
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
 
@@ -79,7 +89,13 @@ export default function CounselorStudentsPage() {
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
       storageService.getAll<any>(STORAGE_KEYS.AI_INSIGHTS),
     ]);
-    const studentList = allUsers.filter(u => u.role === USER_ROLES.STUDENT);
+    const studentList = allUsers
+      .filter(u => u.role === USER_ROLES.STUDENT)
+      .map(u => ({
+        ...u,
+        program: u.program || u.course || undefined,
+        yearLevel: u.yearLevel || u.year || undefined,
+      }));
     setStudents(studentList);
 
     const aMap: Record<string, any[]> = {};
@@ -133,6 +149,21 @@ export default function CounselorStudentsPage() {
     }
   }, [profileStudent, editStudent]);
 
+  // Handle College Filter change
+  const handleCollegeFilterChange = (col: string) => {
+    setCollegeFilter(col);
+    if (col !== 'all' && col !== 'unassigned') {
+      const allowedPrograms = getProgramsForCollege(col);
+      if (programFilter !== 'all' && programFilter !== 'unassigned' && !allowedPrograms.includes(programFilter)) {
+        setProgramFilter('all');
+      }
+    }
+  };
+
+  const availableProgramsForFilter = useMemo(() => {
+    return getProgramsForCollege(collegeFilter === 'all' || collegeFilter === 'unassigned' ? undefined : collegeFilter);
+  }, [collegeFilter]);
+
   // ── Enroll ────────────────────────────────────────────────────────────────
   const handleEnrollSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -167,18 +198,28 @@ export default function CounselorStudentsPage() {
         return;
       }
 
-      await supabase.from('profiles').update({
+      const enrollPayload: any = {
         name,
         role: USER_ROLES.STUDENT,
         student_id: studentId,
         department: (enrollDepartment && enrollDepartment !== 'none') ? enrollDepartment : null,
+        course: (enrollProgram && enrollProgram !== 'none') ? enrollProgram : null,
         year_level: (enrollYearLevel && enrollYearLevel !== 'none') ? enrollYearLevel : null,
-      }).eq('id', data.user.id);
+      };
+      if (enrollProgram && enrollProgram !== 'none') {
+        enrollPayload.program = enrollProgram;
+      }
+
+      let { error: enrollError } = await supabase.from('profiles').update(enrollPayload).eq('id', data.user.id);
+      if (enrollError && enrollError.message?.includes('program')) {
+        delete enrollPayload.program;
+        await supabase.from('profiles').update(enrollPayload).eq('id', data.user.id);
+      }
 
       toast({ title: 'Student Enrolled', description: `${name} has been added to the directory.` });
       setIsEnrollDialogOpen(false);
       setEnrollName(''); setEnrollEmail(''); setEnrollStudentId('');
-      setEnrollDepartment(''); setEnrollYearLevel('');
+      setEnrollDepartment(''); setEnrollProgram(''); setEnrollYearLevel('');
       loadStudents();
     } catch {
       setEnrollError('Unable to enroll student. Please try again.');
@@ -192,6 +233,7 @@ export default function CounselorStudentsPage() {
     setEditStudent(student);
     setEditName(student.name ?? '');
     setEditDepartment(student.department ?? '');
+    setEditProgram(student.program ?? '');
     setEditYearLevel(student.yearLevel ?? '');
   };
 
@@ -200,11 +242,22 @@ export default function CounselorStudentsPage() {
     if (!editStudent) return;
     setIsEditSubmitting(true);
     try {
-      const { error } = await supabase.from('profiles').update({
+      const editPayload: any = {
         name: editName.trim() || editStudent.name,
         department: (editDepartment && editDepartment !== 'none') ? editDepartment : null,
+        course: (editProgram && editProgram !== 'none') ? editProgram : null,
         year_level: (editYearLevel && editYearLevel !== 'none') ? editYearLevel : null,
-      }).eq('id', editStudent.id);
+      };
+      if (editProgram && editProgram !== 'none') {
+        editPayload.program = editProgram;
+      }
+
+      let { error } = await supabase.from('profiles').update(editPayload).eq('id', editStudent.id);
+      if (error && error.message?.includes('program')) {
+        delete editPayload.program;
+        const res = await supabase.from('profiles').update(editPayload).eq('id', editStudent.id);
+        error = res.error;
+      }
 
       if (error) throw error;
 
@@ -253,7 +306,6 @@ export default function CounselorStudentsPage() {
         if (error) throw error;
 
         setAssignedSelfCare(updatedTools);
-        // Update in local students array too
         setStudents(prev => prev.map(s => s.id === profileStudent.id ? { ...s, selfCareTools: updatedTools } : s));
         setNewToolLabel('');
         setNewToolTime('');
@@ -309,8 +361,8 @@ export default function CounselorStudentsPage() {
     loadStudents();
   };
 
-  // ── Derived data ──────────────────────────────────────────────────────────
-  const deptCounts = useMemo(() => {
+  // ── Derived counts & data ─────────────────────────────────────────────────
+  const collegeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     students.forEach(s => {
       const d = s.department || 'Unassigned';
@@ -318,6 +370,20 @@ export default function CounselorStudentsPage() {
     });
     return counts;
   }, [students]);
+
+  const programCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    students.forEach(s => {
+      const matchCol = collegeFilter === 'all' ? true :
+        collegeFilter === 'unassigned' ? !s.department :
+        (s.department === collegeFilter || getCollegeByCode(collegeFilter)?.aliases?.includes(s.department));
+      if (matchCol) {
+        const p = s.program || 'Unassigned';
+        counts[p] = (counts[p] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }, [students, collegeFilter]);
 
   const yearCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -328,24 +394,29 @@ export default function CounselorStudentsPage() {
     return counts;
   }, [students]);
 
-  const activeDepts = DEPARTMENTS;
-  const activeYears = [...YEAR_LEVELS];
-
   const filteredStudents = useMemo(() => students.filter(s => {
     const matchSearch =
       s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.studentId?.includes(searchTerm) ||
       s.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchDept =
-      deptFilter === 'all' ? true :
-      deptFilter === 'unassigned' ? !s.department :
-      s.department === deptFilter;
+
+    const matchCollege =
+      collegeFilter === 'all' ? true :
+      collegeFilter === 'unassigned' ? !s.department :
+      (s.department === collegeFilter || getCollegeByCode(collegeFilter)?.aliases?.includes(s.department));
+
+    const matchProgram =
+      programFilter === 'all' ? true :
+      programFilter === 'unassigned' ? !s.program :
+      s.program === programFilter;
+
     const matchYear =
       yearFilter === 'all' ? true :
       yearFilter === 'unassigned' ? !s.yearLevel :
       s.yearLevel === yearFilter;
-    return matchSearch && matchDept && matchYear;
-  }), [students, searchTerm, deptFilter, yearFilter]);
+
+    return matchSearch && matchCollege && matchProgram && matchYear;
+  }), [students, searchTerm, collegeFilter, programFilter, yearFilter]);
 
   const getWellnessLabel = (stressLevel?: number) => {
     if (stressLevel == null) return { label: 'No data', color: 'bg-slate-100 text-slate-400' };
@@ -354,8 +425,11 @@ export default function CounselorStudentsPage() {
     return { label: 'Stable', color: 'bg-emerald-50 text-emerald-600' };
   };
 
-  const getDeptLabel = (code?: string) =>
-    DEPARTMENTS.find(d => d.value === code)?.value ?? code ?? null;
+  const getDeptCode = (code?: string) => {
+    if (!code) return null;
+    const col = getCollegeByCode(code);
+    return col ? col.code : (DEPARTMENTS.find(d => d.value === code)?.value ?? code);
+  };
 
   const profileAssessments = profileStudent ? (assessmentsMap[profileStudent.id] ?? []) : [];
   const profileInsight = profileStudent ? insightsMap[profileStudent.id] : null;
@@ -364,7 +438,7 @@ export default function CounselorStudentsPage() {
     ? Math.round(profileAssessments.slice(0, 5).reduce((s, a) => s + (a.stressLevel ?? 50), 0) / Math.min(5, profileAssessments.length))
     : null;
 
-  const hasActiveFilters = deptFilter !== 'all' || yearFilter !== 'all';
+  const hasActiveFilters = collegeFilter !== 'all' || programFilter !== 'all' || yearFilter !== 'all';
 
   return (
     <div className="w-full pb-10">
@@ -416,37 +490,62 @@ export default function CounselorStudentsPage() {
                   <Input placeholder="202300958" value={enrollStudentId} onChange={e => setEnrollStudentId(e.target.value)} required />
                   <p className="text-[10px] text-slate-400">Student ID is also the initial login password.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Department</Label>
-                    <Select value={enrollDepartment} onValueChange={setEnrollDepartment}>
+                
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">College</Label>
+                    <Select value={enrollDepartment} onValueChange={(d) => { setEnrollDepartment(d); setEnrollProgram(''); }}>
                       <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-                        <SelectValue placeholder="Select dept." />
+                        <SelectValue placeholder="Select college" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {DEPARTMENTS.map(d => (
-                          <SelectItem key={d.value} value={d.value} className="text-xs font-bold">
-                            <span className="font-black">{d.value}</span> — {d.label.replace(/^College of /, '')}
+                      <SelectContent className="max-h-64">
+                        {COLLEGES_AND_PROGRAMS.map(d => (
+                          <SelectItem key={d.code} value={d.code} className="text-xs font-bold">
+                            <span className="font-black text-primary">[{d.code}]</span> — {d.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Year Level</Label>
-                    <Select value={enrollYearLevel} onValueChange={setEnrollYearLevel}>
-                      <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {YEAR_LEVELS.map(y => (
-                          <SelectItem key={y} value={y} className="text-xs font-bold">{y}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Program</Label>
+                      <Select 
+                        value={enrollProgram} 
+                        onValueChange={setEnrollProgram}
+                        disabled={!enrollDepartment}
+                      >
+                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                          <SelectValue placeholder={!enrollDepartment ? "Pick college" : "Select program"} />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {getProgramsForCollege(enrollDepartment).map(p => (
+                            <SelectItem key={p} value={p} className="text-xs font-medium">
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Year Level</Label>
+                      <Select value={enrollYearLevel} onValueChange={setEnrollYearLevel}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                          <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {YEAR_LEVELS.map(y => (
+                            <SelectItem key={y} value={y} className="text-xs font-bold">{y}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-12 bg-primary text-white font-black rounded-2xl mt-1" disabled={isEnrollSubmitting}>
+
+                <Button type="submit" className="w-full h-12 bg-primary text-white font-black rounded-2xl mt-2" disabled={isEnrollSubmitting}>
                   {isEnrollSubmitting ? 'Enrolling...' : 'Enroll Student'}
                 </Button>
               </form>
@@ -460,74 +559,147 @@ export default function CounselorStudentsPage() {
         </div>
       </header>
 
-      {/* ── Filters ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-6 space-y-4">
+      {/* ── Filters Dropdown Bar ────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6 space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Filter className="h-3 w-3" /> Filter Students
-          </p>
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <Filter className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Filter Students</p>
+              <p className="text-[11px] text-slate-400 font-medium">Filter directory by college, degree program, and year level</p>
+            </div>
+          </div>
           {hasActiveFilters && (
             <button
-              onClick={() => { setDeptFilter('all'); setYearFilter('all'); }}
-              className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+              onClick={() => { setCollegeFilter('all'); setProgramFilter('all'); setYearFilter('all'); }}
+              className="text-xs font-bold text-primary hover:underline"
             >
-              Clear filters
+              Reset all filters
             </button>
           )}
         </div>
 
-        {/* Department chips */}
-        <div>
-          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <Building2 className="h-3 w-3" /> Department
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <FilterChip active={deptFilter === 'all'} onClick={() => setDeptFilter('all')}>
-              All ({students.length})
-            </FilterChip>
-            {activeDepts.map(d => (
-              <FilterChip key={d.value} active={deptFilter === d.value} onClick={() => setDeptFilter(d.value)}>
-                {d.value} ({deptCounts[d.value] ?? 0})
-              </FilterChip>
-            ))}
-            {deptCounts['Unassigned'] > 0 && (
-              <FilterChip active={deptFilter === 'unassigned'} variant="muted" onClick={() => setDeptFilter('unassigned')}>
-                Unassigned ({deptCounts['Unassigned']})
-              </FilterChip>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          {/* 1. College Dropdown */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Building2 className="h-3 w-3 text-primary" /> College
+            </Label>
+            <Select value={collegeFilter} onValueChange={handleCollegeFilterChange}>
+              <SelectTrigger className="h-11 rounded-xl bg-slate-50/70 border-slate-200 text-xs font-bold">
+                <SelectValue placeholder="All Colleges" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all" className="text-xs font-bold">
+                  All Colleges ({students.length})
+                </SelectItem>
+                {COLLEGES_AND_PROGRAMS.map(c => (
+                  <SelectItem key={c.code} value={c.code} className="text-xs font-bold py-2">
+                    <span className="font-black text-primary mr-1.5">[{c.code}]</span>
+                    <span>{c.name}</span>
+                    <span className="ml-2 text-slate-400 font-normal">({collegeCounts[c.code] ?? 0})</span>
+                  </SelectItem>
+                ))}
+                {collegeCounts['Unassigned'] > 0 && (
+                  <SelectItem value="unassigned" className="text-xs font-bold text-slate-500">
+                    Unassigned ({collegeCounts['Unassigned']})
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 2. Program Dropdown */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <BookOpen className="h-3 w-3 text-primary" /> Program / Degree
+            </Label>
+            <Select 
+              value={programFilter} 
+              onValueChange={setProgramFilter}
+            >
+              <SelectTrigger className="h-11 rounded-xl bg-slate-50/70 border-slate-200 text-xs font-bold">
+                <SelectValue placeholder="All Programs" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all" className="text-xs font-bold">
+                  All Programs
+                </SelectItem>
+                {availableProgramsForFilter.map(p => (
+                  <SelectItem key={p} value={p} className="text-xs font-medium py-2">
+                    <span className="font-semibold">{p}</span>
+                    <span className="ml-2 text-slate-400 font-normal">({programCounts[p] ?? 0})</span>
+                  </SelectItem>
+                ))}
+                {programCounts['Unassigned'] > 0 && (
+                  <SelectItem value="unassigned" className="text-xs font-bold text-slate-500">
+                    Unassigned Program ({programCounts['Unassigned']})
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 3. Year Level Dropdown */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <GraduationCap className="h-3 w-3 text-primary" /> Year Level
+            </Label>
+            <Select value={yearFilter} onValueChange={setYearFilter}>
+              <SelectTrigger className="h-11 rounded-xl bg-slate-50/70 border-slate-200 text-xs font-bold">
+                <SelectValue placeholder="All Year Levels" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all" className="text-xs font-bold">
+                  All Year Levels ({students.length})
+                </SelectItem>
+                {YEAR_LEVELS.map(y => (
+                  <SelectItem key={y} value={y} className="text-xs font-bold py-2">
+                    <span>{y}</span>
+                    <span className="ml-2 text-slate-400 font-normal">({yearCounts[y] ?? 0})</span>
+                  </SelectItem>
+                ))}
+                {yearCounts['Unassigned'] > 0 && (
+                  <SelectItem value="unassigned" className="text-xs font-bold text-slate-500">
+                    Unassigned ({yearCounts['Unassigned']})
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {/* Year level chips */}
-        <div>
-          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <GraduationCap className="h-3 w-3" /> Year Level
+        {/* Active Filter Summary Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 text-xs">
+          <p className="text-[11px] font-bold text-slate-500">
+            Showing <span className="text-primary font-black">{filteredStudents.length}</span> of {students.length} students
           </p>
-          <div className="flex flex-wrap gap-2">
-            <FilterChip active={yearFilter === 'all'} onClick={() => setYearFilter('all')}>
-              All Years
-            </FilterChip>
-            {activeYears.map(y => (
-              <FilterChip key={y} active={yearFilter === y} onClick={() => setYearFilter(y)}>
-                {y} ({yearCounts[y] ?? 0})
-              </FilterChip>
-            ))}
-            {yearCounts['Unassigned'] > 0 && (
-              <FilterChip active={yearFilter === 'unassigned'} variant="muted" onClick={() => setYearFilter('unassigned')}>
-                Unassigned ({yearCounts['Unassigned']})
-              </FilterChip>
-            )}
-          </div>
-        </div>
 
-        {/* Active filter summary */}
-        {hasActiveFilters && (
-          <p className="text-[10px] font-black text-primary">
-            Showing {filteredStudents.length} of {students.length} students
-            {deptFilter !== 'all' && ` · Dept: ${deptFilter === 'unassigned' ? 'Unassigned' : deptFilter}`}
-            {yearFilter !== 'all' && ` · Year: ${yearFilter === 'unassigned' ? 'Unassigned' : yearFilter}`}
-          </p>
-        )}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {collegeFilter !== 'all' && (
+                <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/20 text-[10px] font-bold py-1">
+                  College: {collegeFilter}
+                  <button onClick={() => setCollegeFilter('all')} className="hover:text-red-500 ml-1">✕</button>
+                </Badge>
+              )}
+              {programFilter !== 'all' && (
+                <Badge variant="outline" className="gap-1 bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold py-1">
+                  Program: {programFilter.length > 25 ? programFilter.substring(0, 25) + '...' : programFilter}
+                  <button onClick={() => setProgramFilter('all')} className="hover:text-red-500 ml-1">✕</button>
+                </Badge>
+              )}
+              {yearFilter !== 'all' && (
+                <Badge variant="outline" className="gap-1 bg-slate-100 text-slate-700 border-slate-200 text-[10px] font-bold py-1">
+                  Year: {yearFilter}
+                  <button onClick={() => setYearFilter('all')} className="hover:text-red-500 ml-1">✕</button>
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Table ───────────────────────────────────────────────────────────── */}
@@ -538,7 +710,7 @@ export default function CounselorStudentsPage() {
               <TableRow className="border-b border-slate-100 hover:bg-transparent">
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16 pl-8">Student</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">ID Number</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">Department</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">College & Program</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">Year</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">Wellness</TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16 pr-8 text-right">Action</TableHead>
@@ -567,14 +739,21 @@ export default function CounselorStudentsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {student.department ? (
-                        <div className="flex items-center gap-1.5">
-                          <Building2 className="h-3.5 w-3.5 text-primary/50 shrink-0" />
-                          <span className="text-xs font-black text-primary">{getDeptLabel(student.department)}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-300 font-bold">—</span>
-                      )}
+                      <div className="flex flex-col gap-0.5 max-w-[240px]">
+                        {student.department ? (
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                            <span className="text-xs font-black text-primary">[{getDeptCode(student.department)}]</span>
+                          </div>
+                        ) : null}
+                        {student.program ? (
+                          <span className="text-[11px] font-semibold text-slate-600 line-clamp-1" title={student.program}>
+                            {student.program}
+                          </span>
+                        ) : !student.department ? (
+                          <span className="text-xs text-slate-300 font-bold">—</span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {student.yearLevel ? (
@@ -657,7 +836,7 @@ export default function CounselorStudentsPage() {
               </div>
             </div>
             <DialogDescription className="text-sm text-slate-500">
-              Edit department, year level, or display name for this student.
+              Edit college, academic program, year level, or display name for this student.
             </DialogDescription>
           </DialogHeader>
 
@@ -671,37 +850,60 @@ export default function CounselorStudentsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Department</Label>
-                <Select value={editDepartment} onValueChange={setEditDepartment}>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">College</Label>
+                <Select value={editDepartment} onValueChange={(d) => { setEditDepartment(d); setEditProgram(''); }}>
                   <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-                    <SelectValue placeholder="Select dept." />
+                    <SelectValue placeholder="Select college" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-64">
                     <SelectItem value="none" className="text-xs font-bold text-slate-400">— None —</SelectItem>
-                    {DEPARTMENTS.map(d => (
-                      <SelectItem key={d.value} value={d.value} className="text-xs font-bold">
-                        <span className="font-black">{d.value}</span> — {d.label.replace(/^College of /, '')}
+                    {COLLEGES_AND_PROGRAMS.map(d => (
+                      <SelectItem key={d.code} value={d.code} className="text-xs font-bold">
+                        <span className="font-black text-primary">[{d.code}]</span> — {d.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Year Level</Label>
-                <Select value={editYearLevel} onValueChange={setEditYearLevel}>
-                  <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none" className="text-xs font-bold text-slate-400">— None —</SelectItem>
-                    {YEAR_LEVELS.map(y => (
-                      <SelectItem key={y} value={y} className="text-xs font-bold">{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Program</Label>
+                  <Select 
+                    value={editProgram} 
+                    onValueChange={setEditProgram}
+                    disabled={!editDepartment || editDepartment === 'none'}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                      <SelectValue placeholder={!editDepartment || editDepartment === 'none' ? "Pick college" : "Select program"} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      <SelectItem value="none" className="text-xs font-bold text-slate-400">— None —</SelectItem>
+                      {getProgramsForCollege(editDepartment).map(p => (
+                        <SelectItem key={p} value={p} className="text-xs font-medium">
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Year Level</Label>
+                  <Select value={editYearLevel} onValueChange={setEditYearLevel}>
+                    <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      <SelectItem value="none" className="text-xs font-bold text-slate-400">— None —</SelectItem>
+                      {YEAR_LEVELS.map(y => (
+                        <SelectItem key={y} value={y} className="text-xs font-bold">{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
@@ -742,7 +944,12 @@ export default function CounselorStudentsPage() {
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {profileStudent?.department && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                      <Building2 className="h-3 w-3" />{getDeptLabel(profileStudent.department)}
+                      <Building2 className="h-3 w-3" />[{getDeptCode(profileStudent.department)}]
+                    </span>
+                  )}
+                  {profileStudent?.program && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
+                      <BookOpen className="h-3 w-3" />{profileStudent.program}
                     </span>
                   )}
                   {profileStudent?.yearLevel && (
@@ -799,54 +1006,47 @@ export default function CounselorStudentsPage() {
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <TrendingUp className="h-3.5 w-3.5" /> Assessment History
               </p>
-              {profileAssessments.length > 0 ? (
+              {profileAssessments.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No formal wellness assessments recorded yet.</p>
+              ) : (
                 <div className="space-y-2">
-                  {profileAssessments.slice(0, 6).map((a, i) => (
-                    <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center border border-slate-100 shrink-0">
-                        <span className={`text-[10px] font-black ${(a.stressLevel ?? 0) > 75 ? 'text-red-500' : 'text-emerald-600'}`}>
-                          {a.stressLevel ?? '--'}%
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-700 truncate">
-                          {a.type === 'AI_CHAT' ? 'AI Chat' : 'Clinical Form'} — {a.date}
-                        </p>
-                        {a.emotionalState && <p className="text-[10px] text-slate-400 font-bold capitalize">{a.emotionalState}</p>}
-                      </div>
-                      <Badge className={`border-none text-[8px] font-black uppercase shrink-0 ${a.status === 'evaluated' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                        {a.status}
-                      </Badge>
+                  {profileAssessments.slice(0, 5).map((a, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold">
+                      <span className="text-slate-600">{new Date(a.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="capitalize text-slate-500">{a.emotionalState || 'General'}</span>
+                      <Badge className={`border-none ${getWellnessLabel(a.stressLevel).color}`}>{a.stressLevel}% Stress</Badge>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic font-bold">No assessments recorded yet.</p>
               )}
             </div>
 
-            {/* Quick Self-Care Tools Section */}
-            <div className="space-y-4 pt-6 border-t border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Heart className="h-3.5 w-3.5 text-rose-500" /> Assigned Self-Care Tools
-              </p>
-              
-              {/* Display existing custom self-care tools */}
-              {(assignedSelfCare.length > 0 || globalSelfCare.length > 0) ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Custom Self-Care Assignment */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Heart className="h-3.5 w-3.5 text-rose-500" /> Assigned Self-Care Protocols
+                </p>
+                <span className="text-[10px] font-bold text-slate-400">
+                  {globalSelfCare.length + assignedSelfCare.length} active
+                </span>
+              </div>
+
+              {(globalSelfCare.length > 0 || assignedSelfCare.length > 0) ? (
+                <div className="space-y-2">
                   {/* Global Tools */}
                   {globalSelfCare.map((tool: any) => {
                     const typeIcon = tool.type === 'breathing' ? Wind : tool.type === 'journaling' ? BookOpen : tool.type === 'grounding' ? Anchor : tool.type === 'meditation' ? Music : Brain;
                     return (
-                      <div key={`global-${tool.id}`} className="flex items-center justify-between p-3 rounded-xl bg-purple-50/50 border border-purple-100">
+                      <div key={`global-${tool.id}`} className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center border border-purple-100 shrink-0">
-                            {React.createElement(typeIcon, { className: "h-4 w-4 text-purple-600" })}
+                          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
+                            {React.createElement(typeIcon, { className: "h-4 w-4 text-primary" })}
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-slate-700 truncate">{tool.label}</p>
-                              <Badge className="bg-purple-100 hover:bg-purple-100 text-purple-700 border-none font-black text-[8px] h-3.5 px-1 py-0 rounded-sm shrink-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-slate-800 truncate">{tool.label}</p>
+                              <Badge variant="outline" className="bg-primary/20 text-primary border-none text-[8px] font-black uppercase px-1.5 py-0">
                                 Global
                               </Badge>
                             </div>
@@ -963,29 +1163,5 @@ export default function CounselorStudentsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// ── Small helper component ────────────────────────────────────────────────────
-function FilterChip({
-  children, active, onClick, variant = 'primary',
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-  variant?: 'primary' | 'muted';
-}) {
-  const activeClass = variant === 'muted'
-    ? 'bg-slate-700 text-white border-slate-700'
-    : 'bg-primary text-white border-primary shadow-md shadow-primary/20';
-  return (
-    <button
-      onClick={onClick}
-      className={`h-8 px-3.5 rounded-full text-xs font-black transition-all border ${
-        active ? activeClass : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
-      }`}
-    >
-      {children}
-    </button>
   );
 }

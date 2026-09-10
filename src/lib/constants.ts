@@ -1,3 +1,97 @@
+export interface CollegeDefinition {
+  code: string;
+  name: string;
+  aliases?: string[];
+  programs: string[];
+}
+
+export const COLLEGES_AND_PROGRAMS: CollegeDefinition[] = [
+  {
+    code: 'CBA',
+    name: 'College of Business and Accountancy',
+    aliases: ['CBA'],
+    programs: [
+      'Bachelor of Science in Accountancy',
+      'Bachelor of Science in Business Administration major in Financial Management',
+      'Bachelor of Science in Business Administration major in Marketing Management',
+      'Bachelor of Science in Business Administration major in Operations Management',
+      'Bachelor of Science in Business Administration major in Human Resource Development Management',
+      'Bachelor of Science in Management Accounting',
+      'Bachelor of Science in Tourism Management',
+      'Bachelor of Science in Hospitality Management',
+      'Bachelor of Science in Entrepreneurship',
+      'Diploma in Hospitality Technology',
+      'Diploma in Tourism Technology',
+    ],
+  },
+  {
+    code: 'CCS',
+    name: 'College of Computer Studies',
+    aliases: ['CCS'],
+    programs: [
+      'Bachelor of Science in Information Technology',
+      'Bachelor of Science in Computer Science',
+      'Diploma in Information Technology',
+    ],
+  },
+  {
+    code: 'CCJE',
+    name: 'College of Criminal Justice Education',
+    aliases: ['CJEA', 'CCJE'],
+    programs: [
+      'Bachelor of Science in Criminology',
+    ],
+  },
+  {
+    code: 'CHS',
+    name: 'College of Health Sciences',
+    aliases: ['CHS', 'CON'],
+    programs: [
+      'Bachelor of Science in Nursing',
+      'Bachelor of Science in Pharmacy',
+    ],
+  },
+  {
+    code: 'CEA',
+    name: 'College of Engineering and Architecture',
+    aliases: ['CEA'],
+    programs: [
+      'Bachelor of Science in Architecture',
+      'Bachelor of Science in Civil Engineering',
+      'Bachelor of Science in Electrical Engineering',
+      'Bachelor of Science in Geodetic Engineering',
+      'Bachelor of Science in Mechanical Engineering',
+      'Diploma in Civil Engineering Technology',
+      'Diploma in Electrical Engineering Technology',
+      'Diploma in Mechanical Engineering Technology',
+      'Diploma in Manufacturing Technology',
+    ],
+  },
+  {
+    code: 'CSW',
+    name: 'College of Social Work',
+    aliases: ['CSW'],
+    programs: [
+      'Bachelor of Science in Social Work',
+    ],
+  },
+  {
+    code: 'CTEAS',
+    name: 'College of Teacher Education, Arts, and Sciences',
+    aliases: ['CTEAS', 'COE', 'CAS'],
+    programs: [
+      'Bachelor of Science in Psychology',
+      'Bachelor of Arts in Music',
+      'Bachelor of Arts in Political Science',
+      'Bachelor of Education in Elementary Education',
+      'Bachelor of Arts in English Language',
+      'Bachelor of Arts in Literature',
+      'Bachelor of Secondary Education in English',
+      'Bachelor of Secondary Education in Science',
+    ],
+  },
+];
+
 export const DEPARTMENTS = [
   { value: 'CBA', label: 'College of Business and Accountancy' },
   { value: 'CCS', label: 'College of Computer Studies' },
@@ -15,6 +109,25 @@ export const DEPARTMENTS = [
 ] as const;
 
 export type DepartmentCode = typeof DEPARTMENTS[number]['value'];
+
+export function getProgramsForCollege(collegeCode?: string): string[] {
+  if (!collegeCode || collegeCode === 'all') {
+    const allPrograms = new Set<string>();
+    COLLEGES_AND_PROGRAMS.forEach(c => c.programs.forEach(p => allPrograms.add(p)));
+    return Array.from(allPrograms);
+  }
+  const college = COLLEGES_AND_PROGRAMS.find(
+    c => c.code === collegeCode || c.aliases?.includes(collegeCode)
+  );
+  return college ? college.programs : [];
+}
+
+export function getCollegeByCode(collegeCode?: string): CollegeDefinition | undefined {
+  if (!collegeCode) return undefined;
+  return COLLEGES_AND_PROGRAMS.find(
+    c => c.code === collegeCode || c.aliases?.includes(collegeCode)
+  );
+}
 
 export const YEAR_LEVELS = [
   '1st Year',

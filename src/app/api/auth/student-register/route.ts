@@ -5,7 +5,7 @@ import { USER_ROLES } from '@/lib/constants';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { firstName, lastName, studentId, email, department, password } = body;
+    const { firstName, lastName, studentId, email, department, program, yearLevel, password } = body;
 
     // 1. Required fields validation
     if (!firstName?.trim() || !lastName?.trim()) {
@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
     const fullName = `${cleanFirstName} ${cleanLastName}`;
     const cleanStudentId = studentId.trim();
     const cleanEmail = email.trim().toLowerCase();
+    const cleanProgram = program?.trim() || null;
+    const cleanYearLevel = yearLevel?.trim() || null;
 
     // 2. University Email domain verification (@uspf.edu.ph)
     if (!cleanEmail.endsWith('@uspf.edu.ph')) {
@@ -84,6 +86,8 @@ export async function POST(req: NextRequest) {
         role: USER_ROLES.STUDENT,
         student_id: cleanStudentId,
         department: department.trim(),
+        program: cleanProgram,
+        year_level: cleanYearLevel,
       },
     });
 
@@ -95,16 +99,29 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Upsert user record into profiles table
-    const { error: profileError } = await supabaseAdmin
+    const profilePayload: any = {
+      id: authData.user.id,
+      name: fullName,
+      email: cleanEmail,
+      role: USER_ROLES.STUDENT,
+      student_id: cleanStudentId,
+      department: department.trim(),
+      course: cleanProgram,
+      year_level: cleanYearLevel,
+    };
+    if (cleanProgram) {
+      profilePayload.program = cleanProgram;
+    }
+
+    let { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .upsert({
-        id: authData.user.id,
-        name: fullName,
-        email: cleanEmail,
-        role: USER_ROLES.STUDENT,
-        student_id: cleanStudentId,
-        department: department.trim(),
-      });
+      .upsert(profilePayload);
+
+    if (profileError && profileError.message?.includes('program')) {
+      delete profilePayload.program;
+      const retry = await supabaseAdmin.from('profiles').upsert(profilePayload);
+      profileError = retry.error;
+    }
 
     if (profileError) {
       console.error('[student-register] Error upserting profile:', profileError);

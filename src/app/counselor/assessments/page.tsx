@@ -276,7 +276,7 @@ export default function CounselorAssessmentsPage() {
           </DialogTrigger>
           <DialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <DialogHeader className="flex-shrink-0">
-              <DialogTitle className="text-2xl font-black">Assign Clinical Assessment</DialogTitle>
+              <DialogTitle className="text-2xl font-black">Assign Guidance Assessment</DialogTitle>
               <p className="text-xs text-slate-400 font-medium mt-1">Build a custom form or load a prebuilt template below.</p>
             </DialogHeader>
             <div className="space-y-6 py-4 flex-1 overflow-y-auto pr-2">
@@ -302,7 +302,7 @@ export default function CounselorAssessmentsPage() {
                       className="p-2.5 text-left border border-slate-100 rounded-xl hover:bg-primary/5 hover:border-primary/20 hover:text-primary transition-all text-xs bg-slate-50/50 flex flex-col justify-between min-h-[60px] w-full group"
                     >
                       <span className="font-bold text-slate-800 group-hover:text-primary transition-colors block line-clamp-1">{tmpl.title}</span>
-                      <span className="text-[10px] text-slate-400 font-semibold mt-1 line-clamp-1">{tmpl.questions.length} clinical questions</span>
+                      <span className="text-[10px] text-slate-400 font-semibold mt-1 line-clamp-1">{tmpl.questions.length} guidance questions</span>
                     </button>
                   ))}
                 </div>

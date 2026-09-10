@@ -675,7 +675,7 @@ export default function CounselorDashboard() {
 
           <Card className="border-0 shadow-lg shadow-slate-200/40 bg-primary rounded-3xl p-6 text-white relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-black text-lg mb-2">Clinical Insights</h3>
+              <h3 className="font-black text-lg mb-2">Student Insights</h3>
               <p className="text-white/70 text-xs mb-6">
                 Analyze {assessments.length} student wellness profiles to
                 prepare for professional consultations.

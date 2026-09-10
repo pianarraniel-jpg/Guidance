@@ -444,30 +444,30 @@ export default function BookAppointment() {
 
                         <div className="space-y-3">
                           <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Session Type</Label>
-                          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                             {SESSION_TYPES.map(({ value, label, icon: Icon, color }) => (
                               <button
                                 key={value}
                                 type="button"
                                 onClick={() => setSelectedSessionType(value)}
                                 className={cn(
-                                  'relative flex flex-col items-center justify-center text-center p-2 sm:p-4 rounded-2xl border-2 transition-all min-h-[100px]',
+                                  'relative flex flex-col items-center justify-center text-center p-3 sm:p-4 rounded-2xl border-2 transition-all min-h-[105px] w-full',
                                   selectedSessionType === value
                                     ? 'border-primary bg-primary/5 shadow-md ring-1 ring-primary/20'
-                                    : 'border-slate-100 bg-slate-50 hover:border-primary/20'
+                                    : 'border-slate-100 bg-slate-50 hover:border-primary/20 hover:bg-slate-100/50'
                                 )}
                               >
                                 <div className={cn('h-8 w-8 rounded-xl flex items-center justify-center mb-2 shrink-0', color)}>
                                   <Icon className="h-4 w-4" />
                                 </div>
                                 <span className={cn(
-                                  'text-[9px] sm:text-[10px] md:text-[11px] leading-tight font-black uppercase tracking-wider whitespace-nowrap',
-                                  selectedSessionType === value ? 'text-primary' : 'text-slate-700'
+                                  'text-[10px] sm:text-[11px] leading-snug font-bold uppercase tracking-tight text-center break-words w-full px-1',
+                                  selectedSessionType === value ? 'text-primary font-black' : 'text-slate-700'
                                 )}>
                                   {label}
                                 </span>
                                 {selectedSessionType === value && (
-                                  <div className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-primary flex items-center justify-center text-white text-[7px] font-bold shadow-sm">
+                                  <div className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-white text-[8px] font-bold shadow-sm">
                                     ✓
                                   </div>
                                 )}

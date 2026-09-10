@@ -27,7 +27,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { DEPARTMENTS } from '@/lib/constants';
+import { DEPARTMENTS, COLLEGES_AND_PROGRAMS, YEAR_LEVELS, getProgramsForCollege } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 export default function StudentRegisterPage() {
@@ -36,6 +36,8 @@ export default function StudentRegisterPage() {
   const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
   const [department, setDepartment] = useState('');
+  const [program, setProgram] = useState('');
+  const [yearLevel, setYearLevel] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +47,13 @@ export default function StudentRegisterPage() {
 
   const router = useRouter();
   const { toast } = useToast();
+
+  const handleDepartmentChange = (dept: string) => {
+    setDepartment(dept);
+    setProgram(''); // Reset program selection when college changes
+  };
+
+  const availablePrograms = getProgramsForCollege(department);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +105,8 @@ export default function StudentRegisterPage() {
           studentId: cleanId,
           email: cleanEmail,
           department,
+          program: program || undefined,
+          yearLevel: yearLevel || undefined,
           password,
         }),
       });
@@ -291,24 +302,67 @@ export default function StudentRegisterPage() {
               </div>
             </div>
 
-            {/* Department */}
+            {/* College / Department */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Department / College <span className="text-red-500">*</span>
+                College <span className="text-red-500">*</span>
               </Label>
-              <Select value={department} onValueChange={setDepartment} required>
+              <Select value={department} onValueChange={handleDepartmentChange} required>
                 <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50/50 focus:ring-primary/20 font-medium text-sm">
-                  <SelectValue placeholder="Select your department..." />
+                  <SelectValue placeholder="Select your college..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
-                  {DEPARTMENTS.map((dept) => (
-                    <SelectItem key={dept.value} value={dept.value} className="text-xs sm:text-sm py-2">
-                      <span className="font-bold text-primary mr-2">[{dept.value}]</span>
-                      <span>{dept.label}</span>
+                  {COLLEGES_AND_PROGRAMS.map((col) => (
+                    <SelectItem key={col.code} value={col.code} className="text-xs sm:text-sm py-2">
+                      <span className="font-bold text-primary mr-2">[{col.code}]</span>
+                      <span>{col.name}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Academic Program & Year Level */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Degree / Program
+                </Label>
+                <Select 
+                  value={program} 
+                  onValueChange={setProgram}
+                  disabled={!department || availablePrograms.length === 0}
+                >
+                  <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50/50 focus:ring-primary/20 font-medium text-sm">
+                    <SelectValue placeholder={!department ? "Select college first" : "Select program..."} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {availablePrograms.map((prog) => (
+                      <SelectItem key={prog} value={prog} className="text-xs sm:text-sm py-2">
+                        {prog}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Year Level
+                </Label>
+                <Select value={yearLevel} onValueChange={setYearLevel}>
+                  <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50/50 focus:ring-primary/20 font-medium text-sm">
+                    <SelectValue placeholder="Select year level..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {YEAR_LEVELS.map((lvl) => (
+                      <SelectItem key={lvl} value={lvl} className="text-xs sm:text-sm py-2">
+                        {lvl}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Password & Confirm Password */}

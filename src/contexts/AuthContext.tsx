@@ -12,6 +12,7 @@ interface User {
   role: UserRole;
   studentId?: string;
   department?: string;
+  program?: string;
   yearLevel?: string;
 }
 
@@ -34,7 +35,7 @@ async function fetchProfile(userId: string): Promise<User | null> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, name, email, role, student_id, department, year_level')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
 
@@ -49,12 +50,13 @@ async function fetchProfile(userId: string): Promise<User | null> {
       role: data.role as UserRole,
       studentId: data.student_id ?? undefined,
       department: data.department ?? undefined,
-      yearLevel: data.year_level ?? undefined,
+      program: data.program || data.course || undefined,
+      yearLevel: data.year_level || data.year || undefined,
     };
     // Ensure Supabase session metadata has these fields for instant future reloads
     try {
       await supabase.auth.updateUser({
-        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId, department: userObj.department }
+        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId, department: userObj.department, program: userObj.program }
       });
     } catch {
       // ignore non-critical update errors
@@ -87,6 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: meta.role as UserRole,
         studentId: meta.student_id ?? undefined,
         department: meta.department ?? undefined,
+        program: meta.program ?? undefined,
+        yearLevel: meta.year_level ?? undefined,
       };
       activeUserRef.current = sessionUser.id;
       if (isMounted) {

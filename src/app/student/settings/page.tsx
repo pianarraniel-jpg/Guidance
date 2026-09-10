@@ -36,43 +36,68 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DEPARTMENTS } from '@/lib/constants';
+import { COLLEGES_AND_PROGRAMS, YEAR_LEVELS, getProgramsForCollege } from '@/lib/constants';
 
 export default function StudentSettings() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
 
   const [selectedDept, setSelectedDept] = useState(user?.department || '');
-  const [isSavingDept, setIsSavingDept] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState(user?.program || '');
+  const [selectedYearLevel, setSelectedYearLevel] = useState(user?.yearLevel || '');
+  const [isSavingAcademic, setIsSavingAcademic] = useState(false);
 
-  const handleUpdateDepartment = async (dept: string) => {
+  const availablePrograms = getProgramsForCollege(selectedDept);
+
+  const handleUpdateAcademic = async (dept: string, prog?: string, yr?: string) => {
     if (!user) return;
-    setIsSavingDept(true);
+    setIsSavingAcademic(true);
     setSelectedDept(dept);
+    const newProg = prog !== undefined ? prog : (dept !== selectedDept ? '' : selectedProgram);
+    const newYr = yr !== undefined ? yr : selectedYearLevel;
+    setSelectedProgram(newProg);
+    setSelectedYearLevel(newYr);
     
     try {
-      const { error } = await supabase
+      const updatePayload: any = { 
+        department: dept || null,
+        course: newProg || null,
+        year_level: newYr || null,
+      };
+      if (newProg) {
+        updatePayload.program = newProg;
+      }
+
+      let { error } = await supabase
         .from('profiles')
-        .update({ department: dept })
+        .update(updatePayload)
         .eq('id', user.id);
         
+      if (error && error.message?.includes('program')) {
+        delete updatePayload.program;
+        const res = await supabase.from('profiles').update(updatePayload).eq('id', user.id);
+        error = res.error;
+      }
+
       if (error) throw error;
       
       // Update local auth context user object
       user.department = dept;
+      user.program = newProg;
+      user.yearLevel = newYr;
       
       toast({
-        title: "Department Updated",
-        description: `Your department has been set to ${dept}.`,
+        title: "Academic Profile Updated",
+        description: `Your academic profile has been saved.`,
       });
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: "Error updating department",
+        title: "Error updating academic profile",
         description: err.message,
       });
     } finally {
-      setIsSavingDept(false);
+      setIsSavingAcademic(false);
     }
   };
 
@@ -193,20 +218,71 @@ export default function StudentSettings() {
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Role</p>
                     <p className="font-bold text-slate-700 capitalize">{user?.role}</p>
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">Department</Label>
-                    <Select value={selectedDept} onValueChange={handleUpdateDepartment} disabled={isSavingDept}>
-                      <SelectTrigger className="w-full md:w-[320px] h-12 rounded-xl bg-slate-50 border-none font-bold text-sm">
-                        <SelectValue placeholder="Select your department..." />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-none shadow-2xl bg-white text-slate-800">
-                        {DEPARTMENTS.map((dept) => (
-                          <SelectItem key={dept.value} value={dept.value} className="focus:bg-primary/5 focus:text-primary rounded-lg p-2.5 cursor-pointer font-semibold">
-                            {dept.value} - {dept.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {/* Academic Profile Fields */}
+                  <div className="space-y-2 md:col-span-2 pt-2 border-t border-slate-100">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-wider mb-3">Academic Classification</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">College</Label>
+                        <Select 
+                          value={selectedDept} 
+                          onValueChange={(dept) => handleUpdateAcademic(dept)} 
+                          disabled={isSavingAcademic}
+                        >
+                          <SelectTrigger className="w-full h-11 rounded-xl bg-slate-50 border-none font-bold text-xs">
+                            <SelectValue placeholder="Select college..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-64 rounded-xl border-none shadow-2xl bg-white text-slate-800">
+                            {COLLEGES_AND_PROGRAMS.map((col) => (
+                              <SelectItem key={col.code} value={col.code} className="focus:bg-primary/5 focus:text-primary rounded-lg p-2 cursor-pointer font-semibold text-xs">
+                                <span className="font-bold text-primary mr-1.5">[{col.code}]</span>
+                                {col.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">Degree / Program</Label>
+                        <Select 
+                          value={selectedProgram} 
+                          onValueChange={(prog) => handleUpdateAcademic(selectedDept, prog)} 
+                          disabled={isSavingAcademic || !selectedDept || availablePrograms.length === 0}
+                        >
+                          <SelectTrigger className="w-full h-11 rounded-xl bg-slate-50 border-none font-bold text-xs">
+                            <SelectValue placeholder={!selectedDept ? "Select college first" : "Select program..."} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-64 rounded-xl border-none shadow-2xl bg-white text-slate-800">
+                            {availablePrograms.map((prog) => (
+                              <SelectItem key={prog} value={prog} className="focus:bg-primary/5 focus:text-primary rounded-lg p-2 cursor-pointer font-semibold text-xs">
+                                {prog}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">Year Level</Label>
+                        <Select 
+                          value={selectedYearLevel} 
+                          onValueChange={(yr) => handleUpdateAcademic(selectedDept, selectedProgram, yr)} 
+                          disabled={isSavingAcademic}
+                        >
+                          <SelectTrigger className="w-full h-11 rounded-xl bg-slate-50 border-none font-bold text-xs">
+                            <SelectValue placeholder="Select year level..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-64 rounded-xl border-none shadow-2xl bg-white text-slate-800">
+                            {YEAR_LEVELS.map((lvl) => (
+                              <SelectItem key={lvl} value={lvl} className="focus:bg-primary/5 focus:text-primary rounded-lg p-2 cursor-pointer font-semibold text-xs">
+                                {lvl}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
