@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Class Diagram</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font: 14px Segoe UI, sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font: 600 8px "Courier New", monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font: 400 40px Georgia, serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .accent {
+        fill: none;
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .field {
+        fill: var(--i);
+        font: 9px "Courier New", monospace;
+      }
+      .tiny {
+        fill: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      .divider {
+        stroke: var(--r);
+        stroke-width: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">UML / DOMAIN MODEL</p>
+      <h1>Class diagram</h1>
+      <p class="subtitle">
+        A focused TypeScript/domain model inferred from contexts, services, AI
+        flows, and persisted entities.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 760"
+          role="img"
+          aria-labelledby="cl-title cl-desc"
+        >
+          <title id="cl-title">GuidanceSync class diagram</title>
+          <desc id="cl-desc">
+            Class diagram connecting users, appointments, assessments, AI
+            sessions, notifications, and shared services.
+          </desc>
+          <defs>
+            <marker
+              id="cla"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="claa"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#d7673f" />
+            </marker>
+          </defs>
+
+          <!-- Class Connections -->
+          <g class="line" marker-end="url(#cla)">
+            <!-- AuthContext -> User / Profile -->
+            <path d="M270 158 H370 V111 H470" />
+            <!-- AuthContext -> Appointment -->
+            <path d="M270 158 H370 V269 H470" />
+            <!-- User / Profile -> Assessment -->
+            <path d="M730 111 H830 V155 H930" />
+            <!-- Appointment -> Assessment -->
+            <path d="M730 269 H830 V155 H930" />
+            <!-- NotificationContext -> AiChatSession -->
+            <path d="M730 457 H830 V431 H930" />
+          </g>
+
+          <g class="accent" marker-end="url(#claa)">
+            <!-- StorageService -> NotificationContext -->
+            <path d="M270 431 H370 V457 H470" />
+          </g>
+
+          <!-- Diagram Boxes -->
+          <g class="box">
+            <!-- AuthContext -->
+            <rect x="48" y="96" width="222" height="126" rx="6" />
+            <text x="159" y="124" class="name">AuthContext</text>
+            <line x1="48" y1="138" x2="270" y2="138" class="divider" />
+            <text x="64" y="160" class="field">- user: User?</text>
+            <text x="64" y="178" class="field">- isLoading: boolean</text>
+            <line x1="48" y1="190" x2="270" y2="190" class="divider" />
+            <text x="64" y="210" class="field">+ login() · logout()</text>
+
+            <!-- StorageService -->
+            <rect x="48" y="368" width="222" height="126" rx="6" />
+            <text x="159" y="396" class="name">StorageService</text>
+            <line x1="48" y1="410" x2="270" y2="410" class="divider" />
+            <text x="64" y="432" class="field">+ getAll(table)</text>
+            <text x="64" y="450" class="field">+ create(table, item)</text>
+            <line x1="48" y1="462" x2="270" y2="462" class="divider" />
+            <text x="64" y="482" class="field">+ update() · delete()</text>
+
+            <!-- User / Profile (Focal) -->
+            <rect x="470" y="48" width="260" height="126" rx="6" class="focal" />
+            <text x="600" y="76" class="name">User / Profile</text>
+            <line x1="470" y1="90" x2="730" y2="90" class="divider" />
+            <text x="486" y="112" class="field">+ id: UUID</text>
+            <text x="486" y="130" class="field">+ role: UserRole</text>
+            <line x1="470" y1="142" x2="730" y2="142" class="divider" />
+            <text x="486" y="162" class="field">+ authenticate()</text>
+
+            <!-- Appointment -->
+            <rect x="470" y="206" width="260" height="126" rx="6" />
+            <text x="600" y="234" class="name">Appointment</text>
+            <line x1="470" y1="248" x2="730" y2="248" class="divider" />
+            <text x="486" y="270" class="field">+ studentId · counselorId</text>
+            <text x="486" y="288" class="field">+ status: AppointmentStatus</text>
+            <line x1="470" y1="300" x2="730" y2="300" class="divider" />
+            <text x="486" y="320" class="field">+ confirm() · cancel()</text>
+
+            <!-- Assessment -->
+            <rect x="930" y="92" width="222" height="126" rx="6" />
+            <text x="1041" y="120" class="name">Assessment</text>
+            <line x1="930" y1="134" x2="1152" y2="134" class="divider" />
+            <text x="946" y="156" class="field">+ riskLevel: RiskLevel</text>
+            <text x="946" y="174" class="field">+ stressLevel: number</text>
+            <line x1="930" y1="186" x2="1152" y2="186" class="divider" />
+            <text x="946" y="206" class="field">+ evaluate()</text>
+
+            <!-- NotificationContext -->
+            <rect x="470" y="394" width="260" height="126" rx="6" />
+            <text x="600" y="422" class="name">NotificationContext</text>
+            <line x1="470" y1="436" x2="730" y2="436" class="divider" />
+            <text x="486" y="458" class="field">+ notifications: Notification[]</text>
+            <text x="486" y="476" class="field">+ lastUpdate: number</text>
+            <line x1="470" y1="488" x2="730" y2="488" class="divider" />
+            <text x="486" y="508" class="field">+ markAsRead()</text>
+
+            <!-- AiChatSession -->
+            <rect x="930" y="368" width="222" height="126" rx="6" />
+            <text x="1041" y="396" class="name">AiChatSession</text>
+            <line x1="930" y1="410" x2="1152" y2="410" class="divider" />
+            <text x="946" y="432" class="field">+ messages: AiChatMessage[]</text>
+            <text x="946" y="450" class="field">+ riskLevel · stressScore</text>
+            <line x1="930" y1="462" x2="1152" y2="462" class="divider" />
+            <text x="946" y="482" class="field">+ complete()</text>
+          </g>
+
+          <line x1="48" y1="650" x2="1152" y2="650" class="divider" />
+          <text x="48" y="674" class="legend">ASSOCIATION</text>
+          <text x="140" y="674" class="tiny">
+            service/context coordinates a domain entity
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Application class model, not a generated ORM model; physical schema is
+        separate.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync - Administrator Use Cases</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font: 14px Segoe UI, sans-serif;
+      }
+      .page {
+        max-width: 1200px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow, .tag, .legend {
+        color: var(--m);
+        font: 600 8px "Courier New", monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow { margin: 0 0 10px; }
+      h1 { margin: 0; font: 400 40px Georgia, serif; }
+      .subtitle { color: var(--m); margin: 14px 0 30px; }
+      .diagram { overflow: auto; }
+      .diagram svg { display: block; width: 100%; min-width: 800px; }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      .boundary {
+        fill: rgba(215, 103, 63, 0.02);
+        stroke: rgba(215, 103, 63, 0.35);
+        stroke-dasharray: 4 4;
+      }
+      .box { fill: var(--s); stroke: var(--i); }
+      .line { fill: none; stroke: var(--m); stroke-width: 1.2; }
+      .stick-figure {
+        fill: none;
+        stroke: var(--i);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .stick-head { fill: var(--s); stroke: var(--i); stroke-width: 1.8; }
+      .name { fill: var(--i); font-size: 12px; font-weight: 600; text-anchor: middle; }
+      .actor-label { fill: var(--i); font-size: 13px; font-weight: 600; text-anchor: middle; }
+      .small { fill: var(--m); font: 9px "Courier New", monospace; text-anchor: middle; }
+      .tiny { fill: #818986; font: 8px "Courier New", monospace; }
+      .divider { stroke: var(--r); }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">GUIDANCESYNC / ADMIN MODEL</p>
+      <h1>Administrator Use Cases</h1>
+      <p class="subtitle">Single sign-on, profile management, platform administration, and audit logs.</p>
+      <div class="diagram">
+        <svg viewBox="0 0 1000 380" role="img" aria-label="Administrator Use Cases">
+          <defs>
+            <marker id="uca" markerWidth="8" markerHeight="6" viewBox="0 0 8 6" refX="7" refY="3" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+          </defs>
+
+          <!-- BOUNDARY -->
+          <rect x="220" y="40" width="740" height="280" rx="8" class="boundary" />
+          <text x="244" y="66" class="tag">ADMINISTRATOR PLATFORM BOUNDARY</text>
+
+          <!-- CONNECTIONS -->
+          <g class="line" marker-end="url(#uca)">
+            <!-- Diagonal lines from stick figure (center ~ X=140, Y=175) to Box 1 & Box 2 -->
+            <path d="M140 160 L300 132" />
+            <path d="M140 190 L300 228" />
+
+            <!-- Clean horizontal lines from Box 1 & Box 2 to Box 3 & Box 4 -->
+            <path d="M520 132 H650" />
+            <path d="M520 228 H650" />
+          </g>
+
+          <!-- STICK FIGURE -->
+          <g id="actor-admin">
+            <circle cx="110" cy="130" r="14" class="stick-head" />
+            <line x1="110" y1="144" x2="110" y2="185" class="stick-figure" />
+            <line x1="85" y1="158" x2="135" y2="158" class="stick-figure" />
+            <line x1="110" y1="185" x2="90" y2="220" class="stick-figure" />
+            <line x1="110" y1="185" x2="130" y2="220" class="stick-figure" />
+            <text x="110" y="242" class="actor-label">Administrator</text>
+          </g>
+
+          <!-- USE CASE BOXES -->
+          <g class="box">
+            <!-- Box 1 -->
+            <rect x="300" y="100" width="220" height="64" rx="6" />
+            <text x="410" y="127" class="name">Authenticate Administrator</text>
+            <text x="410" y="144" class="small">admin SSO & 2FA</text>
+
+            <!-- Box 2 -->
+            <rect x="300" y="196" width="220" height="64" rx="6" />
+            <text x="410" y="223" class="name">Manage profile</text>
+            <text x="410" y="240" class="small">role + preferences</text>
+
+            <!-- Box 3 -->
+            <rect x="650" y="100" width="220" height="64" rx="6" />
+            <text x="760" y="127" class="name">Manage platform</text>
+            <text x="760" y="144" class="small">users · reports · resources</text>
+
+            <!-- Box 4 -->
+            <rect x="650" y="196" width="220" height="64" rx="6" />
+            <text x="760" y="223" class="name">Audit system logs</text>
+            <text x="760" y="240" class="small">access & security traces</text>
+          </g>
+
+          <!-- FOOTER -->
+          <line x1="48" y1="340" x2="960" y2="340" class="divider" />
+          <text x="48" y="360" class="legend">ACTOR</text>
+          <text x="100" y="360" class="tiny">Administrator interactions with diagonal entry into primary workflows</text>
+        </svg>
+      </div>
+      <p class="footer">Source model: Supabase Admin Schema, Audit Logging, and AuthContext.</p>
+    </main>
+  </body>
+</html>

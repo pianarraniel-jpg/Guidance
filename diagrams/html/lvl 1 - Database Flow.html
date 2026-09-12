@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Database Flow</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font:
+          14px Segoe UI,
+          sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font:
+          600 8px "Courier New",
+          monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font:
+          400 40px Georgia,
+          serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .zone {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: var(--r);
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .store {
+        fill: rgba(37, 40, 39, 0.055);
+        stroke: var(--m);
+      }
+      .input {
+        fill: rgba(89, 97, 95, 0.1);
+        stroke: #818986;
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .accent {
+        fill: none;
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .small {
+        fill: var(--m);
+        font:
+          9px "Courier New",
+          monospace;
+        text-anchor: middle;
+      }
+      .tiny {
+        fill: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .divider {
+        stroke: var(--r);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">DATA FLOW / LEVEL 1 / DATABASE</p>
+      <h1>Database flow</h1>
+      <p class="subtitle">
+        Domain records move through Supabase tables, access policies, and
+        realtime publication.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 700"
+          role="img"
+          aria-labelledby="df-title df-desc"
+        >
+          <title id="df-title">GuidanceSync database data flow</title>
+          <desc id="df-desc">
+            Database flow showing role actors, domain table groups, RLS
+            policies, and realtime delivery.
+          </desc>
+          <defs>
+            <marker
+              id="dfm"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="dfa"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#d7673f" />
+            </marker>
+          </defs>
+
+          <!-- Standard Connection Lines with Arrowheads -->
+          <g class="line" marker-end="url(#dfm)">
+            <!-- Student -> Identity domain (Center Y=150 to 168) -->
+            <path d="M170 150 H249 V168 H328" />
+            <!-- Counselor -> Assessment domain (Center Y=350 to 304) -->
+            <path d="M170 350 H249 V304 H328" />
+            <!-- Administrator -> AI session domain (Center Y=550 to 440) -->
+            <path d="M170 550 H249 V440 H328" />
+
+            <!-- Scheduling domain -> RLS policies (Center Y=168 to 152) -->
+            <path d="M792 168 H901 V152 H1010" />
+            <!-- Conversation domain -> UI refresh (Center Y=304 to 352) -->
+            <path d="M792 304 H901 V352 H1010" />
+            <!-- Realtime publication -> Notifications (Center Y=440 to 552) -->
+            <path d="M792 440 H901 V552 H1010" />
+          </g>
+
+          <g class="input">
+            <rect x="48" y="120" width="122" height="60" rx="6" />
+            <text x="109" y="146" class="name">Student</text>
+            <text x="109" y="164" class="small">owned records</text>
+            <rect x="48" y="320" width="122" height="60" rx="6" />
+            <text x="109" y="346" class="name">Counselor</text>
+            <text x="109" y="364" class="small">care records</text>
+            <rect x="48" y="520" width="122" height="60" rx="6" />
+            <text x="109" y="546" class="name">Administrator</text>
+            <text x="109" y="564" class="small">oversight</text>
+          </g>
+          <rect x="292" y="72" width="536" height="540" rx="8" class="zone" />
+          <text x="308" y="96" class="tag">SUPABASE POSTGRES / RLS</text>
+          <g class="box">
+            <rect x="328" y="124" width="204" height="88" rx="6" />
+            <text x="430" y="152" class="name">Identity domain</text>
+            <text x="430" y="174" class="small">profiles · read state</text>
+            <rect x="588" y="124" width="204" height="88" rx="6" />
+            <text x="690" y="152" class="name">Scheduling domain</text>
+            <text x="690" y="174" class="small">
+              appointments · availability
+            </text>
+            <rect
+              x="328"
+              y="260"
+              width="204"
+              height="88"
+              rx="6"
+              class="focal"
+            />
+            <text x="430" y="288" class="name">Assessment domain</text>
+            <text x="430" y="310" class="small">
+              assessments · tasks · notes
+            </text>
+            <rect x="588" y="260" width="204" height="88" rx="6" />
+            <text x="690" y="288" class="name">Conversation domain</text>
+            <text x="690" y="310" class="small">messages · read state</text>
+            <rect x="328" y="396" width="204" height="88" rx="6" />
+            <text x="430" y="424" class="name">AI session domain</text>
+            <text x="430" y="446" class="small">
+              sessions · alerts · insights
+            </text>
+            <rect
+              x="588"
+              y="396"
+              width="204"
+              height="88"
+              rx="6"
+              class="store"
+            />
+            <text x="690" y="424" class="name">Realtime publication</text>
+            <text x="690" y="446" class="small">live row updates</text>
+          </g>
+          <g class="box">
+            <rect x="1010" y="122" width="142" height="60" rx="6" />
+            <text x="1081" y="148" class="name">RLS policies</text>
+            <text x="1081" y="166" class="small">allow / deny</text>
+            <rect x="1010" y="322" width="142" height="60" rx="6" />
+            <text x="1081" y="348" class="name">UI refresh</text>
+            <text x="1081" y="366" class="small">live sync hook</text>
+            <rect x="1010" y="522" width="142" height="60" rx="6" />
+            <text x="1081" y="548" class="name">Notifications</text>
+            <text x="1081" y="566" class="small">browser + in-app</text>
+          </g>
+          <line x1="48" y1="644" x2="1152" y2="644" class="divider" />
+          <text x="48" y="668" class="legend">STORE</text>
+          <text x="100" y="668" class="tiny">
+            domain tables and durable care records
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Physical table detail is expanded in database-design.html.
+      </p>
+    </main>
+  </body>
+</html>

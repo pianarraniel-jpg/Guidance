@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Backend Flow</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+        --l: #2e5aa8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font:
+          14px Segoe UI,
+          sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font:
+          600 8px "Courier New",
+          monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font:
+          400 40px Georgia,
+          serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .zone {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: var(--r);
+      }
+      .boundary {
+        fill: rgba(215, 103, 63, 0.035);
+        stroke: rgba(215, 103, 63, 0.5);
+        stroke-dasharray: 4 4;
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .store {
+        fill: rgba(37, 40, 39, 0.055);
+        stroke: var(--m);
+      }
+      .external {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: rgba(37, 40, 39, 0.42);
+        stroke-dasharray: 4 3;
+      }
+      .input {
+        fill: rgba(89, 97, 95, 0.1);
+        stroke: #818986;
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .api {
+        fill: none;
+        stroke: var(--l);
+        stroke-width: 1.1;
+      }
+      .accent {
+        fill: none;
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .small {
+        fill: var(--m);
+        font:
+          9px "Courier New",
+          monospace;
+        text-anchor: middle;
+      }
+      .tiny {
+        fill: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .divider {
+        stroke: var(--r);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">DATA FLOW / LEVEL 1 / BACKEND</p>
+      <h1>Backend flow</h1>
+      <p class="subtitle">
+        Next.js server boundaries coordinate authentication, persistence, AI
+        analysis, and realtime events.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 680"
+          role="img"
+          aria-labelledby="be-title be-desc"
+        >
+          <title id="be-title">GuidanceSync backend data flow</title>
+          <desc id="be-desc">
+            Backend flow showing API routes, shared persistence, server AI
+            actions, Supabase, and Groq.
+          </desc>
+          <defs>
+            <marker
+              id="bem"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="bel"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#2e5aa8" />
+            </marker>
+            <marker
+              id="bea"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#d7673f" />
+            </marker>
+          </defs>
+
+          <!-- Standard Connection Lines with Arrowheads -->
+          <g class="line" marker-end="url(#bem)">
+            <!-- Browser client -> Auth API (Center Y=150 to 160) -->
+            <path d="M180 150 H260 V160 H344" />
+            <!-- Supabase events -> storageService (Center Y=330 to 310) -->
+            <path d="M180 330 H260 V310 H344" />
+            <!-- AI input -> AI server actions (Center Y=510 to 460) -->
+            <path d="M180 510 H260 V460 H344" />
+
+            <!-- Auth API -> Supabase Auth (Center Y=160) -->
+            <path d="M496 160 H704" />
+            <!-- storageService -> RLS database access (Center Y=310) -->
+            <path d="M496 310 H704" />
+            <!-- AI server actions -> Realtime publication (Center Y=460) -->
+            <path d="M496 460 H704" />
+          </g>
+
+          <!-- External API & Service Lines -->
+          <g class="api" marker-end="url(#bel)">
+            <!-- Supabase Auth -> Auth service (Center Y=160 to 152) -->
+            <path d="M856 160 H938 V152 H1020" />
+            <!-- RLS database access -> Postgres (Center Y=310 to 332) -->
+            <path d="M856 310 H938 V332 H1020" />
+          </g>
+
+          <!-- Accent Line for Groq AI connection -->
+          <g class="accent" marker-end="url(#bea)">
+            <!-- Realtime publication -> Groq models (Center Y=460 to 472) -->
+            <path d="M856 460 H938 V472 H1020" />
+          </g>
+
+          <g class="input">
+            <rect x="48" y="120" width="132" height="60" rx="6" />
+            <text x="114" y="146" class="name">Browser client</text>
+            <text x="114" y="164" class="small">JSON requests</text>
+            <rect x="48" y="300" width="132" height="60" rx="6" />
+            <text x="114" y="326" class="name">Supabase events</text>
+            <text x="114" y="344" class="small">postgres_changes</text>
+            <rect x="48" y="480" width="132" height="60" rx="6" />
+            <text x="114" y="506" class="name">AI input</text>
+            <text x="114" y="524" class="small">forms · chat history</text>
+          </g>
+          <rect x="320" y="72" width="200" height="500" rx="8" class="zone" />
+          <text x="336" y="96" class="tag">NEXT SERVER</text>
+          <g class="box">
+            <rect x="344" y="124" width="152" height="72" rx="6" />
+            <text x="420" y="151" class="name">Auth API</text>
+            <text x="420" y="171" class="small">student login/register</text>
+            <rect x="344" y="274" width="152" height="72" rx="6" />
+            <text x="420" y="301" class="name">storageService</text>
+            <text x="420" y="321" class="small">CRUD adapter</text>
+            <rect
+              x="344"
+              y="424"
+              width="152"
+              height="72"
+              rx="6"
+              class="focal"
+            />
+            <text x="420" y="451" class="name">AI server actions</text>
+            <text x="420" y="471" class="small">Groq orchestration</text>
+          </g>
+          <rect x="680" y="72" width="200" height="500" rx="8" class="zone" />
+          <text x="696" y="96" class="tag">CONTROL + DOMAIN</text>
+          <g class="box">
+            <rect x="704" y="124" width="152" height="72" rx="6" />
+            <text x="780" y="151" class="name">Supabase Auth</text>
+            <text x="780" y="171" class="small">session tokens</text>
+            <rect x="704" y="274" width="152" height="72" rx="6" />
+            <text x="780" y="301" class="name">RLS database access</text>
+            <text x="780" y="321" class="small">role + ownership</text>
+            <rect
+              x="704"
+              y="424"
+              width="152"
+              height="72"
+              rx="6"
+              class="store"
+            />
+            <text x="780" y="451" class="name">Realtime publication</text>
+            <text x="780" y="471" class="small">live row updates</text>
+          </g>
+          <g class="external">
+            <rect x="1020" y="122" width="132" height="60" rx="6" />
+            <text x="1086" y="148" class="name">Auth service</text>
+            <text x="1086" y="166" class="small">identity</text>
+            <rect x="1020" y="302" width="132" height="60" rx="6" />
+            <text x="1086" y="328" class="name">Postgres</text>
+            <text x="1086" y="346" class="small">care records</text>
+            <rect x="1020" y="442" width="132" height="60" rx="6" />
+            <text x="1086" y="468" class="name">Groq models</text>
+            <text x="1086" y="486" class="small">JSON analysis</text>
+          </g>
+          <line x1="48" y1="612" x2="1152" y2="612" class="divider" />
+          <text x="48" y="636" class="legend">BOUNDARY</text>
+          <text x="120" y="636" class="tiny">
+            server-only secrets stay behind Next.js
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Evidence: API routes, Supabase clients, storageService, Groq flows, and
+        realtime subscriptions.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Database Design</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font: 14px Segoe UI, sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font: 600 8px "Courier New", monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font: 400 40px Georgia, serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .head {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .title {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .field {
+        fill: var(--i);
+        font: 9px "Courier New", monospace;
+      }
+      .muted {
+        fill: var(--m);
+        font: 9px "Courier New", monospace;
+      }
+      .tiny {
+        fill: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      .left {
+        text-anchor: start;
+      }
+      .right {
+        text-anchor: end;
+      }
+      .divider {
+        stroke: var(--r);
+        stroke-width: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">PHYSICAL SCHEMA / SUPABASE</p>
+      <h1>Database design</h1>
+      <p class="subtitle">
+        A focused physical-schema slice showing the identity, scheduling,
+        assessment, and AI persistence backbone.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 820"
+          role="img"
+          aria-labelledby="db-title db-desc"
+        >
+          <title id="db-title">GuidanceSync database design</title>
+          <desc id="db-desc">
+            Physical schema showing profiles, appointments, assessments, AI chat
+            sessions, and AI chat messages with connected foreign keys.
+          </desc>
+          <defs>
+            <marker
+              id="dba"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+          </defs>
+
+          <!-- Completely separated channels & individual target terminals with arrowheads -->
+          <g class="line" marker-end="url(#dba)">
+            <!-- appointments.student_id -> profiles.id -->
+            <path d="M520 168 H440 V138 H300" />
+            
+            <!-- appointments.counselor_id -> profiles.id -->
+            <path d="M520 192 H400 V142 H300" />
+            
+            <!-- assessments.student_id -> profiles.id (Routes out to X=320, up to Y=146, enters profiles.id) -->
+            <path d="M300 478 H320 V146 H300" />
+            
+            <!-- ai_chat_sessions.student_id -> profiles.id (Routes left to X=360, up to Y=150, enters profiles.id) -->
+            <path d="M520 478 H360 V150 H300" />
+
+            <!-- ai_chat_messages.session_id -> ai_chat_sessions.id -->
+            <path d="M960 478 H772" />
+          </g>
+
+          <!-- Diagram Boxes & Schema Tables -->
+          <g>
+            <!-- public.profiles (Focal Table) -->
+            <rect x="48" y="80" width="252" height="210" rx="6" class="box" />
+            <rect x="48" y="80" width="252" height="38" rx="6" class="focal" />
+            <text x="64" y="104" class="title">public.profiles</text>
+            <text x="284" y="104" class="tag right">TABLE</text>
+            <line x1="48" y1="118" x2="300" y2="118" class="divider" />
+            <text x="64" y="144" class="field left">id</text>
+            <text x="284" y="144" class="muted right">uuid PK</text>
+            <text x="64" y="168" class="field left">role</text>
+            <text x="284" y="168" class="muted right">text NN</text>
+            <text x="64" y="192" class="field left">student_id</text>
+            <text x="284" y="192" class="muted right">text UQ</text>
+            <text x="64" y="216" class="field left">department</text>
+            <text x="284" y="216" class="muted right">text</text>
+            <text x="64" y="240" class="field left">wellness_score</text>
+            <text x="284" y="240" class="muted right">integer</text>
+            <text x="64" y="266" class="muted left">+ more fields</text>
+
+            <!-- public.appointments -->
+            <rect x="520" y="80" width="252" height="210" rx="6" class="box" />
+            <rect x="520" y="80" width="252" height="38" rx="6" class="head" />
+            <text x="536" y="104" class="title">public.appointments</text>
+            <text x="756" y="104" class="tag right">TABLE</text>
+            <line x1="520" y1="118" x2="772" y2="118" class="divider" />
+            <text x="536" y="144" class="field left">id</text>
+            <text x="756" y="144" class="muted right">uuid PK</text>
+            <text x="536" y="168" class="field left">student_id</text>
+            <text x="756" y="168" class="muted right">uuid FK</text>
+            <text x="536" y="192" class="field left">counselor_id</text>
+            <text x="756" y="192" class="muted right">uuid FK</text>
+            <text x="536" y="216" class="field left">status</text>
+            <text x="756" y="216" class="muted right">text CHECK</text>
+            <text x="536" y="240" class="field left">date / time</text>
+            <text x="756" y="240" class="muted right">text NN</text>
+            <text x="536" y="266" class="muted left">
+              + reason · location · type
+            </text>
+
+            <!-- public.assessments -->
+            <rect x="48" y="390" width="252" height="210" rx="6" class="box" />
+            <rect x="48" y="390" width="252" height="38" rx="6" class="head" />
+            <text x="64" y="414" class="title">public.assessments</text>
+            <text x="284" y="414" class="tag right">TABLE</text>
+            <line x1="48" y1="428" x2="300" y2="428" class="divider" />
+            <text x="64" y="454" class="field left">id</text>
+            <text x="284" y="454" class="muted right">uuid PK</text>
+            <text x="64" y="478" class="field left">student_id</text>
+            <text x="284" y="478" class="muted right">uuid FK</text>
+            <text x="64" y="502" class="field left">type / status</text>
+            <text x="284" y="502" class="muted right">text CHECK</text>
+            <text x="64" y="526" class="field left">risk_level</text>
+            <text x="284" y="526" class="muted right">text CHECK</text>
+            <text x="64" y="550" class="field left">answers</text>
+            <text x="284" y="550" class="muted right">jsonb</text>
+            <text x="64" y="576" class="muted left">
+              + summary · feedback · scores
+            </text>
+
+            <!-- ai_chat_sessions -->
+            <rect x="520" y="390" width="252" height="210" rx="6" class="box" />
+            <rect x="520" y="390" width="252" height="38" rx="6" class="head" />
+            <text x="536" y="414" class="title">ai_chat_sessions</text>
+            <text x="756" y="414" class="tag right">TABLE</text>
+            <line x1="520" y1="428" x2="772" y2="428" class="divider" />
+            <text x="536" y="454" class="field left">id</text>
+            <text x="756" y="454" class="muted right">uuid PK</text>
+            <text x="536" y="478" class="field left">student_id</text>
+            <text x="756" y="478" class="muted right">uuid FK</text>
+            <text x="536" y="502" class="field left">risk_level</text>
+            <text x="756" y="502" class="muted right">text CHECK</text>
+            <text x="536" y="526" class="field left">stress_level</text>
+            <text x="756" y="526" class="muted right">integer</text>
+            <text x="536" y="550" class="field left">focus_areas</text>
+            <text x="756" y="550" class="muted right">text[]</text>
+            <text x="536" y="576" class="muted left">
+              + summary · completed_at
+            </text>
+
+            <!-- ai_chat_messages -->
+            <rect x="960" y="390" width="192" height="150" rx="6" class="box" />
+            <rect x="960" y="390" width="192" height="38" rx="6" class="head" />
+            <text x="976" y="414" class="title">ai_chat_messages</text>
+            <text x="1136" y="414" class="tag right">TABLE</text>
+            <line x1="960" y1="428" x2="1152" y2="428" class="divider" />
+            <text x="976" y="454" class="field left">id</text>
+            <text x="1136" y="454" class="muted right">uuid PK</text>
+            <text x="976" y="478" class="field left">session_id</text>
+            <text x="1136" y="478" class="muted right">uuid FK</text>
+            <text x="976" y="502" class="field left">content</text>
+            <text x="1136" y="502" class="muted right">text NN</text>
+            <text x="976" y="526" class="field left">role</text>
+            <text x="1136" y="526" class="muted right">text CHECK</text>
+          </g>
+
+          <!-- Divider & Legend -->
+          <line x1="48" y1="660" x2="1152" y2="660" class="divider" />
+          <text x="48" y="684" class="legend">FK</text>
+          <text x="76" y="684" class="tiny left">
+            connectors terminate on referenced/source column rows
+          </text>
+          <text x="48" y="716" class="legend">SCOPE</text>
+          <text x="100" y="716" class="tiny left">
+            5-table backbone; supporting tables remain in the database-flow view
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Source: schema.sql, ai_tables.sql, ai_analytics_migration.sql, and
+        related migrations.
+      </p>
+    </main>
+  </body>
+</html>

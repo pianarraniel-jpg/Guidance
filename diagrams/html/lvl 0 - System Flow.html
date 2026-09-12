@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Level 0 System Flow</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+        --l: #2e5aa8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font:
+          14px Segoe UI,
+          sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font:
+          600 8px "Courier New",
+          monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font:
+          400 40px Georgia,
+          serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .store {
+        fill: rgba(37, 40, 39, 0.055);
+        stroke: var(--m);
+      }
+      .external {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: rgba(37, 40, 39, 0.42);
+        stroke-dasharray: 4 3;
+      }
+      .input {
+        fill: rgba(89, 97, 95, 0.1);
+        stroke: #818986;
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .api {
+        fill: none;
+        stroke: var(--l);
+        stroke-width: 1.1;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .small {
+        fill: var(--m);
+        font:
+          9px "Courier New",
+          monospace;
+        text-anchor: middle;
+      }
+      .tiny {
+        fill: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .divider {
+        stroke: var(--r);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">DATA FLOW / LEVEL 0</p>
+      <h1>System flow</h1>
+      <p class="subtitle">
+        People submit wellness work, GuidanceSync coordinates it, and trusted
+        services persist or enrich the result.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 620"
+          role="img"
+          aria-labelledby="l0-title l0-desc"
+        >
+          <title id="l0-title">GuidanceSync level 0 data flow</title>
+          <desc id="l0-desc">
+            Level 0 flow showing people exchanging data with GuidanceSync and
+            external services.
+          </desc>
+          <defs>
+            <marker
+              id="l0m"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="l0l"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#2e5aa8" />
+            </marker>
+          </defs>
+          
+          <!-- Input & External Flow Lines with precise markers -->
+          <g class="line" marker-end="url(#l0m)">
+            <!-- Student -> Platform -->
+            <path d="M180 126H340" />
+            <!-- Counselor -> Platform -->
+            <path d="M180 310H340" />
+            <!-- Administrator -> Platform -->
+            <path d="M180 494H340" />
+            <!-- Platform -> Supabase Auth (Center Y=150) -->
+            <path d="M860 150H1020" />
+            <!-- Platform -> Supabase DB (Center Y=310) -->
+            <path d="M860 310H1020" />
+          </g>
+          
+          <!-- API Flow Line: Platform -> Groq AI (Center Y=470) -->
+          <g class="api" marker-end="url(#l0l)">
+            <path d="M860 470H1020" />
+          </g>
+
+          <g class="input">
+            <rect x="48" y="98" width="132" height="56" rx="6" />
+            <text x="114" y="122" class="name">Student</text>
+            <text x="114" y="140" class="small">wellness input</text>
+            <rect x="48" y="282" width="132" height="56" rx="6" />
+            <text x="114" y="306" class="name">Counselor</text>
+            <text x="114" y="324" class="small">care decisions</text>
+            <rect x="48" y="466" width="132" height="56" rx="6" />
+            <text x="114" y="490" class="name">Administrator</text>
+            <text x="114" y="508" class="small">governance</text>
+          </g>
+          <rect x="340" y="80" width="520" height="440" rx="8" class="focal" />
+          <text x="600" y="124" class="tag">P1 / GUIDANCESYNC PLATFORM</text>
+          <text x="600" y="172" class="name">Coordinate student wellness</text>
+          <text x="600" y="198" class="small">
+            authenticate · schedule · assess · communicate · report
+          </text>
+          <rect x="440" y="246" width="320" height="96" rx="6" class="box" />
+          <text x="600" y="282" class="name">
+            Wellness and counseling workflows
+          </text>
+          <text x="600" y="302" class="small">role-aware experiences</text>
+          <text x="600" y="322" class="small">
+            live notifications + guided follow-up
+          </text>
+          <rect x="440" y="382" width="320" height="72" rx="6" class="store" />
+          <text x="600" y="410" class="name">Unified care record</text>
+          <text x="600" y="430" class="small">
+            appointments · assessments · messages
+          </text>
+          <g class="external">
+            <rect x="1020" y="122" width="132" height="56" rx="6" />
+            <text x="1086" y="146" class="name">Supabase Auth</text>
+            <text x="1086" y="164" class="small">sessions</text>
+            <rect x="1020" y="282" width="132" height="56" rx="6" />
+            <text x="1086" y="306" class="name">Supabase DB</text>
+            <text x="1086" y="324" class="small">RLS + realtime</text>
+            <rect x="1020" y="442" width="132" height="56" rx="6" />
+            <text x="1086" y="466" class="name">Groq AI</text>
+            <text x="1086" y="484" class="small">analysis + dialogue</text>
+          </g>
+          <line x1="48" y1="560" x2="1152" y2="560" class="divider" />
+          <text x="48" y="584" class="legend">FLOW</text>
+          <text x="98" y="584" class="tiny">
+            people → platform → persistence / intelligence
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Level 0 intentionally collapses individual pages and tables into
+        system-level processes.
+      </p>
+    </main>
+  </body>
+</html>
