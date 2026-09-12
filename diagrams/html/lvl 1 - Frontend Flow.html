@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Frontend Flow</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+        --l: #2e5aa8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font:
+          14px Segoe UI,
+          sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font:
+          600 8px "Courier New",
+          monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font:
+          400 40px Georgia,
+          serif;
+      }
+      .subtitle {
+        color: var(--m);
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .zone {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: var(--r);
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .input {
+        fill: rgba(89, 97, 95, 0.1);
+        stroke: #818986;
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .api {
+        fill: none;
+        stroke: var(--l);
+        stroke-width: 1.1;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .small {
+        fill: var(--m);
+        font:
+          9px "Courier New",
+          monospace;
+        text-anchor: middle;
+      }
+      .tiny {
+        fill: #818986;
+        font:
+          8px "Courier New",
+          monospace;
+      }
+      .divider {
+        stroke: var(--r);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">DATA FLOW / LEVEL 1 / FRONTEND</p>
+      <h1>Frontend flow</h1>
+      <p class="subtitle">
+        Role-based pages converge on shared client state, persistence, and live
+        feedback.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 720"
+          role="img"
+          aria-labelledby="fe-title fe-desc"
+        >
+          <title id="fe-title">GuidanceSync frontend data flow</title>
+          <desc id="fe-desc">
+            Frontend flow from public and role-based pages through contexts and
+            storage to backend services.
+          </desc>
+          <defs>
+            <marker
+              id="fem"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="fel"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#2e5aa8" />
+            </marker>
+          </defs>
+
+          <!-- Standard Connection Lines with Arrowheads -->
+          <g class="line" marker-end="url(#fem)">
+            <!-- Public routes -> Pages + layouts (Center Y=150 to 160) -->
+            <path d="M170 150 H247 V160 H324" />
+            <!-- Student routes -> ProtectedRoute (Center Y=310) -->
+            <path d="M170 310 H324" />
+            <!-- Staff routes -> UI components (Center Y=470 to 460) -->
+            <path d="M170 470 H247 V460 H324" />
+
+            <!-- ProtectedRoute -> storageService (Center Y=310) -->
+            <path d="M476 310 H674" />
+
+            <!-- Client State to External Connections -->
+            <!-- AuthContext -> Supabase client (Center Y=200 to 152) -->
+            <path d="M826 200 H918 V152 H1010" />
+            <!-- storageService -> Server actions (Center Y=310 to 312) -->
+            <path d="M826 310 H918 V312 H1010" />
+            <!-- NotificationContext -> Browser alerts (Center Y=420 to 472) -->
+            <path d="M826 420 H918 V472 H1010" />
+          </g>
+
+          <!-- Routing API Lines -->
+          <g class="api" marker-end="url(#fel)">
+            <!-- Pages + layouts -> AuthContext (Center Y=160 to 200) -->
+            <path d="M476 160 H575 V200 H674" />
+            <!-- UI components -> NotificationContext (Center Y=460 to 420) -->
+            <path d="M476 460 H575 V420 H674" />
+          </g>
+
+          <g class="input">
+            <rect x="48" y="120" width="122" height="60" rx="6" />
+            <text x="109" y="146" class="name">Public routes</text>
+            <text x="109" y="164" class="small">login · register</text>
+            <rect x="48" y="280" width="122" height="60" rx="6" />
+            <text x="109" y="306" class="name">Student routes</text>
+            <text x="109" y="324" class="small">wellness + booking</text>
+            <rect x="48" y="440" width="122" height="60" rx="6" />
+            <text x="109" y="466" class="name">Staff routes</text>
+            <text x="109" y="484" class="small">counselor + admin</text>
+          </g>
+          <rect x="300" y="72" width="200" height="500" rx="8" class="zone" />
+          <text x="316" y="96" class="tag">APP ROUTES</text>
+          <g class="box">
+            <rect x="324" y="124" width="152" height="72" rx="6" />
+            <text x="400" y="151" class="name">Pages + layouts</text>
+            <text x="400" y="171" class="small">Next App Router</text>
+            <rect x="324" y="274" width="152" height="72" rx="6" />
+            <text x="400" y="301" class="name">ProtectedRoute</text>
+            <text x="400" y="321" class="small">role gate</text>
+            <rect x="324" y="424" width="152" height="72" rx="6" />
+            <text x="400" y="451" class="name">UI components</text>
+            <text x="400" y="471" class="small">forms · charts · dialogs</text>
+          </g>
+          <rect x="650" y="72" width="200" height="500" rx="8" class="zone" />
+          <text x="666" y="96" class="tag">CLIENT STATE</text>
+          <g class="focal">
+            <rect x="674" y="164" width="152" height="72" rx="6" />
+            <text x="750" y="191" class="name">AuthContext</text>
+            <text x="750" y="211" class="small">session + profile</text>
+          </g>
+          <g class="box">
+            <rect x="674" y="274" width="152" height="72" rx="6" />
+            <text x="750" y="301" class="name">storageService</text>
+            <text x="750" y="321" class="small">CRUD + mapping</text>
+            <rect x="674" y="384" width="152" height="72" rx="6" />
+            <text x="750" y="411" class="name">NotificationContext</text>
+            <text x="750" y="431" class="small">realtime + read state</text>
+          </g>
+          <g class="box">
+            <rect x="1010" y="122" width="142" height="60" rx="6" />
+            <text x="1081" y="148" class="name">Supabase client</text>
+            <text x="1081" y="166" class="small">auth + database</text>
+            <rect x="1010" y="282" width="142" height="60" rx="6" />
+            <text x="1081" y="308" class="name">Server actions</text>
+            <text x="1081" y="326" class="small">AI requests</text>
+            <rect x="1010" y="442" width="142" height="60" rx="6" />
+            <text x="1081" y="468" class="name">Browser alerts</text>
+            <text x="1081" y="486" class="small">notification API</text>
+          </g>
+          <line x1="48" y1="628" x2="1152" y2="628" class="divider" />
+          <text x="48" y="652" class="legend">CLIENT PATH</text>
+          <text x="142" y="652" class="tiny">
+            route → context/service → external capability
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Evidence: role routes, AuthContext, ProtectedRoute, NotificationContext,
+        useLiveSync, and storageService.
+      </p>
+    </main>
+  </body>
+</html>
