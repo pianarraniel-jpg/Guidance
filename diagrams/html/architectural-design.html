@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GuidanceSync Architectural Design</title>
+    <style>
+      :root {
+        --p: #fafaf7;
+        --s: #fff;
+        --i: #252827;
+        --m: #59615f;
+        --r: rgba(37, 40, 39, 0.14);
+        --a: #d7673f;
+        --l: #2e5aa8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--p);
+        color: var(--i);
+        font: 14px Segoe UI, sans-serif;
+      }
+      .page {
+        max-width: 1500px;
+        margin: auto;
+        padding: 44px 48px 56px;
+      }
+      .eyebrow,
+      .tag,
+      .legend {
+        color: var(--m);
+        font: 600 8px "Courier New", monospace;
+        letter-spacing: 0.14em;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0;
+        font: 400 40px Georgia, serif;
+      }
+      .subtitle {
+        max-width: 820px;
+        color: var(--m);
+        line-height: 1.5;
+        margin: 14px 0 30px;
+      }
+      .diagram {
+        overflow: auto;
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 860px;
+      }
+      .footer {
+        margin-top: 30px;
+        padding-top: 12px;
+        border-top: 1px solid var(--r);
+        color: #818986;
+        font: 8px "Courier New", monospace;
+      }
+      svg {
+        font-family: Segoe UI, sans-serif;
+      }
+      .zone {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: var(--r);
+        stroke-width: 0.8;
+      }
+      .boundary {
+        fill: rgba(215, 103, 63, 0.035);
+        stroke: rgba(215, 103, 63, 0.5);
+        stroke-width: 1;
+        stroke-dasharray: 4 4;
+      }
+      .box {
+        fill: var(--s);
+        stroke: var(--i);
+      }
+      .store {
+        fill: rgba(37, 40, 39, 0.055);
+        stroke: var(--m);
+      }
+      .external {
+        fill: rgba(37, 40, 39, 0.025);
+        stroke: rgba(37, 40, 39, 0.42);
+        stroke-dasharray: 4 3;
+      }
+      .focal {
+        fill: rgba(215, 103, 63, 0.09);
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .line {
+        fill: none;
+        stroke: var(--m);
+        stroke-width: 1.1;
+      }
+      .api {
+        fill: none;
+        stroke: var(--l);
+        stroke-width: 1.1;
+      }
+      .accent {
+        fill: none;
+        stroke: var(--a);
+        stroke-width: 1.2;
+      }
+      .name {
+        fill: var(--i);
+        font-size: 12px;
+        font-weight: 600;
+        text-anchor: middle;
+      }
+      .small {
+        fill: var(--m);
+        font: 9px "Courier New", monospace;
+        text-anchor: middle;
+      }
+      .tiny {
+        fill: #818986;
+        font: 8px "Courier New", monospace;
+        text-anchor: middle;
+      }
+      .left {
+        text-anchor: start;
+      }
+      .divider {
+        stroke: var(--r);
+        stroke-width: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <p class="eyebrow">ARCHITECTURE / CURRENT STATE</p>
+      <h1>Architectural design</h1>
+      <p class="subtitle">
+        Browser experiences, Next.js coordination, AI services, and Supabase
+        infrastructure.
+      </p>
+      <div class="diagram">
+        <svg
+          viewBox="0 0 1200 700"
+          role="img"
+          aria-labelledby="ar-title ar-desc"
+        >
+          <title id="ar-title">GuidanceSync architectural design</title>
+          <desc id="ar-desc">
+            Layered architecture showing role-based browser surfaces, Next.js
+            services, Groq AI, and Supabase infrastructure.
+          </desc>
+          <defs>
+            <marker
+              id="arm"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#59615f" />
+            </marker>
+            <marker
+              id="arl"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#2e5aa8" />
+            </marker>
+            <marker
+              id="ara"
+              markerWidth="8"
+              markerHeight="6"
+              viewBox="0 0 8 6"
+              refX="7"
+              refY="3"
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path d="M0 0L8 3L0 6Z" fill="#d7673f" />
+            </marker>
+          </defs>
+
+          <!-- Zones -->
+          <rect x="48" y="64" width="1104" height="150" rx="8" class="zone" />
+          <rect x="48" y="236" width="1104" height="170" rx="8" class="boundary" />
+          <rect x="48" y="428" width="1104" height="150" rx="8" class="zone" />
+
+          <text x="68" y="88" class="tag">PRESENTATION / TRUST ZONE</text>
+          <text x="68" y="260" class="tag">APPLICATION / SERVER ZONE</text>
+          <text x="68" y="452" class="tag">DATA + EXTERNAL SERVICES</text>
+
+          <!-- Presentation Zone Boxes -->
+          <g class="box">
+            <rect x="96" y="116" width="124" height="68" rx="6" />
+            <text x="158" y="143" class="name">Student UI</text>
+            <text x="158" y="163" class="small">wellness · booking</text>
+
+            <rect x="320" y="116" width="200" height="68" rx="6" />
+            <text x="420" y="143" class="name">Counselor UI</text>
+            <text x="420" y="163" class="small">cases · sessions</text>
+
+            <rect x="650" y="116" width="200" height="68" rx="6" />
+            <text x="750" y="143" class="name">Admin UI</text>
+            <text x="750" y="163" class="small">reports · governance</text>
+
+            <rect x="980" y="116" width="124" height="68" rx="6" />
+            <text x="1042" y="143" class="name">Shared UI</text>
+            <text x="1042" y="163" class="small">contexts · hooks</text>
+          </g>
+
+          <!-- Application Zone Boxes -->
+          <g>
+            <rect x="320" y="290" width="200" height="88" rx="6" class="focal" />
+            <text x="420" y="320" class="name">Next.js App Router</text>
+            <text x="420" y="341" class="small">pages · layouts · API routes</text>
+            <text x="420" y="358" class="tiny">protected role surfaces</text>
+
+            <rect x="600" y="290" width="160" height="88" rx="6" class="box" />
+            <text x="680" y="320" class="name">Domain services</text>
+            <text x="680" y="341" class="small">storageService</text>
+            <text x="680" y="358" class="tiny">camel ↔ snake mapping</text>
+          </g>
+
+          <!-- Data & External Services Zone Boxes -->
+          <g>
+            <rect x="96" y="468" width="124" height="68" rx="6" class="external" />
+            <text x="158" y="495" class="name">Groq</text>
+            <text x="158" y="515" class="small">AI models</text>
+
+            <rect x="300" y="468" width="200" height="68" rx="6" class="store" />
+            <text x="400" y="495" class="name">Supabase Auth</text>
+            <text x="400" y="515" class="small">sessions + roles</text>
+
+            <rect x="610" y="468" width="200" height="68" rx="6" class="store" />
+            <text x="710" y="495" class="name">Postgres + RLS</text>
+            <text x="710" y="515" class="small">care records</text>
+
+            <rect x="980" y="468" width="124" height="68" rx="6" class="store" />
+            <text x="1042" y="495" class="name">Realtime</text>
+            <text x="1042" y="515" class="small">live updates</text>
+          </g>
+
+          <!-- Connections (Presentation Layer -> Application Layer) -->
+          <g class="line" marker-end="url(#arm)">
+            <!-- UI Connections down to Next.js App Router & Domain Services -->
+            <path d="M158 184 V237 H370 V290" />
+            <path d="M420 184 V290" />
+            <path d="M750 184 V237 H470 V290" />
+            <path d="M1042 184 V237 H680 V290" />
+            
+            <!-- Next.js App Router -> Domain Services Internal Connection -->
+            <path d="M520 334 H600" />
+          </g>
+
+          <!-- Connections (Application Layer -> External & Data Layer) -->
+          <g class="line" marker-end="url(#arm)">
+            <!-- Next.js App Router -> Groq AI -->
+            <path d="M370 378 V423 H158 V468" />
+            <!-- Next.js App Router -> Supabase Auth -->
+            <path d="M420 378 V468" />
+          </g>
+
+          <g class="api" marker-end="url(#arl)">
+            <!-- Domain Services -> Postgres + RLS -->
+            <path d="M680 378 V423 H710 V468" />
+          </g>
+
+          <g class="accent" marker-end="url(#ara)">
+            <!-- Domain Services -> Realtime -->
+            <path d="M740 378 V423 H1042 V468" />
+          </g>
+
+          <!-- Divider & Legend -->
+          <line x1="48" y1="620" x2="1152" y2="620" class="divider" />
+          <text x="48" y="644" class="legend">BOUNDARY</text>
+          <text x="120" y="644" class="tiny left">
+            server-only credentials and admin access stay behind Next.js
+          </text>
+        </svg>
+      </div>
+      <p class="footer">
+        Current-state architecture inferred from routes, contexts, server
+        actions, Supabase clients, and realtime setup.
+      </p>
+    </main>
+  </body>
+</html>
