@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +45,7 @@ import {
 import { supabase } from '@/lib/supabase';
 
 export default function CounselorStudentsPage() {
+  const router = useRouter();
   const { user: counselor } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [assessmentsMap, setAssessmentsMap] = useState<Record<string, any[]>>({});
@@ -163,12 +165,6 @@ export default function CounselorStudentsPage() {
 
     fetchGlobalAndStudentTools();
   }, [profileStudent]);
-
-  useEffect(() => {
-    if (!profileStudent && !editStudent) {
-      document.body.style.pointerEvents = 'auto';
-    }
-  }, [profileStudent, editStudent]);
 
   // Handle College Filter change
   const handleCollegeFilterChange = (col: string) => {
@@ -759,13 +755,16 @@ export default function CounselorStudentsPage() {
                 const { label, color } = getWellnessLabel(latestA?.stressLevel ?? student.latestStressLevel);
                 return (
                   <TableRow key={student.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-all group">
-                    <TableCell className="pl-8 py-5">
+                    <TableCell 
+                      className="pl-8 py-5 cursor-pointer" 
+                      onClick={() => router.push(`/counselor/students/${student.id}`)}
+                    >
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 shadow-sm shrink-0">
                           <User className="h-5 w-5" />
                         </div>
                         <div>
-                          <span className="font-bold text-slate-900 text-sm block">{student.name}</span>
+                          <span className="font-bold text-slate-900 text-sm block group-hover:text-primary transition-colors">{student.name}</span>
                           <span className="text-[10px] text-slate-400 font-bold">{student.email}</span>
                         </div>
                       </div>
@@ -814,19 +813,13 @@ export default function CounselorStudentsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
                           <DropdownMenuItem
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              setProfileStudent(student);
-                            }}
+                            onSelect={() => router.push(`/counselor/students/${student.id}`)}
                             className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                           >
-                            <ExternalLink className="h-4 w-4 text-slate-400" /> Clinical Profile
+                            <ExternalLink className="h-4 w-4 text-slate-400" /> View Student Records
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              openEditDialog(student);
-                            }}
+                            onSelect={() => openEditDialog(student)}
                             className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-50"
                           >
                             <Pencil className="h-4 w-4 text-slate-400" /> Update Profile
@@ -965,7 +958,7 @@ export default function CounselorStudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Clinical Profile Modal ──────────────────────────────────────────── */}
+      {/* ── Student Records Modal ──────────────────────────────────────────── */}
       <Dialog open={!!profileStudent} onOpenChange={open => !open && setProfileStudent(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-8 bg-slate-50 border-b">
@@ -974,9 +967,9 @@ export default function CounselorStudentsPage() {
                 <User className="h-7 w-7" />
               </div>
               <div className="flex-1 min-w-0">
-                <DialogTitle className="text-2xl font-black text-slate-900">{profileStudent?.name}</DialogTitle>
+                <DialogTitle className="text-2xl font-black text-slate-900">Student Records</DialogTitle>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                  {profileStudent?.studentId || profileStudent?.email}
+                  Official Record • {profileStudent?.name} ({profileStudent?.studentId || profileStudent?.student_id || profileStudent?.email})
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {profileStudent?.department && (

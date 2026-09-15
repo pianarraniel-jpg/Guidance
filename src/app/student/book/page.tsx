@@ -8,7 +8,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
-import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { STORAGE_KEYS, APPOINTMENT_STATUS, isCounselorMatchingDepartment } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
@@ -104,20 +104,27 @@ export default function BookAppointment() {
 
   const loadCounselors = useCallback(async () => {
     const all = await storageService.getAll<any>(STORAGE_KEYS.USERS);
-    const counselorList = all.filter(u => u.role === 'counselor');
-    setCounselors(counselorList);
+    let counselorList = all.filter(u => u.role === 'counselor');
 
-    if (user?.department) {
-      const studentDept = user.department.trim().toUpperCase();
-      const matched = counselorList.find(c => {
-        if (!c.department) return false;
-        const depts = c.department.split(',').map((d: string) => d.trim().toUpperCase());
-        return depts.includes(studentDept);
-      });
-      if (matched) {
-        setSelectedCounselor(matched.id);
+    let studentDept = user?.department;
+    if (!studentDept && user?.id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('department')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (prof?.department) studentDept = prof.department;
+    }
+
+    if (studentDept) {
+      const matched = counselorList.filter(c => isCounselorMatchingDepartment(c.department, studentDept));
+      if (matched.length > 0) {
+        counselorList = matched;
+        setSelectedCounselor(matched[0].id);
       }
     }
+
+    setCounselors(counselorList);
   }, [user]);
 
   useEffect(() => { loadCounselors(); }, [loadCounselors]);

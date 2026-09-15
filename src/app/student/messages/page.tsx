@@ -15,7 +15,7 @@ import {
   Calendar, ChevronRight, EyeOff, Lock, ArrowLeft,
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { STORAGE_KEYS, isCounselorMatchingDepartment } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -70,7 +70,35 @@ export default function StudentMessages() {
     const readSet = new Set((readData ?? []).map((r: any) => r.notification_id));
 
     const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
-    const counselorList = allUsers.filter(u => u.role === 'counselor');
+    let counselorList = allUsers.filter(u => u.role === 'counselor');
+
+    // Get current student's department (from context user or database profile)
+    let studentDept = user.department;
+    if (!studentDept) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('department')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (prof?.department) {
+          studentDept = prof.department;
+        }
+      } catch (err) {
+        console.error('Error fetching student department for messaging:', err);
+      }
+    }
+
+    // Filter counselors strictly to the student's assigned department
+    if (studentDept) {
+      const matchingCounselors = counselorList.filter(c =>
+        isCounselorMatchingDepartment(c.department, studentDept)
+      );
+      if (matchingCounselors.length > 0) {
+        counselorList = matchingCounselors;
+      }
+    }
+
     const allMessages = await storageService.getAll<ChatMessage>(STORAGE_KEYS.MESSAGES);
 
     const counselorsWithMetadata = counselorList.map(counselor => {
@@ -96,9 +124,12 @@ export default function StudentMessages() {
       return hasDiff ? counselorsWithMetadata : prev;
     });
 
-    if (!activeCounselor && counselorsWithMetadata.length > 0) {
-      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        setActiveCounselor(counselorsWithMetadata[0]);
+    if (counselorsWithMetadata.length > 0) {
+      // If no active counselor or active counselor is no longer in the allowed list
+      if (!activeCounselor || !counselorsWithMetadata.some(c => c.id === activeCounselor.id)) {
+        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+          setActiveCounselor(counselorsWithMetadata[0]);
+        }
       }
     }
 

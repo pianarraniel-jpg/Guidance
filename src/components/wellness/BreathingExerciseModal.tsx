@@ -21,6 +21,8 @@ import {
   Timer
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { exerciseService } from '@/lib/exercise-service';
 
 interface BreathingExerciseModalProps {
   isOpen: boolean;
@@ -61,6 +63,7 @@ export default function BreathingExerciseModal({
   autoStart = true
 }: BreathingExerciseModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Timer States
   const [isActive, setIsActive] = useState(autoStart);
@@ -120,12 +123,27 @@ export default function BreathingExerciseModal({
     setIsActive(false);
     setSecondsLeft(0);
     setIsCompleted(true);
+    
+    // Save to student record
+    if (user?.id) {
+      exerciseService.recordCompletion({
+        studentId: user.id,
+        studentName: user.name || 'Student',
+        studentEmail: user.email,
+        department: (user as any).department || 'CCS',
+        exerciseTitle: title,
+        category: type,
+        durationMinutes: Math.max(1, Math.round(duration / 60)),
+        assignedBy: 'Assigned Wellness Protocol',
+      }).catch(err => console.error('Failed to log exercise completion:', err));
+    }
+
     if (onComplete) {
       onComplete();
     }
     toast({
-      title: "Mindfulness Accomplished!",
-      description: "You have completed your guided session.",
+      title: "Mindfulness Accomplished! 🎉",
+      description: `Saved "${title}" to your student wellness activity record.`,
     });
   };
 

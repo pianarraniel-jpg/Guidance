@@ -155,6 +155,36 @@ export function getProgramsForCounselor(departmentStr?: string, selectedCollegeC
   return Array.from(programs);
 }
 
+export function isCounselorMatchingDepartment(counselorDept?: string, studentDept?: string): boolean {
+  if (!studentDept) return true;
+  if (!counselorDept) return false;
+
+  const trimmedCounselorDept = counselorDept.trim();
+  if (trimmedCounselorDept.toLowerCase() === 'all') return true;
+
+  const normalizedStudent = studentDept.trim().toUpperCase();
+  const studentCollege = getCollegeByCode(studentDept);
+  const studentCodes = new Set<string>([
+    normalizedStudent,
+    ...(studentCollege ? [studentCollege.code.toUpperCase(), ...(studentCollege.aliases?.map(a => a.toUpperCase()) || [])] : [])
+  ]);
+
+  const counselorCodes = trimmedCounselorDept
+    .split(',')
+    .map(d => d.trim().toUpperCase())
+    .filter(Boolean);
+
+  return counselorCodes.some(cCode => {
+    if (studentCodes.has(cCode)) return true;
+    const cCol = getCollegeByCode(cCode);
+    if (cCol) {
+      if (studentCodes.has(cCol.code.toUpperCase())) return true;
+      if (cCol.aliases?.some(a => studentCodes.has(a.toUpperCase()))) return true;
+    }
+    return false;
+  });
+}
+
 export const YEAR_LEVELS = [
   '1st Year',
   '2nd Year',
