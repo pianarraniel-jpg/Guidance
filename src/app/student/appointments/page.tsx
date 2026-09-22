@@ -25,6 +25,7 @@ import {
   Plus,
   CheckCircle2,
   XCircle,
+  CalendarClock,
   Timer,
   MapPin,
   FileText,
@@ -38,6 +39,8 @@ import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
+import RescheduleModal from '@/components/appointments/RescheduleModal';
+import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
 
 
 type TabKey = 'upcoming' | 'history' | 'all';
@@ -52,6 +55,7 @@ export default function StudentAppointments() {
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -91,7 +95,10 @@ export default function StudentAppointments() {
     });
 
     enrichedData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setAppointments(enrichedData);
+    
+    // Auto-expire passed/missed bookings in background and local state
+    const processedData = await autoExpirePassedAppointments(enrichedData);
+    setAppointments(processedData);
   }, [user]);
 
   useEffect(() => { loadRef.current = loadAppointments; }, [loadAppointments]);
@@ -114,18 +121,16 @@ export default function StudentAppointments() {
     if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
   }, [notifications, markAsRead]);
 
-  const today = startOfDay(new Date());
-
   const filtered = (() => {
     switch (activeTab) {
       case 'upcoming':
         return appointments.filter(a =>
           (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) &&
-          !isBefore(parseISO(a.date), today)
+          !isAppointmentPassed(a.date, a.time)
         );
       case 'history':
         return appointments.filter(a =>
-          a.status === 'completed' || a.status === 'cancelled' || isBefore(parseISO(a.date), today)
+          a.status === 'completed' || a.status === 'cancelled' || isAppointmentPassed(a.date, a.time)
         );
       default:
         return appointments;
@@ -134,29 +139,45 @@ export default function StudentAppointments() {
 
   const stats = [
     { label: 'Total', value: appointments.length, color: 'text-primary', bg: 'bg-primary/5' },
-    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED && !isBefore(parseISO(a.date), today)).length, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Upcoming', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED && !isAppointmentPassed(a.date, a.time)).length, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Completed', value: appointments.filter(a => a.status === 'completed').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING && !isAppointmentPassed(a.date, a.time)).length, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, app?: any) => {
     switch (status) {
       case APPOINTMENT_STATUS.CONFIRMED:
+        if (app && isAppointmentPassed(app.date, app.time)) {
+          return (
+            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
+              <AlertTriangle className="h-3 w-3 text-red-500" /> Missed / Expired
+            </Badge>
+          );
+        }
         return (
           <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg shadow-sm">
             <CheckCircle2 className="h-3 w-3" /> Confirmed
           </Badge>
         );
       case APPOINTMENT_STATUS.PENDING:
+        if (app && isAppointmentPassed(app.date, app.time)) {
+          return (
+            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
+              <AlertTriangle className="h-3 w-3 text-red-500" /> Missed / Expired
+            </Badge>
+          );
+        }
         return (
           <Badge variant="outline" className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
             <Clock className="h-3 w-3" /> Pending Review
           </Badge>
         );
       case APPOINTMENT_STATUS.CANCELLED:
+        const isMissed = app?.isMissed || app?.reason?.toLowerCase().includes('missed') || (app && isAppointmentPassed(app.date, app.time));
         return (
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
-            <XCircle className="h-3 w-3" /> Cancelled
+            {isMissed ? <AlertTriangle className="h-3 w-3 text-red-500" /> : <XCircle className="h-3 w-3" />}
+            {isMissed ? 'Missed / Cancelled' : 'Cancelled'}
           </Badge>
         );
       case 'completed':
@@ -208,14 +229,14 @@ export default function StudentAppointments() {
       key: 'upcoming',
       label: 'Upcoming Sessions',
       count: appointments.filter(
-        a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && !isBefore(parseISO(a.date), today)
+        a => (a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING) && !isAppointmentPassed(a.date, a.time)
       ).length,
     },
     {
       key: 'history',
       label: 'Past & Records',
       count: appointments.filter(
-        a => a.status === 'completed' || a.status === 'cancelled' || isBefore(parseISO(a.date), today)
+        a => a.status === 'completed' || a.status === 'cancelled' || isAppointmentPassed(a.date, a.time)
       ).length,
     },
     { key: 'all', label: 'All Sessions', count: appointments.length },
@@ -366,7 +387,7 @@ export default function StudentAppointments() {
 
                             {/* Status Column */}
                             <td className="px-6 py-4 whitespace-nowrap">
-                              {getStatusBadge(app.status)}
+                              {getStatusBadge(app.status, app)}
                             </td>
 
                             {/* Actions Column */}
@@ -381,14 +402,24 @@ export default function StudentAppointments() {
                                   View
                                 </Button>
                                 {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setCancelTarget(app)}
-                                    className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                                  >
-                                    <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setRescheduleTarget(app)}
+                                      className="h-8 text-[10px] font-black text-primary hover:text-primary hover:bg-primary/5 rounded-xl"
+                                    >
+                                      <CalendarClock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setCancelTarget(app)}
+                                      className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                                    >
+                                      <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -454,7 +485,7 @@ export default function StudentAppointments() {
             <DialogHeader className="p-6 bg-slate-50 border-b">
               <DialogTitle className="text-xl font-black">{selectedApp?.type}</DialogTitle>
               <div className="flex items-center gap-2 mt-2">
-                {getStatusBadge(selectedApp?.status)}
+                {getStatusBadge(selectedApp?.status, selectedApp)}
                 <span className="text-[10px] font-bold text-slate-400 uppercase">#{selectedApp?.id?.slice(-6).toUpperCase()}</span>
               </div>
             </DialogHeader>
@@ -533,13 +564,26 @@ export default function StudentAppointments() {
               )}
               <div className="flex gap-3 pt-2">
                 {(selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => { setIsDetailsOpen(false); setCancelTarget(selectedApp); }}
-                    className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-100 hover:bg-red-50"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" /> Cancel
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const target = selectedApp;
+                        setIsDetailsOpen(false);
+                        setRescheduleTarget(target);
+                      }}
+                      className="flex-1 h-11 rounded-xl font-black bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                    >
+                      <CalendarClock className="h-4 w-4 mr-2" /> Reschedule
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setIsDetailsOpen(false); setCancelTarget(selectedApp); }}
+                      className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-100 hover:bg-red-50"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" /> Cancel
+                    </Button>
+                  </>
                 )}
                 <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="flex-1 h-11 rounded-xl font-bold border-slate-200">
                   Close
@@ -548,6 +592,21 @@ export default function StudentAppointments() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Reschedule Modal */}
+        <RescheduleModal
+          isOpen={!!rescheduleTarget}
+          onClose={() => setRescheduleTarget(null)}
+          appointment={rescheduleTarget}
+          userRole="student"
+          onSuccess={(updatedApp) => {
+            setAppointments(prev => prev.map(a => a.id === updatedApp.id ? { ...a, ...updatedApp } : a));
+            if (selectedApp?.id === updatedApp.id) {
+              setSelectedApp((prev: any) => prev ? { ...prev, ...updatedApp } : null);
+            }
+            loadAppointments();
+          }}
+        />
 
         {/* Cancel Confirmation Dialog */}
         <Dialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>

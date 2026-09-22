@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { storageService } from "@/lib/storage-service";
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from "@/lib/constants";
+import { autoExpirePassedAppointments, isAppointmentPassed } from "@/lib/appointment-utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -63,7 +64,8 @@ export default function CounselorDashboard() {
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
       supabase.from('chat_alerts').select('id', { count: 'exact', head: true }).eq('acknowledged', false),
     ]);
-    setAppointments(allApts);
+    const processedApts = await autoExpirePassedAppointments(allApts);
+    setAppointments(processedApts);
     setAssessments(allAssessments);
     setUnackAlertCount(alertsRes.count ?? 0);
   }, []);
@@ -96,10 +98,10 @@ export default function CounselorDashboard() {
   });
 
   const todaySessions = appointments.filter(
-    (a) => a.date === format(new Date(), "yyyy-MM-dd"),
+    (a) => a.date === format(new Date(), "yyyy-MM-dd") && a.status !== APPOINTMENT_STATUS.CANCELLED,
   );
   const pendingCount = appointments.filter(
-    (a) => a.status === APPOINTMENT_STATUS.PENDING,
+    (a) => a.status === APPOINTMENT_STATUS.PENDING && !isAppointmentPassed(a.date, a.time),
   ).length;
 
   // Safe local date parser

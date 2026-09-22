@@ -65,6 +65,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/contexts/AuthContext';
+import RescheduleModal from '@/components/appointments/RescheduleModal';
+import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
 
 const SESSION_TYPES = [
   { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
@@ -87,6 +89,7 @@ export default function CounselorAppointmentsPage() {
   const [sortBy, setSortBy] = useState('newest-booked');
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
 
   // Counselor-to-Student booking states
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -154,7 +157,8 @@ export default function CounselorAppointmentsPage() {
   };
 
   const loadAppointments = useCallback(async () => {
-    const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+    const rawData = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+    const data = await autoExpirePassedAppointments(rawData);
     data.sort((a, b) => getBookingTimestamp(b) - getBookingTimestamp(a));
     setAppointments(data);
   }, []);
@@ -391,15 +395,31 @@ export default function CounselorAppointmentsPage() {
       });
   }, [appointments, searchTerm, statusFilter, sortBy]);
 
-  const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING).length;
+  const pendingCount = appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING && !isAppointmentPassed(a.date, a.time)).length;
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, app?: any) => {
     switch (status?.toLowerCase()) {
-      case 'confirmed': return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase">Confirmed</Badge>;
-      case 'completed': return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase">Completed</Badge>;
-      case 'cancelled': return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Cancelled</Badge>;
-      case 'pending': return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase">Pending</Badge>;
-      default: return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
+      case 'confirmed':
+        if (app && isAppointmentPassed(app.date, app.time)) {
+          return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Missed / Expired</Badge>;
+        }
+        return <Badge className="bg-blue-50 text-blue-700 border-none font-black text-[9px] uppercase">Confirmed</Badge>;
+      case 'completed':
+        return <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] uppercase">Completed</Badge>;
+      case 'cancelled':
+        const isMissed = app?.isMissed || app?.reason?.toLowerCase().includes('missed') || (app && isAppointmentPassed(app.date, app.time));
+        return (
+          <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">
+            {isMissed ? 'Missed / Cancelled' : 'Cancelled'}
+          </Badge>
+        );
+      case 'pending':
+        if (app && isAppointmentPassed(app.date, app.time)) {
+          return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Missed / Expired</Badge>;
+        }
+        return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase">Pending</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
     }
   };
 
@@ -568,7 +588,7 @@ export default function CounselorAppointmentsPage() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(app.status)}</TableCell>
+                  <TableCell>{getStatusBadge(app.status, app)}</TableCell>
                   <TableCell className="pr-8 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {/* Prominent inline quick-actions */}
@@ -640,12 +660,10 @@ export default function CounselorAppointmentsPage() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem
-                            onSelect={() =>
-                              handleUpdateStatus(app.id, "pending")
-                            }
+                            onSelect={() => setRescheduleTarget(app)}
                             className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs hover:bg-blue-50 hover:text-blue-700"
                           >
-                            <CalendarClock className="h-4 w-4" /> Reschedule
+                            <CalendarClock className="h-4 w-4" /> Reschedule Session
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="my-1 bg-slate-50" />
                           <DropdownMenuItem
@@ -754,7 +772,7 @@ export default function CounselorAppointmentsPage() {
                   <Badge className="bg-primary/10 text-primary border-none font-bold text-[10px] uppercase">
                     #{selectedApp?.id?.slice(-6).toUpperCase()}
                   </Badge>
-                  {getStatusBadge(selectedApp?.status)}
+                  {getStatusBadge(selectedApp?.status, selectedApp)}
                 </div>
               </div>
             </div>
@@ -827,6 +845,19 @@ export default function CounselorAppointmentsPage() {
                   className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black gap-2"
                 >
                   <CheckCircle2 className="h-4 w-4" /> Mark as Complete
+                </Button>
+              )}
+              {selectedApp?.status !== "completed" && selectedApp?.status !== "cancelled" && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const target = selectedApp;
+                    setIsDetailsOpen(false);
+                    setRescheduleTarget(target);
+                  }}
+                  className="flex-1 h-12 rounded-xl font-bold bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 gap-2"
+                >
+                  <CalendarClock className="h-4 w-4" /> Reschedule Session
                 </Button>
               )}
               <Button
@@ -1111,6 +1142,21 @@ export default function CounselorAppointmentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Modal */}
+      <RescheduleModal
+        isOpen={!!rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+        appointment={rescheduleTarget}
+        userRole="counselor"
+        onSuccess={(updatedApp) => {
+          setAppointments(prev => prev.map(a => a.id === updatedApp.id ? { ...a, ...updatedApp } : a));
+          if (selectedApp?.id === updatedApp.id) {
+            setSelectedApp((prev: any) => prev ? { ...prev, ...updatedApp } : null);
+          }
+          loadAppointments();
+        }}
+      />
     </div>
   );
 }

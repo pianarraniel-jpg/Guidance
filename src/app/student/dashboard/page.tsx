@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -119,8 +120,11 @@ export default function StudentDashboard() {
       new Date(b.createdAt || b.created_at || 0).getTime() - new Date(a.createdAt || a.created_at || 0).getTime()
     );
 
+    // Auto-expire any passed appointments in background
+    const processedRawAppointments = await autoExpirePassedAppointments(rawAppointments);
+
     // Attach feedback data (actionItems) to appointments
-    const allAppointments = rawAppointments.map((app: any) => {
+    const allAppointments = processedRawAppointments.map((app: any) => {
       const fb = sortedFeedback.find((f: any) => f.appointmentId === app.id || f.appointment_id === app.id);
       if (fb && fb.feedback) {
         try {
@@ -135,7 +139,7 @@ export default function StudentDashboard() {
     });
 
     const sortedAssessments = [...allAssessments].sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
-    const appointments = allAppointments.filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED);
+    const appointments = allAppointments.filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && !isAppointmentPassed(a.date, a.time));
 
     // Build combined chart data: form assessments (0–10 → ×10), aggregated by day
     const pointMap = new Map<string, { totalStress: number; count: number; sortKey: number }>();
@@ -182,8 +186,7 @@ export default function StudentDashboard() {
 
     setWellnessScore(profileRow?.wellness_score ?? null);
 
-    const startOfToday = startOfDay(new Date());
-    const upcoming = appointments.find(a => !isBefore(parseISO(a.date), startOfToday));
+    const upcoming = appointments.find(a => !isAppointmentPassed(a.date, a.time));
     setNextAppointment(upcoming ?? null);
 
     // Initialize/Load Daily Checklist
