@@ -476,7 +476,7 @@ export default function StudentDashboard() {
                     <p className="text-xs text-slate-300">
                       {allChartData.length > 0
                         ? 'Try a wider range or complete a wellness task.'
-                        : 'Complete a clinical form to see your trends here.'}
+                        : 'Complete a counseling form to see your trends here.'}
                     </p>
                   </div>
                 )}
@@ -515,7 +515,7 @@ export default function StudentDashboard() {
                   </div>
                   <h3 className="text-lg font-bold mb-2">Wellness Insights</h3>
                   <p className="text-emerald-50/80 text-sm leading-relaxed mb-6">
-                    Check out your clinical evaluation history and explore our mental health resources to learn tips for managing academic stress.
+                    Check out your counseling evaluation history and explore our mental health resources to learn tips for managing academic stress.
                   </p>
                   <Button asChild variant="secondary" className="bg-white text-primary hover:bg-emerald-50 font-bold w-full rounded-xl">
                     <Link href="/student/resources">Explore Tips</Link>

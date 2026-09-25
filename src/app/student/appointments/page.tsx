@@ -274,7 +274,7 @@ export default function StudentAppointments() {
                   </div>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground font-medium">Manage your clinical sessions and review completed appointment feedback.</p>
+              <p className="text-sm text-muted-foreground font-medium">Manage your counseling sessions and review completed appointment feedback.</p>
             </div>
             <div className="flex items-center gap-3">
               <Button
@@ -523,7 +523,7 @@ export default function StudentAppointments() {
                     <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-none font-bold text-[10px]">Official Record</Badge>
                   </div>
                   <p className="text-xs font-semibold text-emerald-950 leading-relaxed italic mb-4">
-                    "{selectedApp.counselorNotes || selectedApp.counselorComments || selectedApp.feedback || 'Session completed successfully. Student actively engaged in therapeutic dialogue and agreed to follow recommended wellness protocols.'}"
+                    "{selectedApp.counselorNotes || selectedApp.counselorComments || selectedApp.feedback || 'Session completed successfully. Student actively engaged in counseling dialogue and agreed to follow recommended wellness protocols.'}"
                   </p>
                   {selectedApp.actionItems && selectedApp.actionItems.length > 0 && (
                     <div className="pt-3 border-t border-emerald-200/60 space-y-2">

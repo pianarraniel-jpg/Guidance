@@ -2,24 +2,28 @@
 
 import { groq, FAST_MODEL } from '@/ai/groq';
 
-export type AnalyzeClinicalFormInput = {
+export type AnalyzeCounselingFormInput = {
   questions: string[];
   answers: Record<string, string>;
   studentName: string;
 };
 
-export type AnalyzeClinicalFormOutput = {
+export type AnalyzeClinicalFormInput = AnalyzeCounselingFormInput;
+
+export type AnalyzeCounselingFormOutput = {
   summary: string;
   mainConcerns: string[];
   emotionalState: string;
   riskLevel: 'low' | 'moderate' | 'high';
 };
 
-const SYSTEM_PROMPT = `You are a clinical AI assistant helping a USPF guidance counselor review a student's self-assessment form.
+export type AnalyzeClinicalFormOutput = AnalyzeCounselingFormOutput;
+
+const SYSTEM_PROMPT = `You are a counseling AI assistant helping a USPF guidance counselor review a student's self-assessment form.
 
 Analyze the student's responses and respond with valid JSON only (no markdown, no code fences) using this exact structure:
 {
-  "summary": "2-3 sentence clinical overview of what the student is experiencing",
+  "summary": "2-3 sentence counseling overview of what the student is experiencing",
   "mainConcerns": ["concern 1", "concern 2", "concern 3"],
   "emotionalState": "dominant emotion (e.g. anxious, stressed, hopeful, overwhelmed, calm)",
   "riskLevel": "low"
@@ -28,9 +32,9 @@ Analyze the student's responses and respond with valid JSON only (no markdown, n
 riskLevel must be "low", "moderate", or "high" based on urgency of intervention needed.
 mainConcerns should be 2-5 specific issues identified from the responses.`;
 
-export async function analyzeClinicalForm(
-  input: AnalyzeClinicalFormInput
-): Promise<AnalyzeClinicalFormOutput> {
+export async function analyzeCounselingForm(
+  input: AnalyzeCounselingFormInput
+): Promise<AnalyzeCounselingFormOutput> {
   const qaTranscript = input.questions
     .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${input.answers[i] ?? '(no response)'}`)
     .join('\n\n');
@@ -58,3 +62,5 @@ export async function analyzeClinicalForm(
     riskLevel: ['low', 'moderate', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low',
   };
 }
+
+export const analyzeClinicalForm = analyzeCounselingForm;

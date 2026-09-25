@@ -78,7 +78,7 @@ export default function AdminReports() {
   // Historical pre-loaded reports list
   const [reportsList, setReportsList] = useState<MockReport[]>([
     { id: 'REP-082', title: 'Q1 Comprehensive Campus Wellness Summary', category: 'Wellness', date: '2026-04-15', author: 'Dr. Evelyn Carter', status: 'Ready', fileSize: '1.8 MB' },
-    { id: 'REP-081', title: 'AI Guidi Companion Engagement & Efficacy Audit', category: 'AI Insights', date: '2026-05-02', author: 'Clinical Engine', status: 'Ready', fileSize: '840 KB' },
+    { id: 'REP-081', title: 'AI Guidi Companion Engagement & Efficacy Audit', category: 'AI Insights', date: '2026-05-02', author: 'Counseling Engine', status: 'Ready', fileSize: '840 KB' },
     { id: 'REP-080', title: 'Counselor Workload & Student Resource Allocation Audit', category: 'Counseling', date: '2026-05-10', author: 'Sarah Jenkins, LPT', status: 'Ready', fileSize: '1.2 MB' },
     { id: 'REP-079', title: 'Mental Health Demographics & Exam Period Volatility Audit', category: 'Demographics', date: '2026-05-14', author: 'System Runner', status: 'Ready', fileSize: '2.4 MB' },
     { id: 'REP-078', title: 'May Stress Index & Exam Anxiety Mitigation Ledger', category: 'Wellness', date: '2026-05-18', author: 'Dr. Evelyn Carter', status: 'Ready', fileSize: '950 KB' },
@@ -206,7 +206,7 @@ export default function AdminReports() {
                   Reports Core
                 </Badge>
               </div>
-              <p className="text-sm text-slate-400 font-medium">Download clinical insights, analyze academic stress loads, and manage counselor workloads.</p>
+              <p className="text-sm text-slate-400 font-medium">Download counseling insights, analyze academic stress loads, and manage counselor workloads.</p>
             </div>
             
             <div className="flex items-center gap-3">
@@ -277,7 +277,7 @@ export default function AdminReports() {
                 <div className="p-3 rounded-2xl bg-rose-50 text-rose-500">
                   <Heart className="h-5 w-5" />
                 </div>
-                <Badge variant="outline" className="text-[9px] font-black tracking-widest border-slate-100 text-slate-400 bg-slate-50/50">PRIMARY CLINICAL</Badge>
+                <Badge variant="outline" className="text-[9px] font-black tracking-widest border-slate-100 text-slate-400 bg-slate-50/50">PRIMARY COUNSELING</Badge>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Prevalent Emotion</p>
@@ -386,7 +386,7 @@ export default function AdminReports() {
             <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-xl font-black text-slate-900 tracking-tight font-headline">Audit Reports Directory</CardTitle>
-                <CardDescription className="text-xs mt-0.5">Access historic mental health surveys, clinical performance reports, and data exports.</CardDescription>
+                <CardDescription className="text-xs mt-0.5">Access historic mental health surveys, counseling performance reports, and data exports.</CardDescription>
               </div>
 
               <div className="flex items-center gap-3">
@@ -551,7 +551,7 @@ export default function AdminReports() {
                     <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto" />
                     <div className="space-y-2">
                       <p className="text-sm font-black text-slate-800">Processing University Database...</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Syncing profiles, clinical assessments, and AI queues ({generationProgress}%)</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Syncing profiles, counseling assessments, and AI queues ({generationProgress}%)</p>
                     </div>
                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${generationProgress}%` }} />

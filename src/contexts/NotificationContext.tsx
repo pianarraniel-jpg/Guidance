@@ -85,7 +85,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         alerts.push({
           id, type: 'assessment',
           title: 'Assessment Submitted',
-          description: `${a.studentName || 'A student'} completed a clinical form`,
+          description: `${a.studentName || 'A student'} completed a counseling form`,
           timestamp: a.timestamp || Date.now(),
           link: '/counselor/assessments',
           studentName: a.studentName || 'Student',

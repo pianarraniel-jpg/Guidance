@@ -111,7 +111,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
           <div className="relative w-96 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
             <Input
-              placeholder="Search clinical records..."
+              placeholder="Search student records..."
               className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-xs font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
             />
           </div>

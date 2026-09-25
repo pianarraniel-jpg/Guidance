@@ -463,7 +463,7 @@ export default function SessionRecordsPage() {
                                 </div>
                               )}
 
-                              {/* Clinical counselor notes */}
+                              {/* Counselor notes */}
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Public Record (Visible to Student)</span>
@@ -482,7 +482,7 @@ export default function SessionRecordsPage() {
                                     {session.privateNotes ? (
                                       <p className="leading-relaxed whitespace-pre-wrap">{session.privateNotes}</p>
                                     ) : (
-                                      <span className="text-amber-600/60 italic">No confidential clinical observations recorded.</span>
+                                      <span className="text-amber-600/60 italic">No confidential counselor observations recorded.</span>
                                     )}
                                   </div>
                                 </div>

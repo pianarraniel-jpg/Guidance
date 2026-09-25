@@ -881,7 +881,7 @@ export default function CounselorAppointmentsPage() {
                 Session Feedback & Actions
               </DialogTitle>
               <p className="text-sm text-slate-500">
-                Provide clinical reflections and recommended actions for the student.
+                Provide counseling reflections and recommended actions for the student.
               </p>
             </div>
           </DialogHeader>

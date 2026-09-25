@@ -43,7 +43,7 @@ export default function StudentAssessments() {
       allTasks.sort((a, b) => b.timestamp - a.timestamp);
       setTasks(allTasks);
 
-      const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated' && a.type === 'CLINICAL_FORM');
+      const evaluated = allAssessments.filter((a: any) => a.status === 'evaluated' && (a.type === 'CLINICAL_FORM' || a.type === 'COUNSELING_FORM'));
       setDbEvaluations(evaluated);
     }
   }, [user]);
@@ -77,7 +77,7 @@ export default function StudentAssessments() {
       toast({
         variant: "destructive",
         title: "Incomplete Form",
-        description: "Please answer all clinical questions before submitting.",
+        description: "Please answer all counseling questions before submitting.",
       });
       return;
     }
@@ -88,11 +88,11 @@ export default function StudentAssessments() {
       studentId: user.id,
       studentName: user.name,
       date: submissionDate,
-      summary: `Clinical Response to: ${activeTask.title}`,
+      summary: `Counseling Response to: ${activeTask.title}`,
       answers: taskAnswers,
       questions,
       stressLevel: 50,
-      focusAreas: ['Clinical Assignment'],
+      focusAreas: ['Counseling Assignment'],
       timestamp: Date.now(),
       taskId: activeTask.id,
       type: 'CLINICAL_FORM',
@@ -128,9 +128,9 @@ export default function StudentAssessments() {
       }
       
       const stressRating = evalItem.stressLevel ?? (evalItem.counselorRating ? evalItem.counselorRating * 10 : 50);
-      const clinicalScore = evalItem.counselorRating ?? (evalItem.stressLevel ? Number((evalItem.stressLevel / 10).toFixed(1)) : 5);
+      const counselingScore = evalItem.counselorRating ?? (evalItem.stressLevel ? Number((evalItem.stressLevel / 10).toFixed(1)) : 5);
       
-      const focus = evalItem.summary || (evalItem.type === 'AI_CHAT' ? 'AI Chat Session' : 'Clinical Form Response');
+      const focus = evalItem.summary || (evalItem.type === 'AI_CHAT' ? 'AI Chat Session' : 'Counseling Form Response');
       const notes = evalItem.counselorComments || 'Reviewed by counselor.';
       
       let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -149,7 +149,8 @@ export default function StudentAssessments() {
         date: dateStr,
         counselor: evalItem.type === 'AI_CHAT' ? 'Guidi AI' : 'USPF Counselor',
         stressRating,
-        clinicalScore,
+        clinicalScore: counselingScore,
+        counselingScore,
         focus,
         notes,
         badgeColor,
@@ -178,9 +179,9 @@ export default function StudentAssessments() {
     return Math.round(sum / feedbacks2025.length);
   }, [feedbacks2025]);
 
-  const pastClinicalScore = useMemo(() => {
+  const pastCounselingScore = useMemo(() => {
     if (feedbacks2025.length === 0) return 0;
-    const sum = feedbacks2025.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    const sum = feedbacks2025.reduce((acc, f) => acc + Number(f.counselingScore || f.clinicalScore), 0);
     return Number((sum / feedbacks2025.length).toFixed(1));
   }, [feedbacks2025]);
 
@@ -190,9 +191,9 @@ export default function StudentAssessments() {
     return Math.round(sum / feedbacks2026.length);
   }, [feedbacks2026]);
 
-  const currentClinicalScore = useMemo(() => {
+  const currentCounselingScore = useMemo(() => {
     if (feedbacks2026.length === 0) return 0;
-    const sum = feedbacks2026.reduce((acc, f) => acc + Number(f.clinicalScore), 0);
+    const sum = feedbacks2026.reduce((acc, f) => acc + Number(f.counselingScore || f.clinicalScore), 0);
     return Number((sum / feedbacks2026.length).toFixed(1));
   }, [feedbacks2026]);
 
@@ -205,13 +206,13 @@ export default function StudentAssessments() {
     if (currentAvgStress === 0) return 'No active evaluations for current year.';
     if (currentAvgStress < 50) return 'Counselor status: Ready for independent graduation transition.';
     if (currentAvgStress < 75) return 'Counselor status: Recommended for continued support sessions.';
-    return 'Counselor status: Requires active clinical follow-up.';
+    return 'Counselor status: Requires active counseling follow-up.';
   }, [currentAvgStress]);
 
   const pastYearDescription = useMemo(() => {
     if (feedbacks2025.length === 0) return "No academic evaluations recorded for prior growth year.";
     const latestPast = feedbacks2025[0];
-    return `Evaluations progress recorded. Latest focus: ${latestPast.focus.toLowerCase()} with a clinical score of ${latestPast.clinicalScore}/10.`;
+    return `Evaluations progress recorded. Latest focus: ${latestPast.focus.toLowerCase()} with a counseling score of ${latestPast.counselingScore || latestPast.clinicalScore}/10.`;
   }, [feedbacks2025]);
 
   const currentYearDescription = useMemo(() => {
@@ -231,7 +232,7 @@ export default function StudentAssessments() {
       return "Complete evaluations across academic years to compare historical growth and progress.";
     }
     if (stressDropPercent < 0) {
-      return `Your clinical progression indicates a successful ${Math.abs(stressDropPercent)}% stress drop, reflecting improved academic coping capacity.`;
+      return `Your counseling progression indicates a successful ${Math.abs(stressDropPercent)}% stress drop, reflecting improved academic coping capacity.`;
     } else if (stressDropPercent > 0) {
       return `Your average stress has increased by ${stressDropPercent}% YoY. A wellness check-in is recommended to address academic pressure points.`;
     } else {
@@ -358,8 +359,8 @@ export default function StudentAssessments() {
                       <p className="text-3xl font-black text-red-400">{pastAvgStress} <span className="text-xs text-slate-400 font-bold">/100</span></p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Clinical Score</p>
-                      <p className="text-3xl font-black text-amber-400">{pastClinicalScore} <span className="text-xs text-slate-400 font-bold">/10</span></p>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Counseling Score</p>
+                      <p className="text-3xl font-black text-amber-400">{pastCounselingScore} <span className="text-xs text-slate-400 font-bold">/10</span></p>
                     </div>
                   </div>
                 </Card>
@@ -379,8 +380,8 @@ export default function StudentAssessments() {
                       <p className="text-3xl font-black text-white">{currentAvgStress} <span className="text-xs text-emerald-200 font-bold">/100</span></p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Clinical Score</p>
-                      <p className="text-3xl font-black text-white">{currentClinicalScore} <span className="text-xs text-emerald-200 font-bold">/10</span></p>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-emerald-200">Counseling Score</p>
+                      <p className="text-3xl font-black text-white">{currentCounselingScore} <span className="text-xs text-emerald-200 font-bold">/10</span></p>
                     </div>
                   </div>
                 </Card>
@@ -440,8 +441,8 @@ export default function StudentAssessments() {
                           "{fb.notes}"
                         </div>
                         <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          <span>Clinical Resilience Score</span>
-                          <span className="font-black text-slate-700 text-sm">{fb.clinicalScore} / 10</span>
+                          <span>Counseling Resilience Score</span>
+                          <span className="font-black text-slate-700 text-sm">{fb.counselingScore || fb.clinicalScore} / 10</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -482,8 +483,8 @@ export default function StudentAssessments() {
                           "{fb.notes}"
                         </div>
                         <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          <span>Clinical Resilience Score</span>
-                          <span className="font-black text-slate-700 text-sm">{fb.clinicalScore} / 10</span>
+                          <span>Counseling Resilience Score</span>
+                          <span className="font-black text-slate-700 text-sm">{fb.counselingScore || fb.clinicalScore} / 10</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -524,8 +525,8 @@ export default function StudentAssessments() {
                           "{fb.notes}"
                         </div>
                         <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          <span>Clinical Resilience Score</span>
-                          <span className="font-black text-emerald-600 text-sm">{fb.clinicalScore} / 10</span>
+                          <span>Counseling Resilience Score</span>
+                          <span className="font-black text-emerald-600 text-sm">{fb.counselingScore || fb.clinicalScore} / 10</span>
                         </div>
                       </CardContent>
                     </Card>

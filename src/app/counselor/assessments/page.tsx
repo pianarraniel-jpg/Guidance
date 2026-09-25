@@ -87,7 +87,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import { analyzeClinicalForm } from "@/ai/flows/analyze-clinical-form";
+import { analyzeCounselingForm } from "@/ai/flows/analyze-clinical-form";
 
 const FEEDBACK_TEMPLATES = [
   {
@@ -109,10 +109,10 @@ const FEEDBACK_TEMPLATES = [
       "Academic pressure exacerbated by peer environment conflicts. Recommended focus on cognitive behavioral guidelines and active workload pacing.",
   },
   {
-    label: "Severe Clinical Risk",
+    label: "Severe Stress Risk",
     rating: 8,
     comments:
-      "Student displays severe academic anxiety and chronic sleep deprivation. Recommend immediate follow-up clinical session and cognitive wellness routing.",
+      "Student displays severe academic anxiety and chronic sleep deprivation. Recommend immediate follow-up counseling session and cognitive wellness routing.",
   },
   {
     label: "Sleep & Fatigue",
@@ -163,9 +163,9 @@ const ASSESSMENT_TEMPLATES = [
     ],
   },
   {
-    title: "Clinical Anxiety Baseline",
+    title: "Anxiety & Stress Baseline",
     description:
-      "A deeper clinical template targeting root causes of panic, social anxiety, and chronic worry.",
+      "A deeper counseling template targeting root causes of panic, social anxiety, and chronic worry.",
     questions: [
       "How frequently do you experience sudden, intense feelings of worry or panic?",
       "Does anxiety interfere with your ability to attend classes or complete assignments?",
@@ -277,17 +277,17 @@ export default function CounselorAssessmentsPage() {
     return Object.values(expandedSections).every(Boolean);
   }, [expandedSections]);
 
-  // Searchable Record Selector for Clinical Dossier
+  // Searchable Record Selector for Counseling Dossier
   const [isRecordSelectorOpen, setIsRecordSelectorOpen] = useState(false);
   const [recordSearchQuery, setRecordSearchQuery] = useState("");
 
   const filteredAssessmentsForSelect = useMemo(() => {
-    const clinicalList = assessments.filter(
-      (a) => a.type === "CLINICAL_FORM" || a.type === "AI_CHAT",
+    const assessmentList = assessments.filter(
+      (a) => a.type === "CLINICAL_FORM" || a.type === "COUNSELING_FORM" || a.type === "AI_CHAT",
     );
-    if (!recordSearchQuery.trim()) return clinicalList;
+    if (!recordSearchQuery.trim()) return assessmentList;
     const q = recordSearchQuery.toLowerCase();
-    return clinicalList.filter((a) => {
+    return assessmentList.filter((a) => {
       const student = students.find(
         (s) => s.id === a.studentId || s.name === a.studentName,
       );
@@ -531,7 +531,7 @@ export default function CounselorAssessmentsPage() {
         answersObj[idx] = ans;
       });
 
-      const result = await analyzeClinicalForm({
+      const result = await analyzeCounselingForm({
         questions:
           questionsList.length > 0
             ? questionsList
@@ -560,7 +560,7 @@ export default function CounselorAssessmentsPage() {
       toast({
         title: "AI Analysis Generated",
         description:
-          "Clinical summary, concerns, and risk assessment are now attached to this dossier.",
+          "Counseling summary, concerns, and risk assessment are now attached to this dossier.",
       });
     } catch (err: any) {
       console.error("AI Analysis failed:", err);
@@ -610,7 +610,7 @@ export default function CounselorAssessmentsPage() {
       toast({
         title: "Evaluation Submitted",
         description:
-          "Student data has been updated with your clinical analysis.",
+          "Student data has been updated with your counseling analysis.",
       });
 
       setSelectedAssessment(updated);
@@ -822,7 +822,7 @@ export default function CounselorAssessmentsPage() {
   };
 
   const pendingEvaluations = assessments.filter(
-    (a) => a.type === "CLINICAL_FORM" && a.status === "submitted",
+    (a) => (a.type === "CLINICAL_FORM" || a.type === "COUNSELING_FORM") && a.status === "submitted",
   );
   const totalActiveProtocolsCount =
     globalProtocols.length + studentProtocols.length;
@@ -858,7 +858,7 @@ export default function CounselorAssessmentsPage() {
             </Badge>
           </div>
           <p className="text-sm text-slate-500 font-medium">
-            Review student clinical assessments, build custom guidance forms,
+            Review student counseling assessments, build custom guidance forms,
             and assign self-care protocols.
           </p>
         </div>
@@ -1196,7 +1196,7 @@ export default function CounselorAssessmentsPage() {
         </button>
       </div>
 
-      {/* ── TAB 1: CLINICAL FORMS & OVERSIGHT (1 COLUMN DOCUMENT TYPE UI) ───── */}
+      {/* ── TAB 1: COUNSELING FORMS & OVERSIGHT (1 COLUMN DOCUMENT TYPE UI) ───── */}
       {activeMainTab === "forms" && (
         <div className="w-full space-y-6">
           {selectedAssessment ? (
@@ -1366,7 +1366,7 @@ export default function CounselorAssessmentsPage() {
                     onClick={() => window.print()}
                     className="h-9 px-3 rounded-xl border-slate-200 text-xs font-bold gap-1.5 hover:bg-slate-50 text-slate-700 shadow-none"
                   >
-                    <Printer className="h-3.5 w-3.5" /> Print / Export Dossier
+                    <Printer className="h-3.5 w-3.5" /> Print / Export Report
                   </Button>
 
                   {selectedAssessment.status === "evaluated" ||
@@ -1376,7 +1376,7 @@ export default function CounselorAssessmentsPage() {
                       onClick={() => handleOpenEvaluation(selectedAssessment)}
                       className="h-9 px-4 rounded-xl bg-primary text-white text-xs font-black gap-1.5 shadow-md shadow-primary/20"
                     >
-                      <Edit3 className="h-3.5 w-3.5" /> Edit Clinical Notes
+                      <Edit3 className="h-3.5 w-3.5" /> Edit Counseling Notes
                     </Button>
                   ) : (
                     <Button
@@ -1385,19 +1385,14 @@ export default function CounselorAssessmentsPage() {
                       className="h-9 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black gap-1.5 shadow-md shadow-amber-600/20 animate-pulse"
                     >
                       <Star className="h-3.5 w-3.5 fill-current" /> Begin
-                      Clinical Evaluation
+                      Counseling Evaluation
                     </Button>
                   )}
                 </div>
               </div>
 
-              {/* ── THE OFFICIAL CLINICAL DOCUMENT SHEET (1 COLUMN) ──────────── */}
+              {/* ── THE OFFICIAL COUNSELING DOCUMENT SHEET (1 COLUMN) ──────────── */}
               <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl p-8 sm:p-14 text-slate-900 font-sans space-y-8 relative overflow-hidden print:shadow-none print:border-none print:p-4 print:rounded-none">
-                {/* Document Security Watermark Stamp */}
-                <div className="absolute top-8 right-8 opacity-8 pointer-events-none select-none print:opacity-15">
-                  <ShieldCheck className="h-36 w-36 text-primary" />
-                </div>
-
                 {/* 1. Official Institutional Letterhead Header */}
                 <div className="text-center space-y-2 pb-6 border-b border-slate-200 relative">
                   <div className="flex items-center justify-center gap-3 mb-1">
@@ -1409,13 +1404,13 @@ export default function CounselorAssessmentsPage() {
                         University of Southern Philippines Foundation
                       </p>
                       <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                        Office of Guidance Services & Clinical Testing Center
+                        Guidance, Testing, and Career Services Center
                       </p>
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium tracking-wide">
                     Salinas Drive, Lahug, Cebu City, Philippines 6000 •
-                    Telephone: (032) 414-7963 • guidance@uspf.edu.ph
+                    Telephone: (032) 414-7963 local 132/130 • gtsc@uspf.edu.ph
                   </p>
 
                   {/* Formal Double Line Accent */}
@@ -1427,12 +1422,8 @@ export default function CounselorAssessmentsPage() {
 
                   <div className="pt-3">
                     <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-900">
-                      STUDENT CLINICAL ASSESSMENT & RESPONSE DOSSIER
+                      STUDENT COUNSELING ASSESSMENT & REPORT
                     </h2>
-                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 mt-0.5">
-                      CONFIDENTIAL PSYCHOLOGICAL & WELLNESS RECORD • PRIVILEGED
-                      MEDICAL INFORMATION
-                    </p>
                   </div>
 
                   {/* Metadata Strip */}
@@ -1463,7 +1454,7 @@ export default function CounselorAssessmentsPage() {
                   </div>
                 </div>
 
-                {/* 2. Student Demographic & Academic Dossier Grid */}
+                {/* 2. Student Demographic Profile */}
                 <div className="space-y-3">
                   <div
                     role="button"
@@ -1478,7 +1469,7 @@ export default function CounselorAssessmentsPage() {
                     <div className="flex items-center gap-2.5">
                       <Building2 className="h-4 w-4 text-primary shrink-0" />
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">
-                        STUDENT DEMOGRAPHIC & ACADEMIC PROFILE
+                        STUDENT DEMOGRAPHIC PROFILE
                       </h4>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1536,7 +1527,7 @@ export default function CounselorAssessmentsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
                         <div className="p-3.5 px-4 space-y-1">
                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
-                            College & Handled Department
+                            College
                           </span>
                           <div className="flex items-center gap-1.5 font-bold text-slate-800">
                             <span className="font-black text-primary">
@@ -1561,7 +1552,7 @@ export default function CounselorAssessmentsPage() {
                         </div>
                         <div className="p-3.5 px-4 space-y-1">
                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
-                            Academic Degree Program
+                            Program
                           </span>
                           <span className="font-bold text-slate-800 block">
                             {students.find(
@@ -1582,7 +1573,7 @@ export default function CounselorAssessmentsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
                         <div className="p-3.5 px-4 space-y-1">
                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
-                            Year Level & Enrolled Standing
+                            Year Level & Enrollment Standing
                           </span>
                           <span className="font-bold text-slate-800 block">
                             {students.find(
@@ -1608,7 +1599,7 @@ export default function CounselorAssessmentsPage() {
                   )}
                 </div>
 
-                {/* 3. Clinical Rating Scoreboard & Diagnostic Overview */}
+                {/* 3. Counseling Rating Scoreboard & Guidance Overview */}
                 <div className="space-y-3">
                   <div
                     role="button"
@@ -1623,7 +1614,7 @@ export default function CounselorAssessmentsPage() {
                     <div className="flex items-center gap-2.5">
                       <Gauge className="h-4 w-4 text-primary shrink-0" />
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">
-                        CLINICAL EVALUATION & SEVERITY TRIAGE
+                        COUNSELING EVALUATION & SEVERITY TRIAGE
                       </h4>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1660,7 +1651,7 @@ export default function CounselorAssessmentsPage() {
                             {/* Score Metric Card */}
                             <div className="p-4 rounded-xl bg-white border border-slate-200 text-center shadow-sm flex flex-col justify-center">
                               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                Clinical Severity Rating
+                                Counseling Severity Rating
                               </span>
                               <div className="flex items-baseline justify-center gap-1">
                                 <span className="text-3xl font-black text-slate-900">
@@ -1694,7 +1685,7 @@ export default function CounselorAssessmentsPage() {
                                       : (selectedAssessment.counselorRating ||
                                             7) <= 8
                                         ? "Elevated Distress Level"
-                                        : "Severe Clinical Concern"}
+                                        : "Severe Stress Concern"}
                                 </Badge>
                               </div>
                             </div>
@@ -1778,12 +1769,12 @@ export default function CounselorAssessmentsPage() {
                         <div className="p-6 rounded-2xl bg-amber-50/70 border border-amber-200 text-center space-y-3">
                           <div className="flex items-center justify-center gap-2 text-amber-800 font-black text-xs uppercase tracking-wider">
                             <AlertTriangle className="h-4 w-4 text-amber-600" />
-                            Awaiting Formal Clinical Review & Scoring
+                            Awaiting Formal Counseling Review & Scoring
                           </div>
                           <p className="text-xs text-slate-600 max-w-md mx-auto">
                             The student has submitted their self-assessment
                             questionnaire. Click below to review answers, assign
-                            a clinical distress rating (1-10), and document
+                            a counseling distress rating (1-10), and document
                             evaluation notes.
                           </p>
                           <Button
@@ -1793,7 +1784,7 @@ export default function CounselorAssessmentsPage() {
                             className="bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl h-10 px-6 gap-1.5 shadow-md shadow-amber-600/20"
                           >
                             <Star className="h-4 w-4 fill-current" /> Begin
-                            Clinical Evaluation
+                            Counseling Evaluation
                           </Button>
                         </div>
                       )}
@@ -1801,7 +1792,7 @@ export default function CounselorAssessmentsPage() {
                   )}
                 </div>
 
-                {/* 4. SECTION 1.0 — STUDENT SELF-REPORTED CLINICAL RESPONSES */}
+                {/* 4. SECTION 1.0 — STUDENT SELF-REPORTED COUNSELING RESPONSES */}
                 <div className="space-y-4">
                   <div
                     role="button"
@@ -1817,7 +1808,7 @@ export default function CounselorAssessmentsPage() {
                       <FileText className="h-4 w-4 text-primary shrink-0" />
                       <div>
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                          SECTION 1.0 — STUDENT SELF-REPORTED CLINICAL RESPONSES
+                          SECTION 1.0 — STUDENT SELF-REPORTED COUNSELING RESPONSES
                         </h4>
                         <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
                           Verbatim questionnaire items and recorded student
@@ -1899,9 +1890,6 @@ export default function CounselorAssessmentsPage() {
                                       <span className="text-[10px] font-black uppercase tracking-wider bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
                                         ITEM 0{i + 1}
                                       </span>
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        Clinical Inquiry
-                                      </span>
                                     </div>
                                     <p className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
                                       {q}
@@ -1934,7 +1922,7 @@ export default function CounselorAssessmentsPage() {
                   )}
                 </div>
 
-                {/* 5. SECTION 2.0 — COUNSELOR CLINICAL FINDINGS & EVALUATION NOTES */}
+                {/* 5. SECTION 2.0 — COUNSELOR EVALUATION NOTES */}
                 <div className="space-y-4 pt-2">
                   <div
                     role="button"
@@ -1950,12 +1938,11 @@ export default function CounselorAssessmentsPage() {
                       <FileSignature className="h-4 w-4 text-primary shrink-0" />
                       <div>
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                          SECTION 2.0 — COUNSELOR CLINICAL FINDINGS & EVALUATION
-                          NOTES
+                          SECTION 2.0 — COUNSELOR EVALUATION NOTES
                         </h4>
                         <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
-                          Professional guidance analysis, therapeutic
-                          observations, and diagnostic sign-off.
+                          For counselor observations, student progress, and
+                          recommended support.
                         </p>
                       </div>
                     </div>
@@ -1984,11 +1971,10 @@ export default function CounselorAssessmentsPage() {
                       {selectedAssessment.status === "evaluated" ||
                       selectedAssessment.status === "completed" ? (
                         <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-6">
-                          {/* Clinical Commentary */}
+                          {/* Counseling Commentary */}
                           <div className="space-y-2">
                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                              Counselor Diagnostic Observations & Clinical
-                              Insights:
+                              Counselor Observations & Insights:
                             </span>
                             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">
                               {selectedAssessment.counselorComments ||
@@ -2000,11 +1986,11 @@ export default function CounselorAssessmentsPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                               <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
-                                Prescribed Clinical Routing
+                                Prescribed Action
                               </span>
                               <p className="text-xs font-bold text-slate-800">
                                 {(selectedAssessment.counselorRating || 7) >= 7
-                                  ? "Scheduled Clinical Check-in & Counseling"
+                                  ? "Scheduled Counseling Check-in & Session"
                                   : "Routine Self-Care Monitoring & Maintenance"}
                               </p>
                             </div>
@@ -2045,7 +2031,7 @@ export default function CounselorAssessmentsPage() {
                                   Officially Verified & Sealed
                                 </p>
                                 <p className="text-[9px] font-bold text-emerald-700">
-                                  USPF Guidance Office • Clinical Record Valid
+                                  USPF Guidance Office • Counseling Record Valid
                                 </p>
                               </div>
                             </div>
@@ -2055,7 +2041,7 @@ export default function CounselorAssessmentsPage() {
                         <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center space-y-3">
                           <FileSignature className="h-8 w-8 text-slate-300 mx-auto" />
                           <p className="text-xs font-bold text-slate-500">
-                            Clinical analysis has not yet been recorded for this
+                            Counseling analysis has not yet been recorded for this
                             student submission.
                           </p>
                           <Button
@@ -2065,7 +2051,7 @@ export default function CounselorAssessmentsPage() {
                             className="bg-primary hover:bg-primary/95 text-white font-black text-xs rounded-xl h-10 px-5 gap-1.5"
                           >
                             <Star className="h-4 w-4 fill-current" /> Begin
-                            Clinical Evaluation
+                            Counseling Evaluation
                           </Button>
                         </div>
                       )}
@@ -2073,135 +2059,14 @@ export default function CounselorAssessmentsPage() {
                   )}
                 </div>
 
-                {/* 6. SECTION 3.0 — AI CLINICAL TRIAGE & BEHAVIORAL ANALYSIS */}
-                {(selectedAssessment.aiSummary ||
-                  selectedAssessment.summary ||
-                  selectedAssessment.aiRiskLevel) && (
-                  <div className="space-y-3 pt-2">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleSection("aiTriage")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ")
-                          toggleSection("aiTriage");
-                      }}
-                      className="flex items-center justify-between p-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 cursor-pointer select-none transition-colors group"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Brain className="h-4 w-4 text-primary shrink-0" />
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                            SECTION 3.0 — AI CLINICAL TRIAGE & BEHAVIORAL
-                            ANALYSIS
-                          </h4>
-                          <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
-                            Automated behavioral diagnostic heuristics generated
-                            via GuidanceSync AI.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          variant="outline"
-                          className="text-[9px] font-black uppercase px-2 py-0.5 border-primary/20 bg-primary/5 text-primary"
-                        >
-                          AI Triage Active
-                        </Badge>
-                        <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary transition-colors flex items-center gap-1">
-                          <span>
-                            {expandedSections.aiTriage ? "Collapse" : "Expand"}
-                          </span>
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform duration-200 ${expandedSections.aiTriage ? "rotate-180 text-primary" : ""}`}
-                          />
-                        </span>
-                      </div>
-                    </div>
-
-                    {(expandedSections.aiTriage || false) && (
-                      <div className="p-5 sm:p-6 rounded-2xl bg-primary/5 border border-primary/15 space-y-4 animate-in fade-in duration-150 print:block">
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-primary">
-                            AI Behavioral Summary:
-                          </span>
-                          <p className="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed italic bg-white p-4 rounded-xl border border-primary/10">
-                            "
-                            {selectedAssessment.aiSummary ||
-                              selectedAssessment.summary ||
-                              "Student demonstrates clear situational stressors. Recommended focus on cognitive relaxation routines and workload pacing."}
-                            "
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          {selectedAssessment.aiRiskLevel && (
-                            <div className="p-3 rounded-xl bg-white border border-primary/10 space-y-1">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                                AI Assessed Risk Level
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <Badge
-                                  className={`border-none text-[10px] font-black uppercase ${
-                                    selectedAssessment.aiRiskLevel === "high"
-                                      ? "bg-red-100 text-red-800"
-                                      : selectedAssessment.aiRiskLevel ===
-                                          "moderate"
-                                        ? "bg-amber-100 text-amber-800"
-                                        : "bg-emerald-100 text-emerald-800"
-                                  }`}
-                                >
-                                  {selectedAssessment.aiRiskLevel} Risk
-                                </Badge>
-                              </div>
-                            </div>
-                          )}
-
-                          {selectedAssessment.aiEmotionalState && (
-                            <div className="p-3 rounded-xl bg-white border border-primary/10 space-y-1">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                                Dominant Emotional Tone
-                              </span>
-                              <p className="text-xs font-black text-slate-800 capitalize">
-                                {selectedAssessment.aiEmotionalState}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {selectedAssessment.aiMainConcerns &&
-                          selectedAssessment.aiMainConcerns.length > 0 && (
-                            <div className="space-y-1.5 pt-1">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
-                                Detected Key Concerns & Stress Triggers:
-                              </span>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {selectedAssessment.aiMainConcerns.map(
-                                  (c: string, idx: number) => (
-                                    <Badge
-                                      key={idx}
-                                      className="bg-white text-slate-700 border-slate-200 text-[10px] font-bold py-1"
-                                    >
-                                      {c}
-                                    </Badge>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 7. Official Document Footer */}
+                {/* 6. Official Document Footer */}
                 <div className="pt-8 border-t-2 border-slate-900 text-center space-y-1 text-[9px] text-slate-400 font-medium">
                   <p className="font-bold text-slate-600 uppercase tracking-wider">
-                    University of Southern Philippines Foundation • Guidance &
-                    Testing Center
+                    University of Southern Philippines Foundation • Guidance,
+                    Testing, and Career Services Center
                   </p>
                   <p>
-                    This document is an official clinical guidance dossier
+                    This document is an official counseling assessment report
                     generated by GuidanceSync. Unauthorized reproduction or
                     distribution is strictly prohibited under Philippine Data
                     Privacy Act of 2012 (RA 10173).
@@ -2783,7 +2648,7 @@ export default function CounselorAssessmentsPage() {
               </div>
               <div>
                 <DialogTitle className="text-2xl font-black text-slate-900">
-                  Clinical Evaluation
+                  Counseling Evaluation
                 </DialogTitle>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
                   {selectedAssessment?.studentName}
@@ -2817,7 +2682,7 @@ export default function CounselorAssessmentsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">
-                  Clinical Commentary
+                  Counseling Commentary
                 </Label>
                 <span className="text-[9px] text-slate-400 font-bold uppercase">
                   Pre-defined evaluation templates

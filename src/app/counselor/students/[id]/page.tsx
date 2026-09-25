@@ -621,7 +621,7 @@ export default function StudentRecordPage() {
                                     {asmt.title || 'Student Self-Assessment Questionnaire'}
                                   </span>
                                   <Badge variant="outline" className="text-[9px] font-black uppercase border-slate-200 text-slate-500">
-                                    {asmt.type || 'CLINICAL_FORM'}
+                                    {asmt.type === 'CLINICAL_FORM' ? 'COUNSELING_FORM' : (asmt.type || 'COUNSELING_FORM')}
                                   </Badge>
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-medium">

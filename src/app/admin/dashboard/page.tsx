@@ -78,7 +78,7 @@ export default function AdminDashboard() {
   const [telemetryLogs, setTelemetryLogs] = useState<SystemLog[]>([]);
 
   const generateMockLog = useCallback((type?: 'info' | 'success' | 'warn' | 'error'): SystemLog => {
-    const sources = ['SupabaseDB', 'RealtimeSync', 'AuthService', 'ClinicalEngine', 'NotificationHub'];
+    const sources = ['SupabaseDB', 'RealtimeSync', 'AuthService', 'CounselingEngine', 'NotificationHub'];
     const messages = {
       info: [
         'Heartbeat telemetry successfully broadcasted.',
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
       ],
       success: [
         'Postgres write replicated to secondary edge-point.',
-        'Clinical assessments sync batch completed.',
+        'Counseling assessments sync batch completed.',
         'Auth token successfully renewed for system runner.',
         'Supabase real-time channel subscribed.'
       ],
@@ -100,7 +100,7 @@ export default function AdminDashboard() {
       ],
       error: [
         'Supabase handshake timed out, retrying backoff sequence in 2000ms.',
-        'Clinical summary API returned parsing exception on profile check.',
+        'Counseling summary API returned parsing exception on profile check.',
         'Write request blocked by temporary local storage constraint.',
         'Auth header verification payload rejected, invalid certificate token.'
       ]
@@ -243,7 +243,7 @@ export default function AdminDashboard() {
                   System Monitor
                 </Badge>
               </div>
-              <p className="text-sm text-slate-400 font-medium">Real-time health, clinical analytics, and live activity queues across USPF campus.</p>
+              <p className="text-sm text-slate-400 font-medium">Real-time health, counseling analytics, and live activity queues across USPF campus.</p>
             </div>
             
             <div className="flex items-center gap-3">
@@ -703,7 +703,7 @@ export default function AdminDashboard() {
 
         </div>
 
-        {/* Clinical View / Details Dialog */}
+        {/* Counseling View / Details Dialog */}
         <Dialog open={!!selectedItem} onOpenChange={(open) => { if (!open) { setSelectedItem(null); setDetailType(null); } }}>
           <DialogContent className="max-w-lg rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden bg-white select-text">
             

@@ -214,7 +214,7 @@ export default function SessionNotesPage() {
             <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Activity className="h-4 w-4 text-primary" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Client Metrics</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Student Metrics</h3>
               </div>
 
               <div className="space-y-8">
@@ -291,13 +291,13 @@ export default function SessionNotesPage() {
 
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">Private Clinical Notes 🔒</Label>
+                    <Label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">Private Counselor Notes 🔒</Label>
                     <Badge variant="outline" className="bg-amber-50 text-amber-800 border-none font-bold text-[10px]">Confidential</Badge>
                   </div>
                   <Textarea 
                     value={privateNotesText}
                     onChange={e => setPrivateNotesText(e.target.value)}
-                    placeholder="Clinical observations, diagnostic notes, or sensitive follow-up reminders not visible to student..."
+                    placeholder="Counselor observations, guidance notes, or sensitive follow-up reminders not visible to student..."
                     className="min-h-[140px] rounded-2xl bg-amber-50/20 border border-amber-200 p-4 text-xs font-medium leading-relaxed"
                   />
                 </div>
