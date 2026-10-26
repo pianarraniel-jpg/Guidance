@@ -319,7 +319,7 @@ export default function CounselorAssessmentsPage() {
     if (!isDepartmentScoped) return students;
     return students.filter(
       (s) =>
-        !s.department ||
+        s.department &&
         handledColleges.some(
           (c) => s.department === c.code || c.aliases?.includes(s.department),
         ),
@@ -362,14 +362,27 @@ export default function CounselorAssessmentsPage() {
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
       storageService.getAll<any>(STORAGE_KEYS.USERS),
     ]);
-    allAssessments.sort((a, b) => b.timestamp - a.timestamp);
-    setAssessments(allAssessments);
-    if (allAssessments.length > 0 && !selectedAssessment) {
-      setSelectedAssessment(allAssessments[0]);
+    const handledCollegesList = getCollegesForCounselor(counselor?.department);
+    const isDeptScoped = Boolean(counselor?.department && counselor.department.trim().toLowerCase() !== "all");
+    const studentList = allUsers.filter((u) => {
+      if (u.role !== "student") return false;
+      if (!isDeptScoped) return true;
+      return u.department && handledCollegesList.some((c) => u.department === c.code || c.aliases?.includes(u.department));
+    });
+    const scopedStudentIds = new Set(studentList.map(s => s.id));
+    const scopedStudentNames = new Set(studentList.map(s => s.name?.toLowerCase()));
+
+    const scopedAssessments = isDeptScoped
+      ? allAssessments.filter(a => scopedStudentIds.has(a.studentId) || (a.studentName && scopedStudentNames.has(a.studentName.toLowerCase())))
+      : allAssessments;
+
+    scopedAssessments.sort((a, b) => b.timestamp - a.timestamp);
+    setAssessments(scopedAssessments);
+    if (scopedAssessments.length > 0 && !selectedAssessment) {
+      setSelectedAssessment(scopedAssessments[0]);
     }
-    const studentList = allUsers.filter((u) => u.role === "student");
     setStudents(studentList);
-  }, [selectedAssessment]);
+  }, [counselor, selectedAssessment]);
 
   // Load Self-Care Protocols from Supabase
   const loadSelfCareProtocols = useCallback(async () => {

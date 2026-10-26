@@ -14,7 +14,7 @@ import {
 import { summarizeAssessmentConversation } from '@/ai/flows/counselor-pre-session-summary';
 import { useToast } from '@/hooks/use-toast';
 import { storageService } from '@/lib/storage-service';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { STORAGE_KEYS, getCollegesForCounselor } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
@@ -75,7 +75,18 @@ export default function CounselorMessagesPage() {
       storageService.getAll<any>(STORAGE_KEYS.USERS),
       storageService.getAll<Message>(STORAGE_KEYS.MESSAGES),
     ]);
-    const students = allUsers.filter(u => u.role === 'student');
+    const handledColleges = getCollegesForCounselor(user?.department);
+    const isDeptScoped = Boolean(user?.department && user.department.trim().toLowerCase() !== 'all');
+    const students = allUsers.filter(u => {
+      if (u.role !== 'student') return false;
+      if (!isDeptScoped) return true;
+      const hasChat = allMessages.some(m =>
+        (m.senderId === user.id && m.receiverId === u.id) ||
+        (m.senderId === u.id && m.receiverId === user.id)
+      );
+      if (hasChat) return true;
+      return u.department && handledColleges.some(c => u.department === c.code || c.aliases?.includes(u.department));
+    });
 
     const studentsWithMetadata = students.map(student => {
       const studentMessages = allMessages.filter(m =>

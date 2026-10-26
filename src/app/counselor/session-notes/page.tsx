@@ -33,9 +33,11 @@ import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SessionNotesPage() {
   const router = useRouter();
+  const { user: counselor } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [selectedAptId, setSelectedAptId] = useState<string>("");
   const [selectedApt, setSelectedApt] = useState<any>(null);
@@ -57,7 +59,19 @@ export default function SessionNotesPage() {
   useEffect(() => {
     const loadData = async () => {
       const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      const activeApts = data.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === 'completed');
+      const isThisCounselor = (apt: any) => {
+        if (!counselor) return true;
+        const cId = apt.counselorId || apt.counselor_id;
+        const cName = apt.counselorName || apt.counselor_name;
+        if (cId && counselor.id && cId === counselor.id) return true;
+        if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+        if (!cId && !cName) {
+          return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
+        }
+        return false;
+      };
+      const scopedData = counselor ? data.filter(isThisCounselor) : data;
+      const activeApts = scopedData.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === 'completed');
       activeApts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setAppointments(activeApts);
 
@@ -75,7 +89,7 @@ export default function SessionNotesPage() {
       }
     };
     loadData();
-  }, []);
+  }, [counselor]);
 
   const handleSelectApt = (id: string, aptList = appointments) => {
     setSelectedAptId(id);

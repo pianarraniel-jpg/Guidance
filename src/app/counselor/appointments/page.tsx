@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
-import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { STORAGE_KEYS, APPOINTMENT_STATUS, getCollegesForCounselor } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
@@ -156,21 +156,41 @@ export default function CounselorAppointmentsPage() {
     return isNaN(t) ? 0 : t;
   };
 
+  const isThisCounselorAppointment = useCallback((apt: any) => {
+    if (!counselor) return true;
+    const cId = apt.counselorId || apt.counselor_id;
+    const cName = apt.counselorName || apt.counselor_name;
+    if (cId && counselor.id && cId === counselor.id) return true;
+    if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+    if (!cId && !cName) {
+      return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
+    }
+    return false;
+  }, [counselor]);
+
   const loadAppointments = useCallback(async () => {
     const rawData = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-    const data = await autoExpirePassedAppointments(rawData);
+    const scopedRaw = counselor ? rawData.filter(isThisCounselorAppointment) : rawData;
+    const data = await autoExpirePassedAppointments(scopedRaw);
     data.sort((a, b) => getBookingTimestamp(b) - getBookingTimestamp(a));
     setAppointments(data);
-  }, []);
+  }, [counselor, isThisCounselorAppointment]);
 
   const loadStudents = useCallback(async () => {
     try {
       const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
-      setStudents(allUsers.filter(u => u.role === 'student'));
+      const handledColleges = getCollegesForCounselor(counselor?.department);
+      const isDeptScoped = Boolean(counselor?.department && counselor.department.trim().toLowerCase() !== 'all');
+      const studentList = allUsers.filter(u => {
+        if (u.role !== 'student') return false;
+        if (!isDeptScoped) return true;
+        return handledColleges.some(c => u.department === c.code || c.aliases?.includes(u.department));
+      });
+      setStudents(studentList);
     } catch (err) {
       console.error("Error loading students:", err);
     }
-  }, []);
+  }, [counselor?.department]);
 
   useEffect(() => {
     loadStudents();
@@ -243,10 +263,12 @@ export default function CounselorAppointmentsPage() {
       }, (payload) => {
         setIsLive(true);
         const newApt = payload.new as any;
-        toast({
-          title: '📋 New Booking Request',
-          description: `${newApt.student_name} has requested a session for ${newApt.date} at ${newApt.time}.`,
-        });
+        if (isThisCounselorAppointment(newApt)) {
+          toast({
+            title: '📋 New Booking Request',
+            description: `${newApt.student_name} has requested a session for ${newApt.date} at ${newApt.time}.`,
+          });
+        }
         loadAppointments();
         setTimeout(() => setIsLive(false), 4000);
       })

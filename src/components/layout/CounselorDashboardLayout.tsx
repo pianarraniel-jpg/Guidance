@@ -127,11 +127,11 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
             <div className="pl-4 border-l border-slate-100 ml-2">
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-black leading-none text-slate-900">USPF Counselor</p>
-                  <p className="text-[9px] text-primary uppercase font-bold tracking-tighter mt-0.5">Staff Account</p>
+                  <p className="text-xs font-black leading-none text-slate-900">{user?.name || 'USPF Counselor'}</p>
+                  <p className="text-[9px] text-primary uppercase font-bold tracking-tighter mt-0.5">{user?.department ? `${user.department} Counselor` : 'Staff Account'}</p>
                 </div>
                 <Avatar className="h-9 w-9 ring-2 ring-primary/5">
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">C</AvatarFallback>
+                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{user?.name?.charAt(0).toUpperCase() || 'C'}</AvatarFallback>
                 </Avatar>
               </div>
             </div>

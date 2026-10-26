@@ -163,15 +163,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.user) return false;
-      const profile = await fetchProfile(data.user.id);
+      const cleanEmail = email.trim();
+      const cleanPassword = password.trim();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword,
+      });
+
+      if (error || !data.user) {
+        console.error('[AuthContext] signInWithPassword failed:', error?.message);
+        return false;
+      }
+
+      let profile = await fetchProfile(data.user.id);
+      if (!profile && data.user) {
+        const meta = data.user.user_metadata || {};
+        profile = {
+          id: data.user.id,
+          name: meta.name || cleanEmail.split('@')[0] || 'User',
+          email: data.user.email || cleanEmail,
+          role: (meta.role as UserRole) || USER_ROLES.STUDENT,
+          studentId: meta.student_id ?? undefined,
+          department: meta.department ?? undefined,
+          program: meta.program ?? undefined,
+          yearLevel: meta.year_level ?? undefined,
+        };
+
+        // Self-heal: ensure missing profile row is added to profiles table
+        try {
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role,
+            student_id: profile.studentId,
+            department: profile.department,
+          });
+        } catch (e) {
+          console.warn('[AuthContext] Auto-heal profile failed:', e);
+        }
+      }
+
       if (profile) {
         setUser(profile);
         return true;
       }
       return false;
-    } catch {
+    } catch (err: any) {
+      console.error('[AuthContext] Unexpected login exception:', err?.message || err);
       return false;
     }
   };

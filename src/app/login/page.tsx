@@ -37,11 +37,11 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const success = await login(email, password);
+      const success = await login(email.trim(), password.trim());
       if (success) {
         router.push('/');
       } else {
-        setError('Invalid credentials. Use student@uspf.edu.ph / 202300958');
+        setError('Invalid credentials. Please check your email and password.');
       }
     } catch (err) {
       setError('An unexpected error occurred.');

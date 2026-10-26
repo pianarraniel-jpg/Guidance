@@ -87,7 +87,7 @@ export default function CounselorLoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="counselor_ccs@uspf.edu.ph"
+                    placeholder="name@uspf.edu.ph"
                     className="pl-10 h-11 border-muted"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

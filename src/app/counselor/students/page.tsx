@@ -417,7 +417,7 @@ export default function CounselorStudentsPage() {
   const handledStudentCount = useMemo(() => {
     if (!isDepartmentScoped) return students.length;
     return students.filter(s => 
-      !s.department || handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department))
+      s.department && handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department))
     ).length;
   }, [students, isDepartmentScoped, handledColleges]);
 
@@ -429,7 +429,7 @@ export default function CounselorStudentsPage() {
 
     const matchCollege =
       collegeFilter === 'all' ? (
-        !isDepartmentScoped || !s.department || handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department))
+        !isDepartmentScoped || (s.department && handledColleges.some(c => s.department === c.code || c.aliases?.includes(s.department)))
       ) :
       collegeFilter === 'unassigned' ? !s.department :
       (s.department === collegeFilter || getCollegeByCode(collegeFilter)?.aliases?.includes(s.department));

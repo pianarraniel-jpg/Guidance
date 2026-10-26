@@ -31,6 +31,7 @@ import { format, isThisWeek, isThisMonth, isThisYear, parseISO } from 'date-fns'
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SESSION_TYPE_ICONS: Record<string, any> = {
   'Wellness Check-in': Heart,
@@ -41,6 +42,7 @@ const SESSION_TYPE_ICONS: Record<string, any> = {
 };
 
 export default function SessionRecordsPage() {
+  const { user: counselor } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [activePeriod, setActivePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,7 +50,19 @@ export default function SessionRecordsPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const allApts = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+      const rawApts = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+      const isThisCounselor = (apt: any) => {
+        if (!counselor) return true;
+        const cId = apt.counselorId || apt.counselor_id;
+        const cName = apt.counselorName || apt.counselor_name;
+        if (cId && counselor.id && cId === counselor.id) return true;
+        if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+        if (!cId && !cName) {
+          return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
+        }
+        return false;
+      };
+      const allApts = counselor ? rawApts.filter(isThisCounselor) : rawApts;
       const allNotes = await storageService.getAll<any>(STORAGE_KEYS.SESSION_NOTES);
       
       const notesMap = new Map();
@@ -82,7 +96,7 @@ export default function SessionRecordsPage() {
       setAppointments(aptsWithNotes);
     };
     loadData();
-  }, []);
+  }, [counselor]);
 
   // Safe local date parsing to prevent timezone offset shifts
   const parseLocalDate = (dateStr: string) => {

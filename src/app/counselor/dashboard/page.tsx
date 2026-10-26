@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { storageService } from "@/lib/storage-service";
-import { STORAGE_KEYS, APPOINTMENT_STATUS } from "@/lib/constants";
+import { STORAGE_KEYS, APPOINTMENT_STATUS, getCollegesForCounselor } from "@/lib/constants";
 import { autoExpirePassedAppointments, isAppointmentPassed } from "@/lib/appointment-utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +51,7 @@ import {
 
 export default function CounselorDashboard() {
   const { toast } = useToast();
+  const { user: counselor } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
   const [unackAlertCount, setUnackAlertCount] = useState(0);
@@ -59,16 +60,46 @@ export default function CounselorDashboard() {
   );
 
   const loadData = React.useCallback(async () => {
-    const [allApts, allAssessments, alertsRes] = await Promise.all([
+    const isThisCounselor = (apt: any) => {
+      if (!counselor) return true;
+      const cId = apt.counselorId || apt.counselor_id;
+      const cName = apt.counselorName || apt.counselor_name;
+      if (cId && counselor.id && cId === counselor.id) return true;
+      if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+      if (!cId && !cName) {
+        return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
+      }
+      return false;
+    };
+    const handledColleges = getCollegesForCounselor(counselor?.department);
+    const isDeptScoped = Boolean(counselor?.department && counselor.department.trim().toLowerCase() !== 'all');
+    const [allApts, allAssessments, allUsers, alertsRes] = await Promise.all([
       storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS),
       storageService.getAll<any>(STORAGE_KEYS.ASSESSMENTS),
-      supabase.from('chat_alerts').select('id', { count: 'exact', head: true }).eq('acknowledged', false),
+      storageService.getAll<any>(STORAGE_KEYS.USERS),
+      supabase.from('chat_alerts').select('id, student_id', { count: 'exact' }).eq('acknowledged', false),
     ]);
-    const processedApts = await autoExpirePassedAppointments(allApts);
+    const scopedApts = counselor ? allApts.filter(isThisCounselor) : allApts;
+    const processedApts = await autoExpirePassedAppointments(scopedApts);
     setAppointments(processedApts);
-    setAssessments(allAssessments);
-    setUnackAlertCount(alertsRes.count ?? 0);
-  }, []);
+    let scopedAssessments = allAssessments;
+    let alertCount = alertsRes.count ?? 0;
+
+    if (isDeptScoped) {
+      const validStudentIds = new Set(
+        allUsers
+          .filter(u => u.role === 'student' && handledColleges.some(c => u.department === c.code || c.aliases?.includes(u.department)))
+          .map(u => u.id)
+      );
+      scopedAssessments = allAssessments.filter(a => validStudentIds.has(a.studentId));
+      if (alertsRes.data) {
+        alertCount = alertsRes.data.filter((al: any) => validStudentIds.has(al.student_id)).length;
+      }
+    }
+
+    setAssessments(scopedAssessments);
+    setUnackAlertCount(alertCount);
+  }, [counselor]);
 
   useEffect(() => {
     loadData();
