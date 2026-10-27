@@ -43,6 +43,7 @@ import {
   DialogTrigger, DialogDescription,
 } from "@/components/ui/dialog";
 import { supabase } from '@/lib/supabase';
+import { safeUpdateProfile } from '@/lib/profile-utils';
 
 export default function CounselorStudentsPage() {
   const router = useRouter();
@@ -224,17 +225,11 @@ export default function CounselorStudentsPage() {
         student_id: studentId,
         department: (enrollDepartment && enrollDepartment !== 'none') ? enrollDepartment : null,
         course: (enrollProgram && enrollProgram !== 'none') ? enrollProgram : null,
+        program: (enrollProgram && enrollProgram !== 'none') ? enrollProgram : null,
         year_level: (enrollYearLevel && enrollYearLevel !== 'none') ? enrollYearLevel : null,
       };
-      if (enrollProgram && enrollProgram !== 'none') {
-        enrollPayload.program = enrollProgram;
-      }
 
-      let { error: enrollError } = await supabase.from('profiles').update(enrollPayload).eq('id', data.user.id);
-      if (enrollError && enrollError.message?.includes('program')) {
-        delete enrollPayload.program;
-        await supabase.from('profiles').update(enrollPayload).eq('id', data.user.id);
-      }
+      await safeUpdateProfile(data.user.id, enrollPayload);
 
       toast({ title: 'Student Enrolled', description: `${name} has been added to the directory.` });
       setIsEnrollDialogOpen(false);
@@ -266,20 +261,12 @@ export default function CounselorStudentsPage() {
         name: editName.trim() || editStudent.name,
         department: (editDepartment && editDepartment !== 'none') ? editDepartment : null,
         course: (editProgram && editProgram !== 'none') ? editProgram : null,
+        program: (editProgram && editProgram !== 'none') ? editProgram : null,
         year_level: (editYearLevel && editYearLevel !== 'none') ? editYearLevel : null,
       };
-      if (editProgram && editProgram !== 'none') {
-        editPayload.program = editProgram;
-      }
 
-      let { error } = await supabase.from('profiles').update(editPayload).eq('id', editStudent.id);
-      if (error && error.message?.includes('program')) {
-        delete editPayload.program;
-        const res = await supabase.from('profiles').update(editPayload).eq('id', editStudent.id);
-        error = res.error;
-      }
-
-      if (error) throw error;
+      const res = await safeUpdateProfile(editStudent.id, editPayload);
+      if (!res.success) throw new Error(res.error || 'Failed to update student profile.');
 
       toast({ title: 'Profile Updated', description: `${editStudent.name}'s profile has been updated.` });
       setEditStudent(null);

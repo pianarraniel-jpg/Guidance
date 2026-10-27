@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { UserRole, USER_ROLES } from '@/lib/constants';
+import { updateAcademicClassification } from '@/lib/profile-utils';
 
 interface User {
   id: string;
@@ -16,13 +17,27 @@ interface User {
   yearLevel?: string;
 }
 
+export interface LoginResult {
+  success: boolean;
+  role?: UserRole;
+  error?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  loginWithId: (studentId: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  loginWithId: (studentId: string) => Promise<LoginResult>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  signInWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  updateUserAcademic: (academicData: {
+    department: string;
+    program: string;
+    yearLevel: string;
+    studentId?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   isStudent: boolean;
   isCounselor: boolean;
   isAdmin: boolean;
@@ -33,35 +48,67 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 async function fetchProfile(userId: string): Promise<User | null> {
   console.log(`[AuthContext] Fetching profile for user: ${userId}`);
   try {
-    const { data, error } = await supabase
+    const { data: sessionData } = await supabase.auth.getSession();
+    const meta = sessionData?.session?.user?.user_metadata || {};
+
+    let { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (error || !data) {
+    if (!data && sessionData?.session?.user) {
+      const sUser = sessionData.session.user;
+      const defaultName = meta.full_name || meta.name || sUser.email?.split('@')[0] || 'Student';
+      const defaultRole = meta.role || 'student';
+      const { data: created } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: defaultName,
+          email: sUser.email || '',
+          role: defaultRole,
+        })
+        .select()
+        .maybeSingle();
+
+      if (created) {
+        data = created;
+      }
+    }
+
+    if (!data) {
       console.warn(`[AuthContext] Profile fetch failed or not found:`, error?.message || 'No data');
       return null;
     }
+
     const userObj: User = {
       id: data.id,
-      name: data.name,
-      email: data.email,
-      role: data.role as UserRole,
-      studentId: data.student_id ?? undefined,
-      department: data.department ?? undefined,
-      program: data.program || data.course || undefined,
-      yearLevel: data.year_level || data.year || undefined,
+      name: data.name || meta.full_name || meta.name || '',
+      email: data.email || meta.email || '',
+      role: (data.role || meta.role || 'student') as UserRole,
+      studentId: data.student_id || meta.student_id || undefined,
+      department: data.department || meta.department || undefined,
+      program: data.program || data.course || meta.program || undefined,
+      yearLevel: data.year_level || data.year || meta.year_level || undefined,
     };
+
     // Ensure Supabase session metadata has these fields for instant future reloads
     try {
       await supabase.auth.updateUser({
-        data: { name: userObj.name, role: userObj.role, student_id: userObj.studentId, department: userObj.department, program: userObj.program }
+        data: {
+          name: userObj.name,
+          role: userObj.role,
+          student_id: userObj.studentId,
+          department: userObj.department,
+          program: userObj.program,
+          year_level: userObj.yearLevel,
+        }
       });
     } catch {
       // ignore non-critical update errors
     }
-    console.log(`[AuthContext] Profile successfully fetched:`, data.email, data.role);
+    console.log(`[AuthContext] Profile successfully fetched:`, data.email, userObj.role);
     return userObj;
   } catch (err: any) {
     console.error(`[AuthContext] Unexpected error during fetchProfile:`, err?.message || err);
@@ -79,12 +126,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleSessionUser = async (sessionUser: any, isMounted: boolean) => {
     const meta = sessionUser.user_metadata || {};
     
-    // If Supabase session metadata already has name and role, hydrate instantly without a database round-trip
-    if (meta.name && meta.role) {
-      console.log(`[AuthContext] Instantly hydrated from Supabase session metadata:`, sessionUser.email, meta.role);
+    // Quick hydrate if full metadata is ready
+    if (meta.name && meta.role && meta.department && meta.program && meta.year_level) {
       const userObj: User = {
         id: sessionUser.id,
-        name: meta.name,
+        name: meta.name || meta.full_name || '',
         email: sessionUser.email || meta.email || '',
         role: meta.role as UserRole,
         studentId: meta.student_id ?? undefined,
@@ -100,14 +146,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Fallback: fetch profile from database once if metadata is missing
+    // Comprehensive fetch: fetch profile from database
     if (activeUserRef.current !== sessionUser.id) {
       activeUserRef.current = sessionUser.id;
       const profile = await fetchProfile(sessionUser.id);
-      if (isMounted && profile) {
-        setUser(profile);
-        setIsLoading(false);
-      } else if (isMounted) {
+      if (isMounted) {
+        if (profile) {
+          setUser(profile);
+        } else if (meta.name || meta.full_name) {
+          setUser({
+            id: sessionUser.id,
+            name: meta.name || meta.full_name || 'Student',
+            email: sessionUser.email || '',
+            role: (meta.role as UserRole) || 'student',
+            studentId: meta.student_id ?? undefined,
+            department: meta.department ?? undefined,
+            program: meta.program ?? undefined,
+            yearLevel: meta.year_level ?? undefined,
+          });
+        }
         setIsLoading(false);
       }
     }
@@ -161,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
       const cleanEmail = email.trim();
       const cleanPassword = password.trim();
@@ -172,7 +229,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error || !data.user) {
         console.error('[AuthContext] signInWithPassword failed:', error?.message);
-        return false;
+        return {
+          success: false,
+          error: error?.message || 'Invalid email or password. Please try again.',
+        };
       }
 
       let profile = await fetchProfile(data.user.id);
@@ -206,29 +266,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profile) {
         setUser(profile);
-        return true;
+        return { success: true, role: profile.role };
       }
-      return false;
+      return { success: false, error: 'Could not load your user profile.' };
     } catch (err: any) {
       console.error('[AuthContext] Unexpected login exception:', err?.message || err);
-      return false;
+      return { success: false, error: err?.message || 'An unexpected error occurred.' };
     }
   };
 
-  const loginWithId = async (studentId: string): Promise<boolean> => {
+  const loginWithId = async (studentId: string): Promise<LoginResult> => {
     try {
       const res = await fetch('/api/auth/student-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId }),
       });
-      if (!res.ok) return false;
-      const { accessToken, refreshToken, profile: apiProfile } = await res.json();
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          success: false,
+          error: resData?.error || 'Student ID not recognized. Please check your ID number.',
+        };
+      }
+      const { accessToken, refreshToken, profile: apiProfile } = resData;
       const { data, error } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       });
-      if (error || !data.user) return false;
+      if (error || !data.user) {
+        return { success: false, error: 'Session could not be established.' };
+      }
       if (apiProfile) {
         try {
           await supabase.auth.updateUser({
@@ -236,17 +304,102 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         } catch {}
         setUser(apiProfile);
-        return true;
+        return { success: true, role: apiProfile.role };
       }
       const profile = await fetchProfile(data.user.id);
       if (profile) {
         setUser(profile);
-        return true;
+        return { success: true, role: profile.role };
       }
-      return false;
-    } catch {
-      return false;
+      return { success: false, error: 'Student profile not found.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to sign in with Student ID.' };
     }
+  };
+
+  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const cleanEmail = email.trim();
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo,
+      });
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to dispatch password reset request.' };
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: {
+            hd: 'uspf.edu.ph',
+          },
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data?.url) {
+        // Pre-flight check: verify if Google provider is enabled in Supabase without kicking user to a raw JSON error page
+        try {
+          const probe = await fetch(data.url, { method: 'GET' });
+          if (probe.status === 400) {
+            const errJson = await probe.json().catch(() => null);
+            if (errJson?.msg?.includes('not enabled') || errJson?.error_code === 'validation_failed') {
+              return {
+                success: false,
+                error: 'Google Workspace Sign-In is not enabled in the Supabase project dashboard. Please sign in with your email or Student ID.',
+              };
+            }
+          }
+        } catch {
+          // If probe fails (e.g. network edge cases), fall through to standard redirect
+        }
+
+        window.location.href = data.url;
+        return { success: true };
+      }
+
+      return { success: false, error: 'Could not generate Google login URL.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Google SSO initialization failed.' };
+    }
+  };
+
+  const updateUserAcademic = async (academicData: {
+    department: string;
+    program: string;
+    yearLevel: string;
+    studentId?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'User is not authenticated.' };
+
+    const res = await updateAcademicClassification(user.id, academicData);
+    if (res.success) {
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          department: academicData.department,
+          program: academicData.program,
+          yearLevel: academicData.yearLevel,
+          ...(academicData.studentId ? { studentId: academicData.studentId } : {}),
+        };
+      });
+    }
+    return res;
   };
 
   const logout = async () => {
@@ -261,7 +414,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading,
     login,
     loginWithId,
+    resetPassword,
+    signInWithGoogle,
     logout,
+    updateUserAcademic,
     isStudent: user?.role === USER_ROLES.STUDENT,
     isCounselor: user?.role === USER_ROLES.COUNSELOR,
     isAdmin: user?.role === USER_ROLES.ADMIN,

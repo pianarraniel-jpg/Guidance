@@ -55,11 +55,14 @@ import {
   Phone,
   Tag,
   Sunrise,
-  Sun
+  Sun,
+  GraduationCap
 } from 'lucide-react';
 import { format, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import AcademicClassificationModal from '@/components/student/AcademicClassificationModal';
+import { isAcademicClassificationComplete } from '@/lib/profile-utils';
 
 const SESSION_TYPES = [
   { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
@@ -136,6 +139,9 @@ export default function BookAppointment() {
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [conflictModalTitle, setConflictModalTitle] = useState('Daily Limit Reached (Max 3 Sessions)');
   const [conflictModalDescription, setConflictModalDescription] = useState('You already have 3 appointments scheduled on this day.');
+
+  const isAcademicComplete = isAcademicClassificationComplete(user);
+  const [isClassificationModalOpen, setIsClassificationModalOpen] = useState(false);
 
   const loadCounselors = useCallback(async () => {
     const all = await storageService.getAll<any>(STORAGE_KEYS.USERS);
@@ -391,6 +397,16 @@ export default function BookAppointment() {
   };
 
   const handleBooking = async () => {
+    if (!isAcademicClassificationComplete(user)) {
+      toast({
+        variant: 'destructive',
+        title: 'Academic Classification Required',
+        description: 'Please complete your college, degree program, and year level before booking.',
+      });
+      setIsClassificationModalOpen(true);
+      return;
+    }
+
     if (!canProceed(STEPS.REASON) || !selectedDate) return;
     if (!availableSlots.includes(selectedTime) || isSlotInPast(selectedDate, selectedTime)) {
       toast({ variant: 'destructive', title: 'Slot Unavailable', description: 'This slot has expired or is unavailable. Please choose another.' });
@@ -537,7 +553,7 @@ export default function BookAppointment() {
                 </div>
               </div>
 
-              {currentStep < STEPS.CONFIRM && (
+              {isAcademicComplete && currentStep < STEPS.CONFIRM && (
                 <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
                   {stepLabels.slice(0, 4).map((label, i) => (
                     <React.Fragment key={label}>
@@ -560,7 +576,84 @@ export default function BookAppointment() {
               )}
             </header>
 
-            {currentStep === STEPS.CONFIRM ? (
+            {!isAcademicComplete ? (
+              <div className="max-w-2xl mx-auto py-8">
+                <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden text-center p-8 sm:p-12">
+                  <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 text-amber-700 mb-6 shadow-inner">
+                    <GraduationCap className="h-8 w-8" />
+                  </div>
+
+                  <Badge className="bg-amber-100 text-amber-800 border-none font-bold text-[11px] uppercase tracking-wider mb-3 px-3 py-1">
+                    Academic Classification Required
+                  </Badge>
+
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-3">
+                    Academic Profile Incomplete
+                  </h2>
+
+                  <p className="text-sm text-slate-600 max-w-lg mx-auto leading-relaxed mb-8">
+                    USPF guidance counselors are specialized by college department. Setting your academic classification ensures your consultation request is assigned to your designated college guidance counselor.
+                  </p>
+
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 mb-8 text-left max-w-md mx-auto space-y-3">
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/60">
+                      <span className="text-slate-500 font-medium">College / Department</span>
+                      {user?.department ? (
+                        <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> {user.department}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-red-600 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> Not Set
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/60">
+                      <span className="text-slate-500 font-medium">Degree Program / Course</span>
+                      {user?.program ? (
+                        <span className="font-bold text-emerald-700 flex items-center gap-1.5 truncate max-w-[200px]" title={user.program}>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> {user.program}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-red-600 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> Not Set
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Year Level</span>
+                      {user?.yearLevel ? (
+                        <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> {user.yearLevel}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-red-600 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> Not Set
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Button
+                      onClick={() => setIsClassificationModalOpen(true)}
+                      className="w-full sm:w-auto h-12 px-8 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+                    >
+                      Set Academic Classification
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full sm:w-auto h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-700"
+                    >
+                      <Link href="/student/dashboard">Return to Dashboard</Link>
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            ) : currentStep === STEPS.CONFIRM ? (
               /* Step 5: Official Digital Pass & Instant Calendar Sync */
               <div className="max-w-xl mx-auto py-6">
                 <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden text-left">
@@ -1229,6 +1322,14 @@ export default function BookAppointment() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AcademicClassificationModal
+          open={isClassificationModalOpen}
+          onOpenChange={setIsClassificationModalOpen}
+          onSuccess={() => {
+            loadCounselors();
+          }}
+        />
       </DashboardLayout>
     </ProtectedRoute>
   );

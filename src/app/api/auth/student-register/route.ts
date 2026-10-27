@@ -107,24 +107,27 @@ export async function POST(req: NextRequest) {
       student_id: cleanStudentId,
       department: department.trim(),
       course: cleanProgram,
+      program: cleanProgram,
       year_level: cleanYearLevel,
     };
-    if (cleanProgram) {
-      profilePayload.program = cleanProgram;
-    }
 
-    let { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert(profilePayload);
+    let attempts = 0;
+    while (attempts < 5) {
+      attempts++;
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profilePayload);
 
-    if (profileError && profileError.message?.includes('program')) {
-      delete profilePayload.program;
-      const retry = await supabaseAdmin.from('profiles').upsert(profilePayload);
-      profileError = retry.error;
-    }
+      if (!profileError) break;
 
-    if (profileError) {
+      const match = profileError.message.match(/Could not find the '([^']+)' column/i);
+      if (match && match[1] && match[1] in profilePayload) {
+        delete profilePayload[match[1]];
+        continue;
+      }
+
       console.error('[student-register] Error upserting profile:', profileError);
+      break;
     }
 
     return NextResponse.json({

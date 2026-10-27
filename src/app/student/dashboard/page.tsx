@@ -38,6 +38,7 @@ import {
   Plus,
   Trash2,
   ListTodo,
+  GraduationCap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
@@ -45,6 +46,8 @@ import { useLiveSync } from '@/hooks/useLiveSync';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
+import AcademicClassificationModal from '@/components/student/AcademicClassificationModal';
+import { isAcademicClassificationComplete } from '@/lib/profile-utils';
 
 interface ChartPoint {
   date: string;
@@ -94,6 +97,21 @@ export default function StudentDashboard() {
   const [modalDuration, setModalDuration] = useState(300);
   const [modalTitle, setModalTitle] = useState('Mindfulness Breathing');
   const [activeTodoId, setActiveTodoId] = useState<string | null>(null);
+
+  // Academic Classification Modal & Incomplete Detection
+  const [isClassificationModalOpen, setIsClassificationModalOpen] = useState(false);
+  const isAcademicComplete = isAcademicClassificationComplete(user);
+
+  useEffect(() => {
+    if (user && !isLoading && !isAcademicComplete) {
+      const promptKey = `prompted_academic_${user.id}`;
+      const hasPrompted = sessionStorage.getItem(promptKey);
+      if (!hasPrompted) {
+        sessionStorage.setItem(promptKey, 'true');
+        setIsClassificationModalOpen(true);
+      }
+    }
+  }, [user, isLoading, isAcademicComplete]);
 
   const chartData = useMemo(() => {
     if (trendRange === 'all') return allChartData;
@@ -403,6 +421,36 @@ export default function StudentDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* Academic Classification Incomplete Notice */}
+          {!isAcademicComplete && (
+            <div className="mb-8 rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 border border-amber-200/70 shadow-inner">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-amber-950">Academic Classification Required</h3>
+                      <span className="rounded-full bg-amber-200/70 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                        Action Needed
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900/90 mt-1 max-w-2xl leading-relaxed font-medium">
+                      Your college department, degree program, or year level is incomplete. USPF guidance counselors are assigned by college. Complete your classification now to enable appointment booking and route your records to your designated counselor.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setIsClassificationModalOpen(true)}
+                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 h-10 rounded-xl shadow-sm"
+                >
+                  Set Academic Profile
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
             {/* Wellness Trends Chart */}
@@ -792,6 +840,15 @@ export default function StudentDashboard() {
           duration={modalDuration}
           title={modalTitle}
           onComplete={handleBreathingComplete}
+        />
+
+        {/* Academic Classification Onboarding / Edit Modal */}
+        <AcademicClassificationModal
+          open={isClassificationModalOpen}
+          onOpenChange={setIsClassificationModalOpen}
+          onSuccess={() => {
+            loadDashboardData(true);
+          }}
         />
 
       </DashboardLayout>

@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   XCircle,
   CalendarClock,
-  Timer,
+  Video,
+  Building2,
   MapPin,
   FileText,
   Target,
@@ -296,9 +297,7 @@ export default function StudentAppointments() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Main table list */}
-            <div className="lg:col-span-9">
+          <div className="w-full">
               <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
                 {/* Tab bar */}
                 <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -384,8 +383,21 @@ export default function StudentAppointments() {
 
                             {/* Time / Location Column */}
                             <td className="px-6 py-4 text-xs text-slate-500 font-medium whitespace-nowrap">
-                              <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {app.time}</div>
-                              <div className="flex items-center gap-1.5 mt-1"><MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" /> {app.location || 'Room 302'}</div>
+                              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span>{app.time}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                {app.location?.toLowerCase().includes('online') || app.location?.toLowerCase().includes('meet') ? (
+                                  <Badge className="bg-sky-50 text-sky-700 border border-sky-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none">
+                                    <Video className="h-3 w-3 text-sky-600" /> Online (Meet)
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none">
+                                    <Building2 className="h-3 w-3 text-indigo-600" /> {app.location || 'Room 302'}
+                                  </Badge>
+                                )}
+                              </div>
                             </td>
 
                             {/* Status Column */}
@@ -433,22 +445,6 @@ export default function StudentAppointments() {
                   )}
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Right sidebar */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* CTA card */}
-              <Card className="border-none shadow-lg bg-primary rounded-[2rem] p-6 text-white overflow-hidden relative group">
-                <div className="relative z-10">
-                  <h3 className="font-black text-lg mb-2">Need Support?</h3>
-                  <p className="text-xs text-white/80 font-medium mb-4">Book a session with a counselor to clarify your thoughts and receive support.</p>
-                  <Button asChild variant="secondary" className="w-full bg-white text-primary hover:bg-white/90 rounded-xl font-black">
-                    <Link href="/student/book">Book Session</Link>
-                  </Button>
-                </div>
-                <Timer className="absolute -bottom-4 -right-4 h-32 w-32 text-white/10 group-hover:scale-110 transition-transform" />
-              </Card>
-            </div>
           </div>
 
           {/* Calendar Modal */}

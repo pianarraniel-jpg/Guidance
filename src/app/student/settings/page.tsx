@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,13 +39,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { COLLEGES_AND_PROGRAMS, YEAR_LEVELS, getProgramsForCollege } from '@/lib/constants';
 
 export default function StudentSettings() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUserAcademic } = useAuth();
   const { toast } = useToast();
 
   const [selectedDept, setSelectedDept] = useState(user?.department || '');
   const [selectedProgram, setSelectedProgram] = useState(user?.program || '');
   const [selectedYearLevel, setSelectedYearLevel] = useState(user?.yearLevel || '');
   const [isSavingAcademic, setIsSavingAcademic] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      if (user.department) setSelectedDept(user.department);
+      if (user.program) setSelectedProgram(user.program);
+      if (user.yearLevel) setSelectedYearLevel(user.yearLevel);
+    }
+  }, [user?.department, user?.program, user?.yearLevel]);
 
   const availablePrograms = getProgramsForCollege(selectedDept);
 
@@ -59,32 +67,15 @@ export default function StudentSettings() {
     setSelectedYearLevel(newYr);
     
     try {
-      const updatePayload: any = { 
-        department: dept || null,
-        course: newProg || null,
-        year_level: newYr || null,
-      };
-      if (newProg) {
-        updatePayload.program = newProg;
-      }
+      const res = await updateUserAcademic({
+        department: dept,
+        program: newProg,
+        yearLevel: newYr,
+      });
 
-      let { error } = await supabase
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', user.id);
-        
-      if (error && error.message?.includes('program')) {
-        delete updatePayload.program;
-        const res = await supabase.from('profiles').update(updatePayload).eq('id', user.id);
-        error = res.error;
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to update academic profile.');
       }
-
-      if (error) throw error;
-      
-      // Update local auth context user object
-      user.department = dept;
-      user.program = newProg;
-      user.yearLevel = newYr;
       
       toast({
         title: "Academic Profile Updated",

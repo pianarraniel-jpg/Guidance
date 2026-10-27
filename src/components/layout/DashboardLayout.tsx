@@ -157,7 +157,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-bold leading-none">{user?.name}</p>
-                  <p className="text-[10px] text-muted-foreground capitalize">{user?.role}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {user?.role === 'student'
+                      ? user?.department
+                        ? `${user.department}${user.yearLevel ? ` • ${user.yearLevel}` : ''}`
+                        : 'Academic Profile Incomplete'
+                      : user?.role}
+                  </p>
                 </div>
                 <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 shadow-sm shrink-0">
                   <User className="h-4 w-4" />

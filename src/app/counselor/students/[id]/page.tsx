@@ -18,6 +18,7 @@ import {
   getProgramsForCollege, YEAR_LEVELS
 } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
+import { safeUpdateProfile } from '@/lib/profile-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { exerciseService, ExerciseCompletionRecord } from '@/lib/exercise-service';
@@ -167,21 +168,21 @@ export default function StudentRecordPage() {
         name: editName.trim() || student.name,
         department: editDepartment === 'none' ? null : editDepartment,
         program: editProgram === 'none' ? null : editProgram,
+        course: editProgram === 'none' ? null : editProgram,
         year_level: editYearLevel === 'none' ? null : editYearLevel,
-        yearLevel: editYearLevel === 'none' ? null : editYearLevel,
       };
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', student.id);
-
-      if (error) throw error;
-
-      await storageService.update(STORAGE_KEYS.USERS, student.id, updates);
+      const res = await safeUpdateProfile(student.id, updates);
+      if (!res.success) throw new Error(res.error || 'Failed to update student profile.');
 
       toast({ title: "Profile Updated", description: "Student records have been saved successfully." });
-      setStudent((prev: any) => ({ ...prev, ...updates }));
+      setStudent((prev: any) => ({
+        ...prev,
+        name: updates.name,
+        department: updates.department,
+        program: editProgram === 'none' ? null : editProgram,
+        yearLevel: editYearLevel === 'none' ? null : editYearLevel,
+      }));
       setIsEditOpen(false);
     } catch (err: any) {
       console.error('Error updating profile:', err);
