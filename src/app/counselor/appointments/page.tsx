@@ -41,7 +41,12 @@ import {
   Briefcase,
   ChevronDown,
   User,
-  ArrowUpDown
+  ArrowUpDown,
+  CalendarCheck,
+  Download,
+  ExternalLink,
+  Video,
+  Building2,
 } from 'lucide-react';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
@@ -66,7 +71,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
-import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
+import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
+import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
 
 const SESSION_TYPES = [
   { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
@@ -90,6 +96,7 @@ export default function CounselorAppointmentsPage() {
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
+  const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
 
   // Counselor-to-Student booking states
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -101,8 +108,33 @@ export default function CounselorAppointmentsPage() {
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [bookingReason, setBookingReason] = useState("");
-  const [bookingLocation, setBookingLocation] = useState("Room 302");
+  const [bookingModality, setBookingModality] = useState<'in-person' | 'online'>('in-person');
+  const [bookingLocation, setBookingLocation] = useState("Guidance Office — Room 302");
   const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+
+  const isOnlineLocation = (loc?: string) => {
+    if (!loc) return false;
+    const l = loc.toLowerCase();
+    return l.includes('online') || l.includes('meet') || l.includes('virtual') || l.includes('zoom');
+  };
+
+  const renderLocationBadge = (location?: string) => {
+    const online = isOnlineLocation(location);
+    if (online) {
+      return (
+        <Badge className="bg-sky-50 text-sky-700 hover:bg-sky-50 border border-sky-100 font-bold text-[9px] uppercase px-2.5 py-1 inline-flex items-center gap-1.5 rounded-lg shadow-none">
+          <Video className="h-3 w-3 text-sky-600" />
+          <span>Online (Meet)</span>
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border border-indigo-100 font-bold text-[9px] uppercase px-2.5 py-1 inline-flex items-center gap-1.5 rounded-lg shadow-none">
+        <Building2 className="h-3 w-3 text-indigo-600" />
+        <span>{location || "Room 302"}</span>
+      </Badge>
+    );
+  };
 
   // Sync search text when selected student changes
   useEffect(() => {
@@ -211,6 +243,10 @@ export default function CounselorAppointmentsPage() {
       const selectedStudent = students.find(s => s.id === bookingStudentId);
       if (!selectedStudent) throw new Error("Student not found");
 
+      const finalLocation = bookingModality === 'online'
+        ? 'Online (Google Meet)'
+        : (bookingLocation.trim() || 'Guidance Office — Room 302');
+
       const newAppointment = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: bookingStudentId,
         studentName: selectedStudent.name,
@@ -220,7 +256,7 @@ export default function CounselorAppointmentsPage() {
         time: bookingTime,
         type: bookingType,
         status: APPOINTMENT_STATUS.CONFIRMED,
-        location: bookingLocation,
+        location: finalLocation,
         reason: bookingReason.trim(),
         createdAt: new Date().toISOString(),
       });
@@ -238,7 +274,8 @@ export default function CounselorAppointmentsPage() {
       setBookingDate("");
       setBookingTime("");
       setBookingReason("");
-      setBookingLocation("Room 302");
+      setBookingModality("in-person");
+      setBookingLocation("Guidance Office — Room 302");
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -528,6 +565,13 @@ export default function CounselorAppointmentsPage() {
             </SelectContent>
           </Select>
           <Button
+            onClick={() => setIsAvailabilityOpen(true)}
+            variant="outline"
+            className="h-10 px-3.5 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-primary shadow-sm flex items-center gap-2 text-xs"
+          >
+            <CalendarClock className="h-4 w-4 text-primary" /> Hours & Availability
+          </Button>
+          <Button
             onClick={() => setIsBookingOpen(true)}
             className="h-10 px-4 rounded-xl font-black bg-primary text-white hover:bg-primary/90 shadow-md flex items-center gap-2"
           >
@@ -548,7 +592,7 @@ export default function CounselorAppointmentsPage() {
                   Session Type
                 </TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">
-                  Location
+                  Modality / Location
                 </TableHead>
                 <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-14">
                   Schedule
@@ -593,12 +637,7 @@ export default function CounselorAppointmentsPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className="rounded-lg bg-slate-50 border-none font-bold text-[9px] uppercase px-2"
-                    >
-                      {app.location || "Room 302"}
-                    </Badge>
+                    {renderLocationBadge(app.location)}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
@@ -811,11 +850,11 @@ export default function CounselorAppointmentsPage() {
               </div>
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <MapPin className="h-3 w-3" /> Location
+                  <MapPin className="h-3 w-3" /> Modality / Location
                 </p>
-                <p className="text-sm font-bold text-slate-700">
-                  {selectedApp?.location || "Guidance Office - Room 302"}
-                </p>
+                <div className="pt-0.5">
+                  {renderLocationBadge(selectedApp?.location)}
+                </div>
               </div>
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -843,6 +882,53 @@ export default function CounselorAppointmentsPage() {
                 "{selectedApp?.reason || "No specific reason provided."}"
               </p>
             </div>
+            {selectedApp?.date && selectedApp?.time && (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <CalendarCheck className="h-4 w-4 text-primary" />
+                  <span>Counselor Calendar Sync</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const url = getGoogleCalendarUrl({
+                        title: `Guidance: ${selectedApp.studentName} (${selectedApp.type})`,
+                        description: `Guidance Consultation Session with student ${selectedApp.studentName}.\nLocation: ${selectedApp.location || 'Room 302'}\nReason: ${selectedApp.reason || 'N/A'}`,
+                        location: selectedApp.location || 'USPF Guidance Office - Room 302',
+                        dateStr: selectedApp.date,
+                        timeStr: selectedApp.time,
+                      });
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="h-8 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-lg px-2.5"
+                  >
+                    Google Cal
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      downloadIcsFile({
+                        title: `Guidance: ${selectedApp.studentName} (${selectedApp.type})`,
+                        description: `Guidance Consultation Session with student ${selectedApp.studentName}.\nLocation: ${selectedApp.location || 'Room 302'}\nReason: ${selectedApp.reason || 'N/A'}`,
+                        location: selectedApp.location || 'USPF Guidance Office - Room 302',
+                        dateStr: selectedApp.date,
+                        timeStr: selectedApp.time,
+                      }, `USPF-Counseling-${selectedApp.studentName?.replace(/\s+/g, '_')}-${selectedApp.date}.ics`);
+                    }}
+                    className="h-8 text-[11px] font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg px-2.5"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    .ics
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3 pt-4 border-t">
               {selectedApp?.status === "pending" && (
                 <Button
@@ -1114,16 +1200,70 @@ export default function CounselorAppointmentsPage() {
                 </div>
               </div>
 
-              {/* Location Input */}
+              {/* Modality Selector */}
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-900">Location</Label>
-                <Input
-                  placeholder="e.g. Guidance Office - Room 302"
-                  value={bookingLocation}
-                  onChange={(e) => setBookingLocation(e.target.value)}
-                  className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
-                />
+                <Label className="text-xs font-bold text-slate-900">Consultation Modality *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality('in-person');
+                      setBookingLocation('Guidance Office — Room 302');
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      bookingModality === 'in-person'
+                        ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+                        : 'border-slate-200 bg-white hover:border-primary/30'
+                    }`}
+                  >
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                      <Building2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className={`text-xs font-black ${bookingModality === 'in-person' ? 'text-primary' : 'text-slate-900'}`}>
+                        In-Person Consultation
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium">Guidance Office — Room 302</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModality('online');
+                      setBookingLocation('Online (Google Meet)');
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      bookingModality === 'online'
+                        ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+                        : 'border-slate-200 bg-white hover:border-primary/30'
+                    }`}
+                  >
+                    <div className="h-8 w-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                      <Video className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className={`text-xs font-black ${bookingModality === 'online' ? 'text-primary' : 'text-slate-900'}`}>
+                        Online Video Session
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium">Google Meet Video Consultation</p>
+                    </div>
+                  </button>
+                </div>
               </div>
+
+              {/* Location Input for In-Person */}
+              {bookingModality === 'in-person' && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-900">Room / Office Location</Label>
+                  <Input
+                    placeholder="e.g. Guidance Office - Room 302"
+                    value={bookingLocation}
+                    onChange={(e) => setBookingLocation(e.target.value)}
+                    className="h-11 rounded-xl text-xs font-semibold bg-white border border-slate-200"
+                  />
+                </div>
+              )}
 
               {/* Consultation Reason */}
               <div className="space-y-2">
@@ -1154,13 +1294,38 @@ export default function CounselorAppointmentsPage() {
                   setBookingDate("");
                   setBookingTime("");
                   setBookingReason("");
-                  setBookingLocation("Room 302");
+                  setBookingModality("in-person");
+                  setBookingLocation("Guidance Office — Room 302");
                 }}
                 className="flex-1 h-12 rounded-xl font-bold border-slate-200"
               >
                 Cancel
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Counselor Availability Dialog */}
+      <Dialog open={isAvailabilityOpen} onOpenChange={setIsAvailabilityOpen}>
+        <DialogContent className="max-w-3xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-8 bg-slate-50 border-b">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+                <CalendarClock className="h-6 w-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-black text-slate-900">
+                  Manage Consultation Availability
+                </DialogTitle>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Set the weekly days and specific hour slots students can book with you.
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="p-8 max-h-[75vh] overflow-y-auto">
+            <CounselorAvailabilityManager onSaveSuccess={() => setIsAvailabilityOpen(false)} />
           </div>
         </DialogContent>
       </Dialog>

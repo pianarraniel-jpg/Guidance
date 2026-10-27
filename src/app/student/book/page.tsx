@@ -9,11 +9,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_KEYS, APPOINTMENT_STATUS, isCounselorMatchingDepartment } from '@/lib/constants';
+import { getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -43,9 +45,19 @@ import {
   BookOpen,
   Briefcase,
   Brain,
-  AlertTriangle
+  AlertTriangle,
+  Video,
+  Building2,
+  ShieldCheck,
+  CalendarCheck,
+  Download,
+  ExternalLink,
+  Phone,
+  Tag,
+  Sunrise,
+  Sun
 } from 'lucide-react';
-import { format, parseISO, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
+import { format, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -57,9 +69,26 @@ const SESSION_TYPES = [
   { value: 'Mental Health Support', label: 'Mental Health Support', icon: Sparkles, color: 'text-pink-500 bg-pink-50' },
 ];
 
-const TIME_SLOTS = [
-  '09:00 AM', '10:00 AM', '11:00 AM',
-  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+const MORNING_SLOTS = ['09:00 AM', '10:00 AM', '11:00 AM'];
+const AFTERNOON_SLOTS = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM'];
+const TIME_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
+
+const QUICK_CONCERN_TAGS = [
+  'Academic Pressure',
+  'Exam Anxiety',
+  'Low Motivation',
+  'Family Issues',
+  'Relationship Concern',
+  'Career / Shifting Path',
+  'Sleep & Fatigue',
+  'Social Adjustment',
+  'General Wellness'
+];
+
+const CRISIS_KEYWORDS = [
+  'suicide', 'suicidal', 'kill myself', 'end my life', 'want to die',
+  'hurt myself', 'harm myself', 'cut myself', 'self harm', 'self-harm',
+  'no point living', "can't go on", 'end it all', 'better off dead'
 ];
 
 const getSlotDateTime = (date: Date, slotStr: string): Date => {
@@ -89,11 +118,17 @@ export default function BookAppointment() {
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.DETAILS);
   const [selectedCounselor, setSelectedCounselor] = useState('');
   const [selectedSessionType, setSelectedSessionType] = useState('');
+  const [modality, setModality] = useState<'in-person' | 'online'>('in-person');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [reason, setReason] = useState('');
+  const [consentAgreed, setConsentAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmedAppointment, setConfirmedAppointment] = useState<any>(null);
+
   const [counselors, setCounselors] = useState<any[]>([]);
+  const [counselorAvailability, setCounselorAvailability] = useState<{ day: string; slots: string[] }[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [isSlotLoading, setIsSlotLoading] = useState(false);
   const [studentAppointments, setStudentAppointments] = useState<any[]>([]);
@@ -156,6 +191,41 @@ export default function BookAppointment() {
     return () => { supabase.removeChannel(channel); };
   }, [user?.id, loadStudentAppointments]);
 
+  const loadCounselorAvailability = useCallback(async () => {
+    if (!selectedCounselor) {
+      setCounselorAvailability([]);
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from('availability')
+        .select('day, slots')
+        .eq('counselor_id', selectedCounselor);
+      setCounselorAvailability(data || []);
+    } catch (err) {
+      console.error('Failed to load counselor availability:', err);
+    }
+  }, [selectedCounselor]);
+
+  useEffect(() => {
+    loadCounselorAvailability();
+  }, [loadCounselorAvailability]);
+
+  // Realtime: refresh availability when counselor updates schedule
+  useEffect(() => {
+    if (!selectedCounselor) return;
+    const channel = supabase
+      .channel(`avail-${selectedCounselor}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'availability',
+        filter: `counselor_id=eq.${selectedCounselor}`,
+      }, () => loadCounselorAvailability())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedCounselor, loadCounselorAvailability]);
+
   const loadBookedSlots = useCallback(async () => {
     if (!selectedDate || !selectedCounselor) { setBookedSlots([]); return; }
     setIsSlotLoading(true);
@@ -188,15 +258,30 @@ export default function BookAppointment() {
 
   const isDateDisabled = useCallback((date: Date) => {
     if (isBefore(startOfDay(date), startOfDay(new Date())) || isWeekend(date)) return true;
-    if (isToday(date)) {
-      const lastSlot = TIME_SLOTS[TIME_SLOTS.length - 1];
-      const lastSlotTime = getSlotDateTime(date, lastSlot);
-      if (isBefore(lastSlotTime, new Date())) {
+
+    // Check counselor configured availability
+    if (counselorAvailability.length > 0) {
+      const dayName = format(date, 'EEEE');
+      const match = counselorAvailability.find(a => a.day.toLowerCase() === dayName.toLowerCase());
+      if (!match || !Array.isArray(match.slots) || match.slots.length === 0) {
         return true;
       }
     }
+
+    if (isToday(date)) {
+      const dayName = format(date, 'EEEE');
+      const match = counselorAvailability.find(a => a.day.toLowerCase() === dayName.toLowerCase());
+      const daySlots = (match && match.slots?.length > 0) ? match.slots : TIME_SLOTS;
+      const lastSlot = daySlots[daySlots.length - 1];
+      if (lastSlot) {
+        const lastSlotTime = getSlotDateTime(date, lastSlot);
+        if (isBefore(lastSlotTime, new Date())) {
+          return true;
+        }
+      }
+    }
     return false;
-  }, []);
+  }, [counselorAvailability]);
 
   const handleDateSelect = (d: Date | undefined) => {
     if (!d) {
@@ -231,24 +316,55 @@ export default function BookAppointment() {
       .map(a => a.time);
   }, [studentAppointments, selectedDateStr]);
 
+  const activeDaySlots = useMemo(() => {
+    if (!selectedDate) return TIME_SLOTS;
+    if (counselorAvailability.length > 0) {
+      const dayName = format(selectedDate, 'EEEE');
+      const match = counselorAvailability.find(a => a.day.toLowerCase() === dayName.toLowerCase());
+      if (match && Array.isArray(match.slots) && match.slots.length > 0) {
+        return match.slots;
+      }
+    }
+    return TIME_SLOTS;
+  }, [selectedDate, counselorAvailability]);
+
   const availableSlots = useMemo(() => {
-    return TIME_SLOTS.filter(s => {
+    return activeDaySlots.filter(s => {
       if (bookedSlots.includes(s)) return false;
       if (studentBookedTimesOnSelectedDate.includes(s)) return false;
       if (selectedDate && isSlotInPast(selectedDate, s)) return false;
       return true;
     });
-  }, [bookedSlots, studentBookedTimesOnSelectedDate, selectedDate]);
+  }, [activeDaySlots, bookedSlots, studentBookedTimesOnSelectedDate, selectedDate]);
+
+  const morningAvailableCount = useMemo(() => {
+    return MORNING_SLOTS.filter(s => availableSlots.includes(s)).length;
+  }, [availableSlots]);
+
+  const afternoonAvailableCount = useMemo(() => {
+    return AFTERNOON_SLOTS.filter(s => availableSlots.includes(s)).length;
+  }, [availableSlots]);
+
+  const isCrisisDetected = useMemo(() => {
+    const text = reason.toLowerCase();
+    return CRISIS_KEYWORDS.some(k => text.includes(k));
+  }, [reason]);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
 
   const canProceed = useCallback((step: Step): boolean => {
     switch (step) {
       case STEPS.DETAILS: return !!selectedCounselor && !!selectedSessionType;
       case STEPS.DATE: return !!selectedDate;
       case STEPS.TIME: return !!selectedTime && availableSlots.includes(selectedTime);
-      case STEPS.REASON: return reason.trim().length >= 10;
+      case STEPS.REASON: return reason.trim().length >= 10 && consentAgreed;
       default: return false;
     }
-  }, [selectedCounselor, selectedSessionType, selectedDate, selectedTime, reason, availableSlots]);
+  }, [selectedCounselor, selectedSessionType, selectedDate, selectedTime, reason, availableSlots, consentAgreed]);
 
   const next = () => {
     if (currentStep === STEPS.DATE && selectedDate) {
@@ -268,6 +384,7 @@ export default function BookAppointment() {
       setCurrentStep(prev => (prev + 1) as Step);
     }
   };
+
   const back = () => {
     if (currentStep > STEPS.DETAILS) setCurrentStep(prev => (prev - 1) as Step);
     else router.push('/student/appointments');
@@ -339,7 +456,14 @@ export default function BookAppointment() {
     setIsSubmitting(true);
     try {
       const counselor = counselors.find(c => c.id === selectedCounselor);
-      await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
+      const locationText = modality === 'online' 
+        ? 'Online (Google Meet — Link will be provided upon confirmation)' 
+        : 'Guidance Office — Room 302';
+
+      const tagsHeader = selectedTags.length > 0 ? `[Focus: ${selectedTags.join(', ')}]\n\n` : '';
+      const fullReason = `${tagsHeader}${reason.trim()}`;
+
+      const created = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: user?.id,
         studentName: user?.name,
         counselorId: selectedCounselor,
@@ -348,10 +472,12 @@ export default function BookAppointment() {
         time: selectedTime,
         type: selectedSessionType,
         status: APPOINTMENT_STATUS.PENDING,
-        location: 'Guidance Office - Room 302',
-        reason: reason.trim(),
+        location: locationText,
+        reason: fullReason,
         createdAt: new Date().toISOString(),
       });
+
+      setConfirmedAppointment(created);
       setCurrentStep(STEPS.CONFIRM);
     } catch {
       toast({ variant: 'destructive', title: 'Booking Failed', description: 'An error occurred. Please try again.' });
@@ -362,38 +488,72 @@ export default function BookAppointment() {
 
   const activeCounselor = counselors.find(c => c.id === selectedCounselor);
   const activeType = SESSION_TYPES.find(t => t.value === selectedSessionType);
+  const stepLabels = ['Session Details', 'Select Date', 'Choose Time', 'Intake & Consent', 'Confirmation'];
 
-  const stepLabels = ['Session Details', 'Select Date', 'Choose Time', 'Your Reason', 'Confirmation'];
+  const handleAddToGoogleCalendar = () => {
+    if (!selectedDate || !selectedTime) return;
+    const url = getGoogleCalendarUrl({
+      title: `USPF Guidance: ${selectedSessionType} with ${activeCounselor?.name || 'Counselor'}`,
+      description: `Guidance Consultation Session.\nCounselor: ${activeCounselor?.name}\nMode: ${modality === 'online' ? 'Online Google Meet' : 'In-Person (Room 302)'}\nReference: ${confirmedAppointment?.id ? `#USPF-GS-${confirmedAppointment.id.substring(0, 8).toUpperCase()}` : ''}`,
+      location: modality === 'online' ? 'Google Meet (Virtual)' : 'USPF Guidance Office - Room 302',
+      dateStr: format(selectedDate, 'yyyy-MM-dd'),
+      timeStr: selectedTime,
+      durationMinutes: 60,
+    });
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDownloadIcs = () => {
+    if (!selectedDate || !selectedTime) return;
+    downloadIcsFile({
+      title: `USPF Guidance: ${selectedSessionType} (${activeCounselor?.name || 'Counselor'})`,
+      description: `Guidance Consultation Session at University of Southern Philippines Foundation.\nCounselor: ${activeCounselor?.name}\nMode: ${modality === 'online' ? 'Online Google Meet' : 'In-Person (Room 302)'}`,
+      location: modality === 'online' ? 'Google Meet (Virtual)' : 'USPF Guidance Office - Room 302',
+      dateStr: format(selectedDate, 'yyyy-MM-dd'),
+      timeStr: selectedTime,
+      durationMinutes: 60,
+    }, `USPF-Guidance-${format(selectedDate, 'yyyyMMdd')}.ics`);
+  };
 
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="min-h-screen bg-slate-50/50 p-4 sm:p-8">
-          <div className="w-full">
-            <header className="mb-10">
+          <div className="w-full max-w-7xl mx-auto">
+            <header className="mb-8">
               {currentStep < STEPS.CONFIRM && (
                 <Button variant="ghost" onClick={back} className="mb-4 -ml-2 text-slate-500 hover:text-primary font-bold">
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
               )}
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight">Book a Session</h1>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Book Consultation</h1>
+                  <p className="text-sm text-slate-500 mt-1 font-medium">Schedule a confidential appointment with your designated college guidance counselor.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-white border border-slate-200/80 px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-600 shadow-sm w-fit">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span>RA 9258 / RA 10173 Protected</span>
+                </div>
+              </div>
+
               {currentStep < STEPS.CONFIRM && (
-                <div className="flex items-center gap-2 mt-4">
+                <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
                   {stepLabels.slice(0, 4).map((label, i) => (
                     <React.Fragment key={label}>
                       <div className={cn(
-                        'flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors',
-                        i + 1 === currentStep ? 'text-primary' : i + 1 < currentStep ? 'text-emerald-500' : 'text-slate-300'
+                        'flex items-center gap-2 text-[11px] font-black uppercase tracking-wider transition-colors shrink-0',
+                        i + 1 === currentStep ? 'text-primary' : i + 1 < currentStep ? 'text-emerald-600' : 'text-slate-300'
                       )}>
                         <div className={cn(
-                          'h-5 w-5 rounded-full flex items-center justify-center text-[9px]',
+                          'h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm',
                           i + 1 === currentStep ? 'bg-primary text-white' : i + 1 < currentStep ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
                         )}>
                           {i + 1 < currentStep ? '✓' : i + 1}
                         </div>
-                        <span className="hidden sm:inline">{label}</span>
+                        <span>{label}</span>
                       </div>
-                      {i < 3 && <div className="flex-1 h-px bg-slate-100 max-w-[40px]" />}
+                      {i < 3 && <div className="flex-1 h-0.5 bg-slate-200 min-w-[24px] max-w-[48px]" />}
                     </React.Fragment>
                   ))}
                 </div>
@@ -401,40 +561,125 @@ export default function BookAppointment() {
             </header>
 
             {currentStep === STEPS.CONFIRM ? (
-              <div className="max-w-md mx-auto text-center py-12">
-                <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6 ring-4 ring-emerald-100">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                </div>
-                <h2 className="text-3xl font-black text-slate-900 mb-3">Booking Submitted!</h2>
-                <p className="text-slate-500 font-medium mb-2">
-                  Your request for a <strong>{selectedSessionType}</strong> with <strong>{activeCounselor?.name}</strong> on <strong>{selectedDate && format(selectedDate, 'MMMM d, yyyy')}</strong> at <strong>{selectedTime}</strong> has been sent.
-                </p>
-                <p className="text-xs text-slate-400 font-medium mb-10">
-                  The counselor will review and confirm your request. You'll be notified once it's accepted.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button asChild className="bg-primary text-white font-black rounded-2xl h-12 px-8">
-                    <a href="/student/appointments">View My Appointments</a>
-                  </Button>
-                  <Button variant="outline" asChild className="font-bold rounded-2xl h-12 px-8 border-slate-200">
-                    <a href="/student/dashboard">Back to Dashboard</a>
-                  </Button>
-                </div>
+              /* Step 5: Official Digital Pass & Instant Calendar Sync */
+              <div className="max-w-xl mx-auto py-6">
+                <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden text-left">
+                  {/* Digital Pass Header */}
+                  <div className="bg-gradient-to-r from-primary to-emerald-700 p-8 text-white relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center font-black text-sm">
+                          GS
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-widest text-white/90">USPF GuidanceSync</span>
+                      </div>
+                      <Badge className="bg-white/20 hover:bg-white/30 text-white border-none font-bold text-[10px] uppercase tracking-wider">
+                        Consultation Pass
+                      </Badge>
+                    </div>
+
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-1">Appointment Submitted</h2>
+                    <p className="text-xs text-white/80 font-medium">
+                      Reference Code: <strong className="font-mono text-white text-sm">#USPF-GS-{(confirmedAppointment?.id || '2026').substring(0, 8).toUpperCase()}</strong>
+                    </p>
+                  </div>
+
+                  {/* Pass Body */}
+                  <CardContent className="p-8 space-y-6">
+                    <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/60 flex items-start gap-3">
+                      <Clock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-amber-800">Status: Pending Counselor Approval</p>
+                        <p className="text-xs text-amber-700 mt-0.5 leading-relaxed font-medium">
+                          Your appointment request has been transmitted. Your counselor will review and confirm this slot. You will see live updates on your dashboard.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned Counselor</p>
+                        <p className="text-sm font-bold text-slate-900">{activeCounselor?.name || 'USPF Counselor'}</p>
+                        <p className="text-[10px] text-slate-500">{activeCounselor?.department ? `${activeCounselor.department} Department` : 'Guidance Office'}</p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Session Type</p>
+                        <p className="text-sm font-bold text-slate-900">{selectedSessionType}</p>
+                        <p className="text-[10px] text-primary font-bold">Standard 60-min Consultation</p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Scheduled Date & Time</p>
+                        <p className="text-sm font-bold text-slate-900">{selectedDate && format(selectedDate, 'EEEE, MMM d, yyyy')}</p>
+                        <p className="text-xs font-bold text-primary">{selectedTime}</p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Consultation Modality</p>
+                        <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+                          {modality === 'online' ? <Video className="h-4 w-4 text-blue-600" /> : <Building2 className="h-4 w-4 text-emerald-600" />}
+                          <span>{modality === 'online' ? 'Online Tele-Counseling' : 'In-Person (Room 302)'}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          {modality === 'online' ? 'Google Meet link provided on confirmation' : 'Guidance Office, Main Campus'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Instant Calendar Integration */}
+                    <div className="pt-2 border-t border-slate-100 space-y-3">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-400">Save to Your Schedule</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={handleAddToGoogleCalendar}
+                          className="h-12 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center justify-center gap-2"
+                        >
+                          <CalendarCheck className="h-4 w-4 text-primary" />
+                          <span>Add to Google Calendar</span>
+                          <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                        </Button>
+
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={handleDownloadIcs}
+                          className="h-12 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center justify-center gap-2"
+                        >
+                          <Download className="h-4 w-4 text-emerald-600" />
+                          <span>Download .ics File</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                      <Button asChild className="flex-1 h-12 bg-primary hover:bg-primary/90 text-white font-black rounded-xl shadow-lg shadow-primary/20">
+                        <Link href="/student/appointments">View My Appointments</Link>
+                      </Button>
+                      <Button variant="ghost" asChild className="flex-1 h-12 rounded-xl font-bold text-slate-600 hover:bg-slate-100">
+                        <Link href="/student/dashboard">Return to Dashboard</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 <div className="lg:col-span-8 space-y-6">
 
-                  {/* Step 1: Counselor + Session Type */}
+                  {/* Step 1: Counselor, Modality + Session Type */}
                   {currentStep === STEPS.DETAILS && (
                     <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
-                        <CardTitle className="text-2xl font-black">Session Details</CardTitle>
-                        <p className="text-sm text-slate-400 font-medium mt-1">Choose your counselor and session type.</p>
+                        <CardTitle className="text-2xl font-black">1. Session Details</CardTitle>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Select your designated counselor, consultation format, and focus area.</p>
                       </CardHeader>
                       <div className="space-y-6">
+                        {/* Counselor Picker */}
                         <div className="space-y-3">
-                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Counselor</Label>
+                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Guidance Counselor</Label>
                           <Select value={selectedCounselor} onValueChange={setSelectedCounselor}>
                             <SelectTrigger className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold">
                               <SelectValue placeholder="Select a counselor..." />
@@ -449,8 +694,65 @@ export default function BookAppointment() {
                           </Select>
                         </div>
 
+                        {/* Consultation Modality Selection */}
                         <div className="space-y-3">
-                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Session Type</Label>
+                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Consultation Mode</Label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setModality('in-person')}
+                              className={cn(
+                                'p-4 rounded-2xl border-2 text-left transition-all flex items-start gap-3',
+                                modality === 'in-person'
+                                  ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+                                  : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                              )}
+                            >
+                              <div className={cn(
+                                'h-10 w-10 rounded-xl flex items-center justify-center shrink-0',
+                                modality === 'in-person' ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'
+                              )}>
+                                <Building2 className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm text-slate-900">In-Person Consultation</span>
+                                  {modality === 'in-person' && <span className="text-[10px] font-black uppercase text-primary">Active</span>}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">Guidance Office — Room 302, Main Campus</p>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setModality('online')}
+                              className={cn(
+                                'p-4 rounded-2xl border-2 text-left transition-all flex items-start gap-3',
+                                modality === 'online'
+                                  ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+                                  : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                              )}
+                            >
+                              <div className={cn(
+                                'h-10 w-10 rounded-xl flex items-center justify-center shrink-0',
+                                modality === 'online' ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'
+                              )}>
+                                <Video className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm text-slate-900">Virtual Tele-Counseling</span>
+                                  {modality === 'online' && <span className="text-[10px] font-black uppercase text-primary">Active</span>}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">Secure Google Meet video link provided upon confirmation</p>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Session Type */}
+                        <div className="space-y-3">
+                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Primary Session Category</Label>
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                             {SESSION_TYPES.map(({ value, label, icon: Icon, color }) => (
                               <button
@@ -483,17 +785,8 @@ export default function BookAppointment() {
                           </div>
                         </div>
 
-                        <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-3">
-                          <MapPin className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs font-black text-primary uppercase tracking-wider mb-0.5">Location</p>
-                            <p className="text-sm font-bold text-slate-700">Guidance Office — Room 302</p>
-                            <p className="text-[10px] text-slate-400 font-medium">In-person consultation</p>
-                          </div>
-                        </div>
-
-                        <Button size="lg" disabled={!canProceed(STEPS.DETAILS)} onClick={next} className="w-full h-14 rounded-2xl font-black">
-                          Continue to Date →
+                        <Button size="lg" disabled={!canProceed(STEPS.DETAILS)} onClick={next} className="w-full h-14 rounded-2xl font-black text-base shadow-lg shadow-primary/20">
+                          Continue to Select Date →
                         </Button>
                       </div>
                     </Card>
@@ -503,8 +796,23 @@ export default function BookAppointment() {
                   {currentStep === STEPS.DATE && (
                     <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
-                        <CardTitle className="text-2xl font-black">Select Date</CardTitle>
-                        <p className="text-sm text-slate-400 font-medium mt-1">Choose an available weekday.</p>
+                        <CardTitle className="text-2xl font-black">2. Select Consultation Date</CardTitle>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Select an active university working weekday. Weekends and passed dates are disabled.</p>
+                        {counselorAvailability.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2 mt-3 p-3 rounded-2xl bg-primary/5 border border-primary/10">
+                            <CalendarCheck className="h-4 w-4 text-primary shrink-0" />
+                            <span className="text-xs font-bold text-slate-700">
+                              Counselor's Active Consultation Days:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {counselorAvailability.map(a => (
+                                <Badge key={a.day} variant="outline" className="bg-white border-primary/20 text-primary font-bold text-[10px]">
+                                  {a.day}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </CardHeader>
                       <div className="flex flex-col items-center">
                         <Calendar
@@ -512,111 +820,262 @@ export default function BookAppointment() {
                           selected={selectedDate}
                           onSelect={handleDateSelect}
                           disabled={isDateDisabled}
-                          className="rounded-3xl border shadow-sm p-6"
+                          className="rounded-3xl border shadow-sm p-6 bg-white"
                         />
                         <div className="flex gap-4 w-full mt-8">
                           <Button variant="outline" size="lg" onClick={back} className="flex-1 h-14 rounded-2xl font-bold">Back</Button>
-                          <Button size="lg" disabled={!canProceed(STEPS.DATE)} onClick={next} className="flex-1 h-14 rounded-2xl font-black">Select Time →</Button>
+                          <Button size="lg" disabled={!canProceed(STEPS.DATE)} onClick={next} className="flex-1 h-14 rounded-2xl font-black">Continue to Time Slots →</Button>
                         </div>
                       </div>
                     </Card>
                   )}
 
-                  {/* Step 3: Time */}
+                  {/* Step 3: Time with Morning & Afternoon Grouping */}
                   {currentStep === STEPS.TIME && (
                     <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
-                      <CardHeader className="p-0 mb-8">
-                        <div className="flex items-center justify-between">
+                      <CardHeader className="p-0 mb-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div>
-                            <CardTitle className="text-2xl font-black">Choose Time</CardTitle>
+                            <CardTitle className="text-2xl font-black">3. Choose Available Time Slot</CardTitle>
                             <p className="text-sm text-slate-400 font-medium mt-1">
                               {selectedDate && format(selectedDate, 'EEEE, MMMM d, yyyy')}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 w-fit">
                             <Radio className="h-3 w-3 text-emerald-500 animate-pulse" />
-                            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Live Availability</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Real-time Slot Verification</span>
                           </div>
                         </div>
                       </CardHeader>
+
                       {isSlotLoading ? (
-                        <div className="h-32 flex items-center justify-center text-slate-300 font-bold text-sm">
-                          Loading available slots...
+                        <div className="h-40 flex items-center justify-center text-slate-400 font-bold text-sm">
+                          Checking live counselor availability...
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                          {TIME_SLOTS.map(slot => {
-                            const takenByCounselor = bookedSlots.includes(slot);
-                            const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
-                            const isPast = selectedDate ? isSlotInPast(selectedDate, slot) : false;
-                            const isUnavailable = takenByCounselor || takenByStudent || isPast;
-                            return (
-                              <button
-                                key={slot}
-                                type="button"
-                                disabled={isUnavailable}
-                                onClick={() => !isUnavailable && setSelectedTime(slot)}
-                                className={cn(
-                                  'h-16 rounded-2xl font-bold text-sm border-2 transition-all flex flex-col items-center justify-center gap-0.5',
-                                  isUnavailable
-                                    ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
-                                    : selectedTime === slot
-                                      ? 'border-primary bg-primary text-white shadow-lg shadow-primary/25'
-                                      : 'border-slate-100 bg-white text-slate-700 hover:border-primary/40 hover:shadow-sm'
-                                )}
-                              >
-                                <span className={isUnavailable ? 'text-slate-400' : ''}>{slot}</span>
-                                {isPast ? (
-                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Past Time</span>
-                                ) : takenByStudent ? (
-                                  <span className="text-[8px] font-black uppercase tracking-wider text-amber-500">Your Session</span>
-                                ) : takenByCounselor ? (
-                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Already Booked</span>
-                                ) : selectedTime === slot ? (
-                                  <span className="text-[8px] font-black uppercase tracking-wider text-white">Selected</span>
-                                ) : null}
-                              </button>
-                            );
-                          })}
+                        <div className="space-y-6">
+                          {/* Morning Section */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-700">
+                                <Sunrise className="h-4 w-4 text-amber-500" />
+                                <span>Morning Window (9:00 AM – 12:00 PM)</span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400">{morningAvailableCount} available</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {MORNING_SLOTS.map(slot => {
+                                const isOffered = activeDaySlots.includes(slot);
+                                const takenByCounselor = bookedSlots.includes(slot);
+                                const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
+                                const isPast = selectedDate ? isSlotInPast(selectedDate, slot) : false;
+                                const isUnavailable = !isOffered || takenByCounselor || takenByStudent || isPast;
+                                return (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    disabled={isUnavailable}
+                                    onClick={() => !isUnavailable && setSelectedTime(slot)}
+                                    className={cn(
+                                      'h-16 rounded-2xl font-bold text-sm border-2 transition-all flex flex-col items-center justify-center gap-0.5',
+                                      isUnavailable
+                                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                                        : selectedTime === slot
+                                          ? 'border-primary bg-primary text-white shadow-lg shadow-primary/25'
+                                          : 'border-slate-100 bg-white text-slate-700 hover:border-primary/40 hover:shadow-sm'
+                                    )}
+                                  >
+                                    <span className={isUnavailable ? 'text-slate-400' : ''}>{slot}</span>
+                                    {!isOffered ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-300">Off-duty</span>
+                                    ) : isPast ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Past Time</span>
+                                    ) : takenByStudent ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-amber-500">Your Session</span>
+                                    ) : takenByCounselor ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Booked</span>
+                                    ) : selectedTime === slot ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-white">Selected</span>
+                                    ) : (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-emerald-600">Available</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Afternoon Section */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-700">
+                                <Sun className="h-4 w-4 text-orange-500" />
+                                <span>Afternoon Window (1:00 PM – 5:00 PM)</span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400">{afternoonAvailableCount} available</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {AFTERNOON_SLOTS.map(slot => {
+                                const isOffered = activeDaySlots.includes(slot);
+                                const takenByCounselor = bookedSlots.includes(slot);
+                                const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
+                                const isPast = selectedDate ? isSlotInPast(selectedDate, slot) : false;
+                                const isUnavailable = !isOffered || takenByCounselor || takenByStudent || isPast;
+                                return (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    disabled={isUnavailable}
+                                    onClick={() => !isUnavailable && setSelectedTime(slot)}
+                                    className={cn(
+                                      'h-16 rounded-2xl font-bold text-sm border-2 transition-all flex flex-col items-center justify-center gap-0.5',
+                                      isUnavailable
+                                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                                        : selectedTime === slot
+                                          ? 'border-primary bg-primary text-white shadow-lg shadow-primary/25'
+                                          : 'border-slate-100 bg-white text-slate-700 hover:border-primary/40 hover:shadow-sm'
+                                    )}
+                                  >
+                                    <span className={isUnavailable ? 'text-slate-400' : ''}>{slot}</span>
+                                    {!isOffered ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-300">Off-duty</span>
+                                    ) : isPast ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Past Time</span>
+                                    ) : takenByStudent ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-amber-500">Your Session</span>
+                                    ) : takenByCounselor ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Booked</span>
+                                    ) : selectedTime === slot ? (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-white">Selected</span>
+                                    ) : (
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-emerald-600">Available</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       )}
-                      <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider mt-4">
-                        {availableSlots.length} of {TIME_SLOTS.length} slots available
-                      </p>
-                      <div className="flex gap-4 w-full mt-6">
+
+                      <div className="flex gap-4 w-full mt-8">
                         <Button variant="outline" size="lg" onClick={back} className="flex-1 h-14 rounded-2xl font-bold">Back</Button>
-                        <Button size="lg" disabled={!canProceed(STEPS.TIME)} onClick={next} className="flex-1 h-14 rounded-2xl font-black">Add Reason →</Button>
+                        <Button size="lg" disabled={!canProceed(STEPS.TIME)} onClick={next} className="flex-1 h-14 rounded-2xl font-black">Continue to Intake & Consent →</Button>
                       </div>
                     </Card>
                   )}
 
-                  {/* Step 4: Reason */}
+                  {/* Step 4: Intake, Concern Tags & Informed Consent */}
                   {currentStep === STEPS.REASON && (
                     <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
-                      <CardHeader className="p-0 mb-8">
-                        <CardTitle className="text-2xl font-black">Session Goal</CardTitle>
-                        <p className="text-sm text-slate-400 font-medium mt-1">Help your counselor prepare for your session.</p>
+                      <CardHeader className="p-0 mb-6">
+                        <CardTitle className="text-2xl font-black">4. Intake Goals & Consent</CardTitle>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Provide background information to help your counselor prepare an effective session.</p>
                       </CardHeader>
                       <div className="space-y-6">
-                        <div className="space-y-3">
-                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">What's on your mind?</Label>
+                        {/* Quick Tags */}
+                        <div className="space-y-2.5">
+                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                            <Tag className="h-3.5 w-3.5 text-primary" />
+                            <span>Select Focus Tags (Optional)</span>
+                          </Label>
+                          <div className="flex flex-wrap gap-2">
+                            {QUICK_CONCERN_TAGS.map(tag => {
+                              const isSelected = selectedTags.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => toggleTag(tag)}
+                                  className={cn(
+                                    'px-3 py-1.5 rounded-full text-xs font-bold transition-all border',
+                                    isSelected
+                                      ? 'bg-primary text-white border-primary shadow-sm'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  )}
+                                >
+                                  {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Reason Textarea */}
+                        <div className="space-y-2">
+                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">
+                            What would you like to discuss? <span className="text-red-500">*</span>
+                          </Label>
                           <Textarea
-                            placeholder="Describe what you'd like to discuss or get help with..."
-                            className="min-h-[180px] rounded-3xl border-slate-100 bg-slate-50 p-6 font-medium resize-none"
+                            placeholder="Briefly describe what you're currently experiencing, challenges you're facing, or specific guidance you seek..."
+                            className="min-h-[140px] rounded-2xl border-slate-200 bg-slate-50/50 p-4 font-medium resize-none text-slate-800 text-sm focus-visible:ring-1"
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                           />
-                          <p className="text-[10px] text-slate-300 font-bold text-right">{reason.length} chars (min. 10)</p>
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                            <span>Minimum 10 characters required</span>
+                            <span className={reason.length >= 10 ? 'text-emerald-600' : 'text-slate-400'}>{reason.length} chars</span>
+                          </div>
                         </div>
+
+                        {/* Crisis Triage Safety Card */}
+                        {isCrisisDetected && (
+                          <div className="p-5 rounded-2xl bg-red-50 border-2 border-red-200 text-red-900 space-y-3 animate-in fade-in">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <p className="text-sm font-bold">You are not alone. Immediate support is available right now.</p>
+                                <p className="text-xs text-red-700 leading-relaxed font-medium">
+                                  If you are experiencing severe distress or thoughts of self-harm, please reach out directly for immediate support:
+                                </p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-bold">
+                              <div className="p-3 rounded-xl bg-white border border-red-200 flex items-center gap-2.5">
+                                <Phone className="h-4 w-4 text-red-600 shrink-0" />
+                                <div>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase">National Crisis Hotline</p>
+                                  <p className="text-red-700 font-mono font-bold">1553 (Toll-Free) or 0917-899-8727</p>
+                                </div>
+                              </div>
+                              <div className="p-3 rounded-xl bg-white border border-red-200 flex items-center gap-2.5">
+                                <MapPin className="h-4 w-4 text-red-600 shrink-0" />
+                                <div>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase">USPF Clinic & Guidance</p>
+                                  <p className="text-red-700 font-bold">Room 302 / Tel: (032) 414-8773</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Mandatory Informed Consent & Confidentiality Checkbox */}
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Checkbox 
+                              id="consent-check" 
+                              checked={consentAgreed} 
+                              onCheckedChange={(checked) => setConsentAgreed(Boolean(checked))}
+                              className="mt-1 data-[state=checked]:bg-primary"
+                            />
+                            <label htmlFor="consent-check" className="text-xs text-slate-700 leading-relaxed font-medium cursor-pointer select-none">
+                              <strong className="text-slate-900 block font-bold mb-0.5">Informed Consent & Confidentiality Agreement</strong>
+                              I understand that all counseling consultations are confidential in accordance with the <strong>Guidance and Counseling Act of 2004 (RA 9258)</strong> and the <strong>Data Privacy Act of 2012 (RA 10173)</strong>. Exceptions to confidentiality are legally mandated only in circumstances involving imminent risk of harm to myself or others.
+                            </label>
+                          </div>
+                        </div>
+
                         <div className="flex gap-4">
                           <Button variant="outline" size="lg" onClick={back} className="flex-1 h-14 rounded-2xl font-bold">Back</Button>
                           <Button
                             size="lg"
                             disabled={!canProceed(STEPS.REASON) || isSubmitting}
                             onClick={handleBooking}
-                            className="flex-1 h-14 rounded-2xl font-black bg-emerald-600 hover:bg-emerald-700"
+                            className="flex-1 h-14 rounded-2xl font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 text-base"
                           >
-                            {isSubmitting ? 'Submitting...' : 'Confirm Booking'}
+                            {isSubmitting ? 'Submitting Request...' : 'Confirm & Submit Booking'}
                           </Button>
                         </div>
                       </div>
@@ -629,51 +1088,62 @@ export default function BookAppointment() {
                   <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden sticky top-8">
                     <div className="p-8 bg-primary text-white">
                       <h3 className="text-xl font-black mb-1">Booking Summary</h3>
-                      <p className="text-[10px] uppercase font-bold text-white/60 tracking-widest">Your Selections</p>
+                      <p className="text-[10px] uppercase font-bold text-white/60 tracking-widest">Active Selections</p>
                     </div>
-                    <CardContent className="p-8 space-y-6">
+                    <CardContent className="p-8 space-y-5">
                       <div className="flex gap-4">
                         <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-primary shrink-0"><User className="h-5 w-5" /></div>
                         <div>
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Counselor</p>
-                          <p className="font-bold text-slate-900">{activeCounselor?.name || '—'}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Counselor</p>
+                          <p className="font-bold text-slate-900 text-sm">{activeCounselor?.name || '—'}</p>
                         </div>
                       </div>
+
                       {selectedSessionType && (
                         <div className="flex gap-4">
                           <div className={cn('h-10 w-10 rounded-xl flex items-center justify-center shrink-0', activeType?.color ?? 'bg-slate-50 text-primary')}>
                             {activeType && <activeType.icon className="h-5 w-5" />}
                           </div>
                           <div>
-                            <p className="text-[10px] font-black text-slate-300 uppercase">Session Type</p>
-                            <p className="font-bold text-slate-900">{selectedSessionType}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Session Type</p>
+                            <p className="font-bold text-slate-900 text-sm">{selectedSessionType}</p>
                           </div>
                         </div>
                       )}
+
+                      <div className="flex gap-4">
+                        <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-primary shrink-0">
+                          {modality === 'online' ? <Video className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Modality</p>
+                          <p className="font-bold text-slate-900 text-sm">
+                            {modality === 'online' ? 'Online (Google Meet)' : 'In-Person (Room 302)'}
+                          </p>
+                        </div>
+                      </div>
+
                       <div className="flex gap-4">
                         <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-primary shrink-0"><CalendarDays className="h-5 w-5" /></div>
                         <div>
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Date</p>
-                          <p className="font-bold text-slate-900">{selectedDate ? format(selectedDate, 'MMM dd, yyyy') : '—'}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Date</p>
+                          <p className="font-bold text-slate-900 text-sm">{selectedDate ? format(selectedDate, 'MMM dd, yyyy') : '—'}</p>
                         </div>
                       </div>
+
                       <div className="flex gap-4">
                         <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-primary shrink-0"><Clock className="h-5 w-5" /></div>
                         <div>
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Time</p>
-                          <p className="font-bold text-slate-900">{selectedTime || '—'}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Time Slot</p>
+                          <p className="font-bold text-slate-900 text-sm">{selectedTime || '—'}</p>
                         </div>
                       </div>
-                      <div className="flex gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-primary shrink-0"><MapPin className="h-5 w-5" /></div>
-                        <div>
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Location</p>
-                          <p className="font-bold text-slate-900">Room 302</p>
-                        </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <Badge className="w-full justify-center bg-amber-50 text-amber-700 border-amber-200 font-black text-[10px] uppercase tracking-wider py-2">
+                          Pending Counselor Approval
+                        </Badge>
                       </div>
-                      <Badge className="w-full justify-center bg-amber-50 text-amber-700 border-amber-100 font-black text-[10px] uppercase tracking-wider py-2">
-                        Pending Counselor Approval
-                      </Badge>
                     </CardContent>
                   </Card>
                 </div>
@@ -682,7 +1152,7 @@ export default function BookAppointment() {
           </div>
         </div>
 
-        {/* Appointment Conflict / Limit Warning Modal */}
+        {/* Appointment Conflict Warning Modal */}
         <Dialog open={isConflictModalOpen} onOpenChange={setIsConflictModalOpen}>
           <DialogContent className="max-w-md p-6 sm:p-8 rounded-[2rem] border-none shadow-2xl bg-white animate-in fade-in-50 zoom-in-95 duration-200">
             <DialogHeader className="flex flex-col items-center text-center pb-2">

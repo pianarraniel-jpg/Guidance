@@ -33,6 +33,9 @@ import {
   Radio,
   AlertTriangle,
   Play,
+  CalendarCheck,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
@@ -40,7 +43,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
-import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
+import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
 
 
 type TabKey = 'upcoming' | 'history' | 'all';
@@ -562,6 +565,55 @@ export default function StudentAppointments() {
                   )}
                 </div>
               )}
+                {(selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                      <CalendarCheck className="h-4 w-4 text-primary" />
+                      <span>Save to Calendar</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (!selectedApp?.date || !selectedApp?.time) return;
+                          const url = getGoogleCalendarUrl({
+                            title: `USPF Guidance: ${selectedApp.type} (${selectedApp.counselorName || 'Counselor'})`,
+                            description: `Guidance Consultation Session.\nCounselor: ${selectedApp.counselorName}\nLocation: ${selectedApp.location || 'Room 302'}`,
+                            location: selectedApp.location || 'USPF Guidance Office - Room 302',
+                            dateStr: selectedApp.date,
+                            timeStr: selectedApp.time,
+                          });
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="h-8 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-lg px-2.5"
+                      >
+                        Google Cal
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (!selectedApp?.date || !selectedApp?.time) return;
+                          downloadIcsFile({
+                            title: `USPF Guidance: ${selectedApp.type} (${selectedApp.counselorName || 'Counselor'})`,
+                            description: `Guidance Consultation Session.\nCounselor: ${selectedApp.counselorName}\nLocation: ${selectedApp.location || 'Room 302'}`,
+                            location: selectedApp.location || 'USPF Guidance Office - Room 302',
+                            dateStr: selectedApp.date,
+                            timeStr: selectedApp.time,
+                          }, `USPF-Guidance-${selectedApp.date}.ics`);
+                        }}
+                        className="h-8 text-[11px] font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg px-2.5"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        .ics
+                      </Button>
+                    </div>
+                  </div>
+                )}
               <div className="flex gap-3 pt-2">
                 {(selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
                   <>

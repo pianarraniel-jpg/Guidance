@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Shield, Mail, Terminal, Building2, UserCheck, Lock } from 'lucide-react';
+import { LogOut, Shield, Mail, Terminal, Building2, UserCheck, CalendarClock } from 'lucide-react';
+import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
 
 export default function CounselorSettings() {
   const { user, logout } = useAuth();
@@ -65,6 +66,28 @@ export default function CounselorSettings() {
             </div>
 
             <p className="text-xs text-muted-foreground pt-2">Guidance Office • University of Southern Philippines Foundation</p>
+          </CardContent>
+        </Card>
+
+        {/* Weekly Consultation Availability */}
+        <Card className="border-none shadow-sm bg-white overflow-hidden">
+          <CardHeader className="border-b bg-slate-50/50">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <CalendarClock className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-900">
+                  Consultation Availability & Working Hours
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500">
+                  Control which weekdays and specific hour slots are open for student bookings and intake.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <CounselorAvailabilityManager />
           </CardContent>
         </Card>
 

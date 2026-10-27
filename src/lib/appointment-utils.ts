@@ -86,3 +86,79 @@ export async function autoExpirePassedAppointments(appointments: any[]): Promise
 
   return updatedList;
 }
+
+export interface CalendarEventInfo {
+  title: string;
+  description?: string;
+  location?: string;
+  dateStr: string; // 'YYYY-MM-DD'
+  timeStr: string; // '09:00 AM'
+  durationMinutes?: number;
+}
+
+export function parseSlotToDates(dateStr: string, timeStr: string, durationMinutes = 60): { start: Date; end: Date } {
+  const [timePart, modifier] = timeStr.split(' ');
+  let [hours, minutes] = timePart.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const start = new Date(year, month - 1, day, hours, minutes || 0, 0);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  return { start, end };
+}
+
+export function getGoogleCalendarUrl(info: CalendarEventInfo): string {
+  try {
+    const { start, end } = parseSlotToDates(info.dateStr, info.timeStr, info.durationMinutes || 60);
+    const toGCalFormat = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+    const dates = `${toGCalFormat(start)}/${toGCalFormat(end)}`;
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: info.title,
+      details: info.description || 'USPF GuidanceSync Counseling Consultation',
+      location: info.location || 'Guidance Office - Room 302',
+      dates,
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  } catch {
+    return 'https://calendar.google.com';
+  }
+}
+
+export function downloadIcsFile(info: CalendarEventInfo, filename = 'guidance-session.ics'): void {
+  try {
+    const { start, end } = parseSlotToDates(info.dateStr, info.timeStr, info.durationMinutes || 60);
+    const toIcsFormat = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//USPF GuidanceSync//Counseling Appointment//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${Date.now()}@uspf.edu.ph`,
+      `DTSTAMP:${toIcsFormat(new Date())}`,
+      `DTSTART:${toIcsFormat(start)}`,
+      `DTEND:${toIcsFormat(end)}`,
+      `SUMMARY:${info.title.replace(/\n/g, ' ')}`,
+      `DESCRIPTION:${(info.description || '').replace(/\n/g, '\\n')}`,
+      `LOCATION:${(info.location || 'Guidance Office - Room 302').replace(/\n/g, ' ')}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Failed to download .ics file:', err);
+  }
+}

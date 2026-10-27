@@ -83,6 +83,7 @@ export default function RescheduleModal({
   const [counselorBookedSlots, setCounselorBookedSlots] = useState<string[]>([]);
   const [studentBookedSlots, setStudentBookedSlots] = useState<string[]>([]);
   const [studentDailyCount, setStudentDailyCount] = useState(0);
+  const [counselorAvailability, setCounselorAvailability] = useState<{ day: string; slots: string[] }[]>([]);
 
   // Initialize state when appointment changes or modal opens
   useEffect(() => {
@@ -100,6 +101,7 @@ export default function RescheduleModal({
       setCounselorBookedSlots([]);
       setStudentBookedSlots([]);
       setStudentDailyCount(0);
+      setCounselorAvailability([]);
       return;
     }
 
@@ -111,15 +113,22 @@ export default function RescheduleModal({
       // 1. Check Counselor Booked Slots on this date (excluding current appointment)
       let counselorTaken: string[] = [];
       if (counselorId) {
-        const { data: cData } = await supabase
-          .from('appointments')
-          .select('id, time, status')
-          .eq('counselor_id', counselorId)
-          .eq('date', dateStr)
-          .neq('id', appointment.id)
-          .neq('status', APPOINTMENT_STATUS.CANCELLED);
+        const [cRes, aRes] = await Promise.all([
+          supabase
+            .from('appointments')
+            .select('id, time, status')
+            .eq('counselor_id', counselorId)
+            .eq('date', dateStr)
+            .neq('id', appointment.id)
+            .neq('status', APPOINTMENT_STATUS.CANCELLED),
+          supabase
+            .from('availability')
+            .select('day, slots')
+            .eq('counselor_id', counselorId),
+        ]);
 
-        counselorTaken = (cData ?? []).map((a: any) => a.time);
+        counselorTaken = (cRes.data ?? []).map((a: any) => a.time);
+        setCounselorAvailability(aRes.data ?? []);
       }
 
       // 2. Check Student Booked Slots & Count on this date (excluding current appointment)
@@ -186,6 +195,21 @@ export default function RescheduleModal({
     if (studentBookedSlots.includes(slot)) return { available: false, label: 'Student conflicting' };
     if (isDailyLimitReached) return { available: false, label: 'Daily limit reached' };
 
+    if (counselorAvailability.length > 0) {
+      try {
+        const dayName = format(parseISO(newDate), 'EEEE');
+        const match = counselorAvailability.find(a => a.day.toLowerCase() === dayName.toLowerCase());
+        if (!match || !Array.isArray(match.slots) || match.slots.length === 0) {
+          return { available: false, label: 'Counselor off this day' };
+        }
+        if (!match.slots.includes(slot)) {
+          return { available: false, label: 'Counselor off-duty' };
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     const isCurrent = appointment?.date === newDate && appointment?.time === slot;
     return { available: true, label: isCurrent ? 'Current slot' : 'Available' };
   };
@@ -196,7 +220,7 @@ export default function RescheduleModal({
     if (isDailyLimitReached) return false;
     const status = getSlotStatus(newTime);
     return status.available;
-  }, [newDate, newTime, isWeekendSelected, isPastDateSelected, isDailyLimitReached, counselorBookedSlots, studentBookedSlots]);
+  }, [newDate, newTime, isWeekendSelected, isPastDateSelected, isDailyLimitReached, counselorBookedSlots, studentBookedSlots, counselorAvailability]);
 
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
