@@ -1177,7 +1177,6 @@ export default function CounselorStudentsPage() {
               </div>
             </div>
           </div>
-          </div>
           </DialogContent>
         </Dialog>
       </div>
