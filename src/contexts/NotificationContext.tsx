@@ -5,6 +5,11 @@ import { supabase } from '@/lib/supabase';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  buildCounselorBookingBellPayload,
+  buildStudentAppointmentBellPayload,
+  type BookingNotificationPayload,
+} from '@/lib/booking-notifications';
 
 export type NotificationType = 'appointment' | 'assessment' | 'message';
 
@@ -67,16 +72,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (isCounselor) {
       const appointments = await storageService.getCounselorPendingAppointments();
       appointments.forEach(a => {
-        const id = `apt-${a.id}`;
-        alerts.push({
-          id, type: 'appointment',
-          title: 'New Booking Request',
-          description: `${a.studentName} requested a session for ${a.date}`,
-          timestamp: new Date(a.createdAt || Date.now()).getTime(),
-          link: '/counselor/appointments',
-          studentName: a.studentName,
-          isRead: readSet.has(id),
-        });
+        const booking = a as BookingNotificationPayload;
+        const id = `apt-${booking.id}`;
+        alerts.push(buildCounselorBookingBellPayload(booking, readSet.has(id)));
       });
 
       const assessments = await storageService.getSubmittedAssessments();
@@ -123,16 +121,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       appointments
         .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.CANCELLED)
         .forEach(a => {
-          const id = `apt-status-${a.id}-${a.status}`;
-          alerts.push({
-            id, type: 'appointment',
-            title: a.status === APPOINTMENT_STATUS.CONFIRMED ? 'Session Confirmed' : 'Session Cancelled',
-            description: `Your session with Dr. ${a.counselorName?.split(' ').pop()} for ${a.date} is ${a.status}.`,
-            timestamp: new Date(a.createdAt || Date.now()).getTime(),
-            link: '/student/appointments',
-            studentName: 'You',
-            isRead: readSet.has(id),
-          });
+          const booking = a as BookingNotificationPayload;
+          const id = `apt-status-${booking.id}-${booking.status}`;
+          alerts.push(buildStudentAppointmentBellPayload(booking, readSet.has(id)));
         });
 
       const assessments = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);

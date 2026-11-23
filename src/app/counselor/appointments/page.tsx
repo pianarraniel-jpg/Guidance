@@ -73,6 +73,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
 import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
 import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
+import { buildBookingEmailPayload, type BookingNotificationPayload } from '@/lib/booking-notifications';
+import { sendBookingConfirmationEmail } from '@/lib/emailjs-booking';
 
 const SESSION_TYPES = [
   { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
@@ -247,6 +249,8 @@ export default function CounselorAppointmentsPage() {
         ? 'Online (Google Meet)'
         : (bookingLocation.trim() || 'Guidance Office — Room 302');
 
+      const createdAt = new Date().toISOString();
+
       const newAppointment = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: bookingStudentId,
         studentName: selectedStudent.name,
@@ -258,10 +262,33 @@ export default function CounselorAppointmentsPage() {
         status: APPOINTMENT_STATUS.CONFIRMED,
         location: finalLocation,
         reason: bookingReason.trim(),
-        createdAt: new Date().toISOString(),
+        createdAt: createdAt,
       });
 
       setAppointments(prev => [newAppointment as any, ...prev]);
+
+      const emailBooking: BookingNotificationPayload = buildBookingEmailPayload({
+        id: newAppointment.id,
+        studentId: bookingStudentId,
+        studentName: selectedStudent.name,
+        counselorId: counselor?.id,
+        counselorName: counselor?.name,
+        date: bookingDate,
+        time: bookingTime,
+        type: bookingType,
+        status: APPOINTMENT_STATUS.CONFIRMED,
+        location: finalLocation,
+        reason: bookingReason.trim(),
+        createdAt: createdAt,
+      });
+
+      void sendBookingConfirmationEmail(emailBooking, {
+        email: selectedStudent.email || '',
+        name: selectedStudent.name,
+      }).catch((error) => {
+        console.error('[EmailJS] Booking confirmation email failed:', error);
+      });
+
 
       toast({
         title: "Appointment Booked!",

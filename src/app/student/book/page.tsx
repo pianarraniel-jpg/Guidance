@@ -63,6 +63,8 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import AcademicClassificationModal from '@/components/student/AcademicClassificationModal';
 import { isAcademicClassificationComplete } from '@/lib/profile-utils';
+import { buildBookingEmailPayload, type BookingNotificationPayload } from '@/lib/booking-notifications';
+import { sendBookingConfirmationEmail } from '@/lib/emailjs-booking';
 
 const SESSION_TYPES = [
   { value: 'Wellness Check-in', label: 'Wellness Check-in', icon: Heart, color: 'text-emerald-500 bg-emerald-50' },
@@ -478,6 +480,7 @@ export default function BookAppointment() {
 
       const tagsHeader = selectedTags.length > 0 ? `[Focus: ${selectedTags.join(', ')}]\n\n` : '';
       const fullReason = `${tagsHeader}${reason.trim()}`;
+      const createdAt = new Date().toISOString();
 
       const created = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: user?.id,
@@ -490,11 +493,33 @@ export default function BookAppointment() {
         status: APPOINTMENT_STATUS.PENDING,
         location: locationText,
         reason: fullReason,
-        createdAt: new Date().toISOString(),
+        createdAt,
       });
 
       setConfirmedAppointment(created);
       setCurrentStep(STEPS.CONFIRM);
+
+      const emailBooking: BookingNotificationPayload = buildBookingEmailPayload({
+        id: created.id,
+        studentId: user?.id || '',
+        studentName: user?.name || 'Student',
+        counselorId: selectedCounselor,
+        counselorName: counselor?.name,
+        date: dateStr,
+        time: selectedTime,
+        type: selectedSessionType,
+        status: APPOINTMENT_STATUS.PENDING,
+        location: locationText,
+        reason: fullReason,
+        createdAt: createdAt,
+      });
+
+      void sendBookingConfirmationEmail(emailBooking, {
+        email: user?.email || '',
+        name: user?.name || 'Student',
+      }).catch((error) => {
+        console.error('[EmailJS] Booking confirmation email failed:', error);
+      });
     } catch {
       toast({ variant: 'destructive', title: 'Booking Failed', description: 'An error occurred. Please try again.' });
     } finally {
