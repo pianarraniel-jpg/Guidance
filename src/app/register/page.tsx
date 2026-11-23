@@ -66,8 +66,8 @@ export default function StudentRegisterPage() {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail.endsWith('@uspf.edu.ph')) {
-      setError('Only official USPF university emails (@uspf.edu.ph) are permitted.');
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address.');
       return;
     }
 
@@ -172,7 +172,7 @@ export default function StudentRegisterPage() {
                 <div className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
                   <CheckCircle2 className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium opacity-90">Instant login with your Student ID or University Email</p>
+                <p className="text-sm font-medium opacity-90">Instant login with your Student ID or Email</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -280,20 +280,19 @@ export default function StudentRegisterPage() {
               </div>
             </div>
 
-            {/* University Email */}
+            {/* Email */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  University Email <span className="text-red-500">*</span>
+                  Email <span className="text-red-500">*</span>
                 </Label>
-                <span className="text-[11px] font-semibold text-primary">@uspf.edu.ph</span>
               </div>
               <div className="relative group">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="jdelacruz@uspf.edu.ph"
+                  placeholder="name@example.com"
                   className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50/50 focus-visible:ring-primary/20 font-medium text-sm"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

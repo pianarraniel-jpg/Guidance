@@ -87,9 +87,9 @@ export default function GoogleSsoModal({
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-primary" />
-                <span>University Email</span>
+                <span>Email</span>
               </span>
-              <span className="text-slate-400 font-semibold text-[11px]">name@uspf.edu.ph</span>
+              <span className="text-slate-400 font-semibold text-[11px]">name@example.com</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-2">

@@ -199,8 +199,8 @@ export default function CounselorStudentsPage() {
       setIsEnrollSubmitting(false);
       return;
     }
-    if (!email.endsWith('@uspf.edu.ph')) {
-      setEnrollError('Email must use the @uspf.edu.ph domain.');
+    if (!email.includes('@') || !email.includes('.')) {
+      setEnrollError('Please enter a valid email address.');
       setIsEnrollSubmitting(false);
       return;
     }
@@ -498,8 +498,8 @@ export default function CounselorStudentsPage() {
                   <Input placeholder="Juan Dela Cruz" value={enrollName} onChange={e => setEnrollName(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">University Email <span className="text-red-500">*</span></Label>
-                  <Input type="email" placeholder="student@uspf.edu.ph" value={enrollEmail} onChange={e => setEnrollEmail(e.target.value)} required />
+                  <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Email <span className="text-red-500">*</span></Label>
+                  <Input type="email" placeholder="student@example.com" value={enrollEmail} onChange={e => setEnrollEmail(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Student ID <span className="text-red-500">*</span></Label>
@@ -728,12 +728,12 @@ export default function CounselorStudentsPage() {
           <Table>
             <TableHeader className="bg-slate-50/50">
               <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16 pl-8">Student</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">ID Number</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">College & Program</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">Year</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16">Wellness</TableHead>
-                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-widest h-16 pr-8 text-right">Action</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16 pl-8">Student</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16">ID Number</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16">College & Program</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16">Year</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16">Wellness</TableHead>
+                <TableHead className="font-bold text-slate-400 text-[10px] uppercase tracking-wider h-16 pr-8 text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1176,9 +1176,8 @@ export default function CounselorStudentsPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }

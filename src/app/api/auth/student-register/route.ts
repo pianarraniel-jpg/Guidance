@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Student ID Number is required.' }, { status: 400 });
     }
     if (!email?.trim()) {
-      return NextResponse.json({ error: 'University email is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Email address is required.' }, { status: 400 });
     }
     if (!department?.trim()) {
       return NextResponse.json({ error: 'Please select your department / college.' }, { status: 400 });
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     const cleanProgram = program?.trim() || null;
     const cleanYearLevel = yearLevel?.trim() || null;
 
-    // 2. University Email domain verification (@uspf.edu.ph)
-    if (!cleanEmail.endsWith('@uspf.edu.ph')) {
+    // 2. Validate that an email address was provided
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       return NextResponse.json(
-        { error: 'Only official university email addresses ending with @uspf.edu.ph are permitted.' },
+        { error: 'Please enter a valid email address.' },
         { status: 400 }
       );
     }

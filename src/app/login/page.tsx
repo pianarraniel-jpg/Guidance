@@ -94,7 +94,7 @@ export default function LoginPage() {
           router.push('/student/dashboard');
         }
       } else {
-        setError(res.error || 'Invalid credentials. Please verify your university email and password.');
+        setError(res.error || 'Invalid credentials. Please verify your email and password.');
       }
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred during authentication.');
@@ -241,7 +241,7 @@ export default function LoginPage() {
           <Tabs defaultValue="standard" className="w-full mb-6">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-100/80 p-1 rounded-2xl">
               <TabsTrigger value="standard" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-xs py-2">
-                University Email
+                Email
               </TabsTrigger>
               <TabsTrigger value="id" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-xs py-2">
                 Student ID
@@ -252,13 +252,13 @@ export default function LoginPage() {
             <TabsContent value="standard">
               <form onSubmit={handleStandardSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">University Email</Label>
+                  <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
                   <div className="relative group">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                       id="email"
                       type="email"
-                      placeholder="name@uspf.edu.ph"
+                      placeholder="name@example.com"
                       className="pl-10 h-11 border-muted rounded-xl text-xs font-bold"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}

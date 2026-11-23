@@ -342,9 +342,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           redirectTo,
           skipBrowserRedirect: true,
-          queryParams: {
-            hd: 'uspf.edu.ph',
-          },
         },
       });
 

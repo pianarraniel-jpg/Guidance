@@ -141,14 +141,14 @@ export default function ForgotPasswordDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="reset-email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  University Email
+                  Email
                 </Label>
                 <div className="relative group">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                   <Input
                     id="reset-email"
                     type="email"
-                    placeholder="name@uspf.edu.ph"
+                    placeholder="name@example.com"
                     className="pl-10 h-11 border-muted"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
