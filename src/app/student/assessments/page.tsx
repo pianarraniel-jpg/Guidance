@@ -55,11 +55,6 @@ export default function StudentAssessments() {
 
   useLiveSync(loadTasks);
 
-  useEffect(() => {
-    const unread = notifications.filter(n => n.type === 'assessment' && !n.isRead);
-    if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
-
   const handleOpenTask = (task: any) => {
     setActiveTask(task);
     setTaskAnswers({});

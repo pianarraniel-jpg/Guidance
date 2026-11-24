@@ -603,12 +603,6 @@ export default function CounselorAppointmentsPage() {
     setTimeout(() => setIsLive(false), 3000);
   }, ['appointments', 'appointment_feedback']);
 
-  // Auto-clear appointment notifications when viewing this page
-  useEffect(() => {
-    const unreadApts = notifications.filter(n => n.type === 'appointment' && !n.isRead);
-    if (unreadApts.length > 0) unreadApts.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
-
   const handleUpdateStatus = async (
     id: string,
     newStatus: string,

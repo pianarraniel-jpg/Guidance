@@ -464,13 +464,6 @@ export default function CounselorAssessmentsPage() {
     };
   }, [loadData, loadSelfCareProtocols]);
 
-  useEffect(() => {
-    const unread = notifications.filter(
-      (n) => n.type === "assessment" && !n.isRead,
-    );
-    if (unread.length > 0) unread.forEach((n) => markAsRead(n.id));
-  }, [notifications, markAsRead]);
-
   // ── Form Builder Handlers ──────────────────────────────────────────────────
   const addQuestion = () => {
     if (!newQuestion.trim()) return;

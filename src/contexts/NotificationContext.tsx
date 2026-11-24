@@ -278,10 +278,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isCounselor, isStudent, user, readIds, showBrowserNotification, triggerPopupAlert]);
 
   const refreshNotifications = useCallback(() => {
+    void fetchNotificationsData();
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      fetchNotificationsData();
-    }, 300);
+      void fetchNotificationsData();
+    }, 600);
   }, [fetchNotificationsData]);
 
   const handleRealtimeAppointmentEvent = useCallback((event: { action: string; payload: any }) => {
@@ -313,6 +314,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const timeStr = apt.time ? ` at ${apt.time}` : '';
       const dateStr = apt.date || 'your scheduled date';
       const eventKey = `student-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+      const notifId = `apt-student-${apt.id}-${apt.status || 'pending'}-${apt.date || ''}-${apt.time || ''}`;
       const bookedByCounselor = isBookedByCounselor(apt);
       const rescheduledByStudent = isRescheduledByStudent(apt);
 
@@ -329,7 +331,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -347,7 +349,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -364,7 +366,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -387,6 +389,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const timeStr = apt.time ? ` at ${apt.time}` : '';
       const dateStr = apt.date || 'the requested date';
       const eventKey = `counselor-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+      const notifId = `apt-counselor-${apt.id}-${apt.status || 'pending'}-${apt.date || ''}-${apt.time || ''}`;
       const bookedByCounselor = isBookedByCounselor(apt);
       const rescheduledByStudent = isRescheduledByStudent(apt);
 
@@ -400,7 +403,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -415,7 +418,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -438,7 +441,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -456,7 +459,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
           triggerPopupAlert({
-            id: apt.id,
+            id: notifId,
             type: 'appointment',
             title,
             description,
@@ -678,12 +681,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const rows = ids.map(notification_id => ({ user_id: user.id, notification_id }));
       await supabase.from(STORAGE_KEYS.NOTIFICATIONS_READ).upsert(rows, { onConflict: 'user_id,notification_id' });
       setReadIds(prev => new Set([...prev, ...ids]));
+      setNotifications(prev => prev.map(n => ids.includes(n.id) || ids.some(id => n.id.includes(id)) ? { ...n, isRead: true } : n));
     } catch (e) {
       console.warn('[NotificationContext] Error persisting read IDs:', e);
     }
   }, [user]);
 
-  const markAsRead = useCallback((id: string) => { persistReadIds([id]); }, [persistReadIds]);
+  const markAsRead = useCallback((id: string) => {
+    const matchingNotifs = notifications.filter(n => n.id === id || n.id.includes(id));
+    const idsToMark = matchingNotifs.length > 0 ? matchingNotifs.map(n => n.id) : [id];
+    persistReadIds(idsToMark);
+  }, [notifications, persistReadIds]);
   const markIdsAsRead = useCallback((ids: string[]) => { persistReadIds(ids); }, [persistReadIds]);
   const markAllAsRead = useCallback(() => {
     const unread = notifications.filter(n => !n.isRead).map(n => n.id);

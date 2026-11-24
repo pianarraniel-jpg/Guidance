@@ -158,13 +158,6 @@ export default function StudentAppointments() {
     loadRef.current();
   });
 
-
-  // Auto-clear appointment notifications when viewing this page
-  useEffect(() => {
-    const unread = notifications.filter(n => n.type === 'appointment' && !n.isRead);
-    if (unread.length > 0) unread.forEach(n => markAsRead(n.id));
-  }, [notifications, markAsRead]);
-
   const filtered = (() => {
     switch (activeTab) {
       case 'upcoming':
