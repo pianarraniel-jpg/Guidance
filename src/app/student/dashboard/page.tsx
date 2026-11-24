@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
-import { autoExpirePassedAppointments, isAppointmentPassed } from '@/lib/appointment-utils';
+import { autoExpirePassedAppointments, isAppointmentPassed, isBookedByCounselor } from '@/lib/appointment-utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -157,7 +157,10 @@ export default function StudentDashboard() {
     });
 
     const sortedAssessments = [...allAssessments].sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
-    const appointments = allAppointments.filter((a: any) => a.status === APPOINTMENT_STATUS.CONFIRMED && !isAppointmentPassed(a.date, a.time));
+    const appointments = allAppointments.filter((a: any) => 
+      (a.status === APPOINTMENT_STATUS.CONFIRMED || (a.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(a))) && 
+      !isAppointmentPassed(a.date, a.time)
+    );
 
     // Build combined chart data: form assessments (0–10 → ×10), aggregated by day
     const pointMap = new Map<string, { totalStress: number; count: number; sortKey: number }>();
@@ -648,7 +651,14 @@ export default function StudentDashboard() {
             {/* Upcoming Session */}
             <Card className="border border-slate-200/80 shadow-xs p-5 sm:p-6 rounded-2xl bg-white flex flex-col justify-between">
               <div>
-                <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mb-4 sm:mb-6">Upcoming Session</h4>
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest">Upcoming Session</h4>
+                  {nextAppointment?.status === 'pending' && isBookedByCounselor(nextAppointment) && (
+                    <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] px-2 py-0.5 rounded-md shadow-xs">
+                      Needs Confirmation
+                    </Badge>
+                  )}
+                </div>
                 {nextAppointment ? (
                   <div className="flex items-center gap-3.5 mb-6">
                     <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center text-primary border border-slate-200/70 shrink-0">
@@ -668,8 +678,10 @@ export default function StudentDashboard() {
                   </div>
                 )}
               </div>
-              <Button asChild variant="outline" className="w-full font-bold rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-primary transition-all text-xs h-10">
-                <Link href="/student/appointments">Manage Bookings</Link>
+              <Button asChild variant={nextAppointment?.status === 'pending' && isBookedByCounselor(nextAppointment) ? 'default' : 'outline'} className={`w-full font-bold rounded-xl transition-all text-xs h-10 ${nextAppointment?.status === 'pending' && isBookedByCounselor(nextAppointment) ? 'bg-primary text-white hover:bg-primary/90 shadow-sm' : 'border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
+                <Link href="/student/appointments">
+                  {nextAppointment?.status === 'pending' && isBookedByCounselor(nextAppointment) ? 'Confirm Session Attendance' : 'Manage Bookings'}
+                </Link>
               </Button>
             </Card>
 

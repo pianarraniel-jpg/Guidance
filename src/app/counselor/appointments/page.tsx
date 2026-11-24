@@ -512,35 +512,8 @@ export default function CounselorAppointmentsPage() {
 
       setAppointments(prev => [newAppointment as any, ...prev]);
 
-      const emailBooking: BookingNotificationPayload = buildBookingEmailPayload({
-        id: newAppointment.id,
-        studentId: bookingStudentId,
-        studentName: selectedStudent.name,
-        counselorId: counselor?.id,
-        counselorName: counselor?.name,
-        date: bookingDate,
-        time: bookingTime,
-        type: bookingType,
-        status: APPOINTMENT_STATUS.PENDING,
-        location: finalLocation,
-        reason: bookingReason.trim(),
-        createdAt: createdAt,
-      });
-
-      void dispatchConfirmationEmail({
-        appointmentId: newAppointment.id,
-        studentId: bookingStudentId,
-        studentEmail: selectedStudent.email || '',
-        studentName: selectedStudent.name,
-        counselorName: counselor?.name || 'Guidance Counselor',
-        date: bookingDate,
-        time: bookingTime,
-        type: bookingType,
-        location: finalLocation,
-      });
-
       toast({
-        title: "Session Scheduled!",
+        title: "Session Invitation Sent! 📋",
         description: `Appointment sent to ${selectedStudent.name}. Awaiting student confirmation.`,
       });
 
@@ -1597,10 +1570,10 @@ export default function CounselorAppointmentsPage() {
           <DialogHeader className="p-8 bg-slate-50 border-b">
             <div className="flex flex-col gap-2">
               <DialogTitle className="text-2xl font-black text-slate-900">
-                Book Session for Student
+                Schedule Consultation for Student
               </DialogTitle>
               <p className="text-sm text-slate-500">
-                Create a confirmed appointment immediately for any registered student.
+                Schedule an appointment invitation. The student will be notified to confirm their session.
               </p>
             </div>
           </DialogHeader>
@@ -1858,7 +1831,7 @@ export default function CounselorAppointmentsPage() {
                 disabled={isBookingSubmit || !bookingStudentId || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()}
                 className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black text-white shadow-lg shadow-primary/20"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" /> {isBookingSubmit ? "Scheduling..." : "Book & Confirm"}
+                <Calendar className="h-4 w-4 mr-2" /> {isBookingSubmit ? "Scheduling..." : "Send Session Invitation"}
               </Button>
               <Button
                 variant="outline"

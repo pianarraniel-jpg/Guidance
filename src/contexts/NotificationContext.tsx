@@ -97,7 +97,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
 
       counselorAppointments
-        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === APPOINTMENT_STATUS.CANCELLED)
+        .filter(a => 
+          a.status === APPOINTMENT_STATUS.CONFIRMED || 
+          (a.status === APPOINTMENT_STATUS.PENDING && !isBookedByCounselor(a)) || 
+          a.status === APPOINTMENT_STATUS.CANCELLED
+        )
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
           const notif = buildCounselorBookingBellPayload(booking, false);
@@ -147,7 +151,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } else if (isStudent) {
       const appointments = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
       appointments
-        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.CANCELLED || a.status === APPOINTMENT_STATUS.PENDING)
+        .filter(a => 
+          a.status === APPOINTMENT_STATUS.CONFIRMED || 
+          a.status === APPOINTMENT_STATUS.CANCELLED || 
+          (a.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(a))
+        )
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
           const notif = buildStudentAppointmentBellPayload(booking, false);

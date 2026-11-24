@@ -281,6 +281,23 @@ export default function StudentAppointments() {
         title: "Session Confirmed! 🎉",
         description: `You have confirmed your session with ${app.counselorName || 'your counselor'}.`,
       });
+
+      // Dispatch official confirmation email now that the student has confirmed attendance
+      void fetch('/api/appointments/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId: app.id,
+          studentId: app.studentId || app.student_id || user?.id,
+          toEmail: user?.email,
+          studentName: app.studentName || app.student_name || user?.name,
+          counselorName: app.counselorName || app.counselor_name || 'Guidance Counselor',
+          date: app.date,
+          time: app.time,
+          type: app.type,
+          location: app.location,
+        }),
+      }).catch(e => console.warn('[ConfirmEmail] Dispatch error:', e));
     } catch (err: any) {
       toast({
         variant: "destructive",
