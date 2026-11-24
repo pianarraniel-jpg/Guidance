@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { extractMeetingUrl } from './appointment-utils';
 
 export interface ConfirmationEmailData {
   toEmail: string;
@@ -9,6 +10,7 @@ export interface ConfirmationEmailData {
   type: string;
   location: string;
   appointmentId: string;
+  meetingLink?: string;
   origin?: string;
 }
 
@@ -103,6 +105,7 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
   const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || 'guidancesync.confirm@gmail.com';
   const baseUrl = getAppBaseUrl(data.origin);
   const appointmentsUrl = `${baseUrl}/student/appointments`;
+  const meetingUrl = data.meetingLink || extractMeetingUrl(data.location);
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -125,7 +128,7 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
     .label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; width: 38%; }
     .value { color: #0f172a; font-weight: 700; text-align: right; }
     .highlight { color: #059669; font-size: 15px; }
-    .btn-container { text-align: center; margin: 28px 0 16px; }
+    .btn-container { text-align: center; margin: 24px 0 12px; }
     .btn { display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 28px; border-radius: 12px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2); }
     .direct-link { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px; word-break: break-all; }
     .footer { text-align: center; padding: 18px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #fafafa; }
@@ -171,9 +174,26 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
         ` : ''}
       </table>
 
+      ${meetingUrl ? `
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0 16px;">
+        <p style="margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.05em;">
+          📹 Virtual Consultation Access
+        </p>
+        <p style="margin: 0 0 14px; font-size: 13px; color: #14532d; font-weight: 500;">
+          Your counselor has attached the online meeting link for this session.
+        </p>
+        <a href="${meetingUrl}" style="display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 14px; font-weight: 800; text-decoration: none; padding: 13px 28px; border-radius: 10px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
+          Join Virtual Consultation (Meet)
+        </a>
+        <p style="margin: 10px 0 0; font-size: 11px; color: #166534; word-break: break-all;">
+          Meeting link: <a href="${meetingUrl}" style="color: #059669; font-weight: 600;">${meetingUrl}</a>
+        </p>
+      </div>
+      ` : ''}
+
       <div class="btn-container">
         <a href="${appointmentsUrl}" class="btn">
-          View Your Appointment
+          View Your Appointment in Portal
         </a>
       </div>
       <p class="direct-link">
@@ -198,6 +218,7 @@ Guidance Counselor: ${data.counselorName}
 Session Type: ${data.type}
 Location / Mode: ${data.location}
 ${formattedRef ? `Reference ID: ${formattedRef}` : ''}
+${meetingUrl ? `\nVIRTUAL CONSULTATION LINK:\nJoin Meeting: ${meetingUrl}\n` : ''}
 
 View appointment in GuidanceSync: ${appointmentsUrl}
   `.trim();

@@ -194,3 +194,15 @@ export function cleanAppointmentReason(reason?: string): string {
     .replace(/\[Missed:[^\]]*\]/g, '')
     .trim();
 }
+
+export function isOnlineLocation(loc?: string): boolean {
+  if (!loc) return false;
+  const l = loc.toLowerCase();
+  return l.includes('online') || l.includes('meet') || l.includes('virtual') || l.includes('zoom') || l.includes('teams');
+}
+
+export function extractMeetingUrl(location?: string): string | null {
+  if (!location) return null;
+  const match = location.match(/https?:\/\/[^\s),"]+/);
+  return match ? match[0] : null;
+}
