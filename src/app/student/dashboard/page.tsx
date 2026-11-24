@@ -404,47 +404,52 @@ export default function StudentDashboard() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="p-8 w-full">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6 sm:space-y-8">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold font-headline text-[#171717] mb-2">Kumusta, {firstName}?</h1>
-              <p className="text-muted-foreground">Here is a look at your wellness data.</p>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black font-headline text-slate-900 tracking-tight">
+                Kumusta, {firstName}?
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                Your supportive wellness overview and personalized guidance data.
+              </p>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" asChild className="rounded-xl font-bold h-12 px-6 border-primary/20 text-primary">
+            <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button variant="outline" asChild className="rounded-xl font-bold h-11 px-4 sm:px-5 border-slate-200 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm">
                 <Link href="/student/appointments">My Schedule</Link>
               </Button>
-              <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg px-6 h-12">
-                <Link href="/student/assessments" className="flex items-center gap-2">
-                  <Heart className="h-5 w-5 fill-current" /> Daily Check-in
+              <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-sm px-4 sm:px-6 h-11 text-xs sm:text-sm">
+                <Link href="/student/assessments" className="flex items-center justify-center gap-2">
+                  <Heart className="h-4 w-4 fill-current shrink-0" /> Daily Check-in
                 </Link>
               </Button>
             </div>
           </div>
 
-          {/* Academic Classification Incomplete Notice */}
+          {/* Academic Classification Incomplete Notice (No Gradients) */}
           {!isAcademicComplete && (
-            <div className="mb-8 rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 p-5 shadow-sm">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 sm:p-5 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3.5">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 border border-amber-200/70 shadow-inner">
-                    <GraduationCap className="h-6 w-6" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 border border-amber-200">
+                    <GraduationCap className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-amber-950">Academic Classification Required</h3>
-                      <span className="rounded-full bg-amber-200/70 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                      <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[9px] font-black text-amber-900 uppercase tracking-wider">
                         Action Needed
                       </span>
                     </div>
-                    <p className="text-xs text-amber-900/90 mt-1 max-w-2xl leading-relaxed font-medium">
-                      Your college department, degree program, or year level is incomplete. USPF guidance counselors are assigned by college. Complete your classification now to enable appointment booking and route your records to your designated counselor.
+                    <p className="text-xs text-amber-900/85 mt-1 max-w-2xl leading-relaxed font-medium">
+                      Your college department, degree program, or year level is incomplete. Guidance counselors are assigned by college. Complete your classification to enable appointment booking.
                     </p>
                   </div>
                 </div>
                 <Button
                   onClick={() => setIsClassificationModalOpen(true)}
-                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 h-10 rounded-xl shadow-sm"
+                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 h-9 sm:h-10 rounded-xl shadow-xs w-full sm:w-auto"
                 >
                   Set Academic Profile
                 </Button>
@@ -452,26 +457,26 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
             {/* Wellness Trends Chart */}
-            <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden flex flex-col bg-white">
-              <CardHeader className="pb-2 border-b">
-                <div className="flex items-center justify-between gap-3">
+            <Card className="lg:col-span-2 border border-slate-200/80 shadow-xs rounded-2xl overflow-hidden flex flex-col bg-white">
+              <CardHeader className="pb-3 border-b border-slate-100 px-4 sm:px-6 pt-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                       Wellness Trends
                     </CardTitle>
-                    <CardDescription>Stress levels from all your check-in sessions.</CardDescription>
+                    <CardDescription className="text-xs text-slate-500">Stress levels from your completed check-in sessions.</CardDescription>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                     <div className="flex gap-0.5 bg-slate-100 p-1 rounded-xl">
                       {(['7d', '30d', 'all'] as const).map(r => (
                         <button
                           key={r}
                           onClick={() => setTrendRange(r)}
                           className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg transition-all ${
-                            trendRange === r ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-slate-700'
+                            trendRange === r ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
                           }`}
                         >
                           {r === '7d' ? '7D' : r === '30d' ? '30D' : 'All'}
@@ -479,7 +484,7 @@ export default function StudentDashboard() {
                       ))}
                     </div>
                     {trend && (
-                      <Badge variant="outline" className={`font-bold px-3 py-1 ${trend.color}`}>
+                      <Badge variant="outline" className={`font-bold px-2.5 py-1 text-[10px] ${trend.color}`}>
                         <trend.Icon className="h-3 w-3 mr-1" />
                         {trend.label}
                       </Badge>
@@ -487,22 +492,16 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-6 h-[320px]">
+              <CardContent className="pt-4 sm:pt-6 h-[260px] sm:h-[320px] px-2 sm:px-6">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorStress" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }} />
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickCount={6} tickFormatter={(v) => `${v}%`} />
-                      <ReferenceLine y={55} stroke="#e2e8f0" strokeDasharray="4 2" label={{ value: 'Moderate', position: 'insideTopRight', fontSize: 9, fill: '#cbd5e1' }} />
+                      <ReferenceLine y={55} stroke="#e2e8f0" strokeDasharray="4 2" label={{ value: 'Moderate', position: 'insideTopRight', fontSize: 9, fill: '#94a3b8' }} />
                       <Tooltip
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.15)', fontSize: 12 }}
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', fontSize: 12 }}
                         formatter={(val: number) => [`${val}%`, 'Stress Level']}
                         labelFormatter={(_, payload) => {
                           if (payload && payload[0]) {
@@ -512,41 +511,41 @@ export default function StudentDashboard() {
                           return '';
                         }}
                       />
-                      <Area type="monotone" dataKey="stress" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorStress)" name="stress" dot={{ fill: '#f97316', r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                      <Area type="monotone" dataKey="stress" stroke="#f97316" strokeWidth={2.5} fillOpacity={0.08} fill="#f97316" name="stress" dot={{ fill: '#f97316', r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
-                    <TrendingUp className="h-10 w-10 text-slate-100" />
-                    <p className="text-sm font-bold text-slate-400">
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-center p-4">
+                    <TrendingUp className="h-8 w-8 text-slate-200" />
+                    <p className="text-xs sm:text-sm font-bold text-slate-400">
                       {allChartData.length > 0 ? 'No sessions in this period' : 'No check-in data yet'}
                     </p>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-[11px] text-slate-400 max-w-xs">
                       {allChartData.length > 0
-                        ? 'Try a wider range or complete a wellness task.'
-                        : 'Complete a counseling form to see your trends here.'}
+                        ? 'Try selecting a wider timeframe or complete a wellness task.'
+                        : 'Complete a counseling form to see your wellness trends.'}
                     </p>
                   </div>
                 )}
               </CardContent>
-              <div className="p-4 border-t bg-slate-50/50 flex items-center justify-around gap-4">
+              <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-around gap-2 sm:gap-4">
                 <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Sessions</p>
-                  <p className="text-xl font-black text-primary">{totalSessions || '—'}</p>
+                  <p className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Sessions</p>
+                  <p className="text-lg sm:text-xl font-black text-primary">{totalSessions || '—'}</p>
                 </div>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="h-6 w-px bg-slate-200" />
                 <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">This Week</p>
-                  <p className="text-xl font-black text-blue-500">{sessionCountWeek || '—'}</p>
+                  <p className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">This Week</p>
+                  <p className="text-lg sm:text-xl font-black text-sky-600">{sessionCountWeek || '—'}</p>
                 </div>
-                <div className="h-8 w-px bg-slate-200" />
+                <div className="h-6 w-px bg-slate-200" />
                 <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Avg Stress</p>
-                  <p className={`text-xl font-black ${
-                    avgStress == null ? 'text-slate-200' :
-                    avgStress >= 75 ? 'text-red-500' :
-                    avgStress >= 55 ? 'text-orange-500' :
-                    'text-emerald-600'
+                  <p className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">Avg Stress</p>
+                  <p className={`text-lg sm:text-xl font-black ${
+                    avgStress == null ? 'text-slate-300' :
+                    avgStress >= 75 ? 'text-rose-600' :
+                    avgStress >= 55 ? 'text-amber-600' :
+                    'text-emerald-700'
                   }`}>
                     {avgStress != null ? `${avgStress}%` : '—'}
                   </p>
@@ -556,35 +555,34 @@ export default function StudentDashboard() {
 
             <div className="flex flex-col gap-6">
               {/* Wellness Insights */}
-              <Card className="bg-primary border-none shadow-md p-6 text-white relative overflow-hidden group">
+              <Card className="bg-primary/95 border-none shadow-xs p-5 sm:p-6 text-white rounded-2xl relative overflow-hidden group">
                 <div className="relative z-10">
                   <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-                    <Brain className="h-6 w-6" />
+                    <Brain className="h-5 w-5 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold mb-2">Wellness Insights</h3>
-                  <p className="text-emerald-50/80 text-sm leading-relaxed mb-6">
-                    Check out your counseling evaluation history and explore our mental health resources to learn tips for managing academic stress.
+                  <h3 className="text-base sm:text-lg font-black mb-2">Wellness Insights</h3>
+                  <p className="text-white/85 text-xs sm:text-sm leading-relaxed mb-5">
+                    Review your counseling session takeaways and explore self-care exercises to stay balanced through exams.
                   </p>
-                  <Button asChild variant="secondary" className="bg-white text-primary hover:bg-emerald-50 font-bold w-full rounded-xl">
-                    <Link href="/student/resources">Explore Tips</Link>
+                  <Button asChild variant="secondary" className="bg-white text-primary hover:bg-slate-50 font-bold w-full rounded-xl h-10 text-xs shadow-xs">
+                    <Link href="/student/resources">Explore Wellness Tips</Link>
                   </Button>
                 </div>
-                <Zap className="absolute -bottom-4 -right-4 h-32 w-32 text-white/5 group-hover:scale-110 transition-transform" />
               </Card>
 
               {/* Recent Sessions */}
-              <Card className="border-none shadow-sm p-6 bg-white flex-1">
-                <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-4">Recent Sessions</h4>
+              <Card className="border border-slate-200/80 shadow-xs p-5 sm:p-6 bg-white rounded-2xl flex-1">
+                <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mb-4">Recent Sessions</h4>
                 {recentSessions.length > 0 ? (
                   <div className="space-y-3">
                     {recentSessions.map(s => (
                       <div key={s.id} className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
+                          <div className="h-8 w-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                             <ClipboardList className="h-4 w-4 text-primary" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-700 truncate">{s.date}</p>
+                            <p className="text-xs font-bold text-slate-800 truncate">{s.date}</p>
                             {s.emotionalState && (
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${getEmotionalBadgeColor(s.emotionalState)}`}>
                                 {s.emotionalState}
@@ -594,8 +592,8 @@ export default function StudentDashboard() {
                         </div>
                         {s.stressLevel != null && (
                           <div className="text-right shrink-0">
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Stress</p>
-                            <p className={`text-sm font-black ${s.stressLevel >= 7 ? 'text-red-500' : s.stressLevel >= 4 ? 'text-orange-500' : 'text-emerald-600'}`}>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Stress</p>
+                            <p className={`text-xs sm:text-sm font-black ${s.stressLevel >= 7 ? 'text-rose-600' : s.stressLevel >= 4 ? 'text-amber-600' : 'text-emerald-700'}`}>
                               {s.stressLevel}/10
                             </p>
                           </div>
@@ -605,8 +603,8 @@ export default function StudentDashboard() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 py-4 text-center">
-                    <ClipboardList className="h-6 w-6 text-slate-100" />
-                    <p className="text-xs font-bold text-slate-300 italic">No sessions yet</p>
+                    <ClipboardList className="h-6 w-6 text-slate-200" />
+                    <p className="text-xs font-bold text-slate-400 italic">No sessions yet</p>
                   </div>
                 )}
                 <Link href="/student/assessments" className="mt-4 flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-wider hover:underline">
@@ -617,76 +615,78 @@ export default function StudentDashboard() {
           </div>
 
           {/* Bottom Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {/* Overall Wellness Score */}
-            <Card className="border-none shadow-sm p-6 flex flex-col justify-between overflow-hidden relative">
+            <Card className="border border-slate-200/80 shadow-xs p-5 sm:p-6 rounded-2xl bg-white flex flex-col justify-between">
               <div>
-                <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Overall Score</h4>
+                <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mb-4 sm:mb-6">Overall Score</h4>
                 {wellnessScore != null ? (
                   <>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-6xl font-black text-primary tracking-tighter">{wellnessScore}</span>
-                      <span className="text-lg font-bold text-muted-foreground">/100</span>
+                      <span className="text-5xl sm:text-6xl font-black text-primary tracking-tighter">{wellnessScore}</span>
+                      <span className="text-base sm:text-lg font-bold text-slate-400">/100</span>
                     </div>
-                    <p className="text-sm font-medium text-emerald-600 mt-4 flex items-center gap-1">
+                    <p className="text-xs sm:text-sm font-semibold text-emerald-700 mt-3 sm:mt-4 flex items-center gap-1">
                       <ArrowUpRight className="h-4 w-4" /> Based on your latest check-in
                     </p>
                   </>
                 ) : (
                   <div className="flex flex-col gap-2">
                     <span className="text-4xl font-black text-slate-200 tracking-tighter">—</span>
-                    <p className="text-xs text-slate-400 font-medium mt-2">
+                    <p className="text-xs text-slate-400 font-medium mt-1">
                       Complete a check-in to generate your wellness score.
                     </p>
                   </div>
                 )}
               </div>
-              <div className="mt-8 flex gap-2 flex-wrap">
-                {wellnessScore != null && wellnessScore >= 70 && <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Resilient</Badge>}
-                {totalSessions >= 3 && <Badge className="bg-blue-50 text-blue-700 border-none font-bold">Active</Badge>}
+              <div className="mt-6 flex gap-2 flex-wrap">
+                {wellnessScore != null && wellnessScore >= 70 && <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-[10px]">Resilient</Badge>}
+                {totalSessions >= 3 && <Badge className="bg-sky-50 text-sky-700 border border-sky-100 font-bold text-[10px]">Active</Badge>}
               </div>
             </Card>
 
             {/* Upcoming Session */}
-            <Card className="border-none shadow-sm p-6 relative group overflow-hidden">
-              <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest mb-6">Upcoming Session</h4>
-              {nextAppointment ? (
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="h-14 w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center text-primary border border-primary/10">
-                    <span className="text-xs font-black uppercase tracking-tighter">{format(parseISO(nextAppointment.date), 'MMM')}</span>
-                    <span className="text-xl font-black leading-none">{format(parseISO(nextAppointment.date), 'dd')}</span>
+            <Card className="border border-slate-200/80 shadow-xs p-5 sm:p-6 rounded-2xl bg-white flex flex-col justify-between">
+              <div>
+                <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mb-4 sm:mb-6">Upcoming Session</h4>
+                {nextAppointment ? (
+                  <div className="flex items-center gap-3.5 mb-6">
+                    <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center text-primary border border-slate-200/70 shrink-0">
+                      <span className="text-[10px] font-black uppercase tracking-tight">{format(parseISO(nextAppointment.date), 'MMM')}</span>
+                      <span className="text-base sm:text-lg font-black leading-none">{format(parseISO(nextAppointment.date), 'dd')}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-slate-900 truncate">{nextAppointment.type}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                        <Clock className="h-3 w-3 shrink-0" /> {nextAppointment.time} • {nextAppointment.counselorName || nextAppointment.counselor_name}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-sm">{nextAppointment.type}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Clock className="h-3 w-3" /> {nextAppointment.time} • {nextAppointment.counselorName || nextAppointment.counselor_name}
-                    </p>
+                ) : (
+                  <div className="mb-6">
+                    <p className="text-xs font-bold text-slate-400 italic">No upcoming sessions scheduled.</p>
                   </div>
-                </div>
-              ) : (
-                <div className="mb-6">
-                  <p className="text-xs font-bold text-slate-400 italic">No upcoming sessions found.</p>
-                </div>
-              )}
-              <Button asChild variant="outline" className="w-full font-bold rounded-xl border-primary/20 text-primary hover:bg-primary hover:text-white transition-all">
+                )}
+              </div>
+              <Button asChild variant="outline" className="w-full font-bold rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-primary transition-all text-xs h-10">
                 <Link href="/student/appointments">Manage Bookings</Link>
               </Button>
             </Card>
 
             {/* Dynamic Daily Wellness Checklist */}
-            <Card className="border-none shadow-sm p-6 bg-white flex flex-col justify-between">
+            <Card className="border border-slate-200/80 shadow-xs p-5 sm:p-6 rounded-2xl bg-white flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between mb-5">
-                  <h4 className="font-bold text-muted-foreground text-[10px] uppercase tracking-widest flex items-center gap-1.5">
-                    <ListTodo className="h-4 w-4 text-primary" /> Daily Wellness Checklist
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-1.5">
+                    <ListTodo className="h-4 w-4 text-primary" /> Daily Habits
                   </h4>
-                  <Badge className="bg-primary/5 text-primary border-none font-bold text-[9px] px-2 py-0.5 rounded-full">
+                  <Badge className="bg-slate-100 text-slate-600 border-none font-bold text-[9px] px-2 py-0.5 rounded-full">
                     {todoList.filter(t => t.isCompleted).length}/{todoList.length} Done
                   </Badge>
                 </div>
 
                 {/* To-Do Items Scroll Container */}
-                <div className="space-y-3.5 max-h-[220px] overflow-y-auto pr-1">
+                <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
                   {todoList.length > 0 ? (
                     todoList.map((item) => (
                       <div 

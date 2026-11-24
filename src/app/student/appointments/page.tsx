@@ -37,6 +37,7 @@ import {
   CalendarCheck,
   Download,
   ExternalLink,
+  Check,
 } from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
@@ -44,7 +45,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import BreathingExerciseModal from '@/components/wellness/BreathingExerciseModal';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
-import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
+import {
+  autoExpirePassedAppointments,
+  isAppointmentPassed,
+  getGoogleCalendarUrl,
+  downloadIcsFile,
+  isBookedByCounselor,
+  cleanAppointmentReason,
+} from '@/lib/appointment-utils';
 
 
 type TabKey = 'upcoming' | 'history' | 'all';
@@ -61,6 +69,7 @@ export default function StudentAppointments() {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isConfirmingId, setIsConfirmingId] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -199,6 +208,13 @@ export default function StudentAppointments() {
             </Badge>
           );
         }
+        if (app && isBookedByCounselor(app)) {
+          return (
+            <Badge className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-black gap-1 text-[10px] py-1 px-2.5 rounded-lg shadow-sm">
+              <Clock className="h-3 w-3 text-amber-700" /> Needs Confirmation
+            </Badge>
+          );
+        }
         return (
           <Badge variant="outline" className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold gap-1 text-[10px] py-1 px-2.5 rounded-lg">
             <Clock className="h-3 w-3" /> Pending Review
@@ -250,6 +266,33 @@ export default function StudentAppointments() {
     }
   };
 
+  const handleConfirmByStudent = async (app: any) => {
+    if (!app || isConfirmingId) return;
+    setIsConfirmingId(app.id);
+    try {
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, app.id, {
+        status: APPOINTMENT_STATUS.CONFIRMED,
+      });
+      setAppointments(prev => prev.map(a => a.id === app.id ? { ...a, status: APPOINTMENT_STATUS.CONFIRMED } : a));
+      if (selectedApp?.id === app.id) {
+        setSelectedApp((prev: any) => prev ? { ...prev, status: APPOINTMENT_STATUS.CONFIRMED } : null);
+      }
+      toast({
+        title: "Session Confirmed! 🎉",
+        description: `You have confirmed your session with ${app.counselorName || 'your counselor'}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Confirmation Failed",
+        description: err?.message || "Could not confirm session. Please try again.",
+      });
+      loadAppointments();
+    } finally {
+      setIsConfirmingId(null);
+    }
+  };
+
   const confirmedDates = appointments
     .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED)
     .map(a => { try { return parseISO(a.date); } catch { return null; } })
@@ -278,26 +321,26 @@ export default function StudentAppointments() {
       <DashboardLayout>
         <div className="p-4 sm:p-8 w-full min-h-screen">
           {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">Appointments</h1>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">Appointments</h1>
                 {realtimeStatus === 'SUBSCRIBED' ? (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 shadow-xs">
                     <Radio className={`h-3 w-3 text-emerald-500 ${isLive ? "animate-ping" : "animate-pulse"}`} />
                     <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
                       Live
                     </span>
                   </div>
                 ) : realtimeStatus === 'closed' ? (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-100 shadow-sm">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-100 shadow-xs">
                     <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                     <span className="text-[9px] font-black uppercase tracking-wider text-red-600">
                       Offline
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 shadow-sm animate-pulse">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 shadow-xs animate-pulse">
                     <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                     <span className="text-[9px] font-black uppercase tracking-wider text-amber-600">
                       Connecting ({realtimeStatus})...
@@ -305,29 +348,29 @@ export default function StudentAppointments() {
                   </div>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground font-medium">Manage your counseling sessions and review completed appointment feedback.</p>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">Manage your counseling sessions and review completed appointment feedback.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <Button
                 onClick={() => setShowCalendar(!showCalendar)}
                 variant="outline"
-                className="rounded-2xl font-black border-slate-200 bg-white hover:bg-slate-50 h-12 w-12 p-0 shadow-sm hover:scale-105 transition-all shrink-0"
+                className="rounded-xl font-bold border-slate-200 bg-white hover:bg-slate-50 h-11 w-11 p-0 shadow-xs shrink-0"
               >
-                <CalendarIcon className="h-5 w-5 text-slate-600" />
+                <CalendarIcon className="h-4 w-4 text-slate-600" />
                 <span className="sr-only">Show Calendar</span>
               </Button>
-              <Button asChild className="rounded-2xl font-black bg-primary h-12 px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-all">
+              <Button asChild className="rounded-xl font-bold bg-primary hover:bg-primary/90 text-white h-11 px-4 sm:px-6 shadow-sm flex-1 sm:flex-initial text-xs sm:text-sm">
                 <Link href="/student/book">
-                  <Plus className="h-5 w-5 mr-2" /> Book New Session
+                  <Plus className="h-4 w-4 mr-1.5" /> Book New Session
                 </Link>
               </Button>
             </div>
           </div>
 
           <div className="w-full">
-              <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden">
+              <Card className="border border-slate-200/80 shadow-xs bg-white rounded-2xl overflow-hidden">
                 {/* Tab bar */}
-                <div className="px-6 pt-6 border-b border-slate-100 flex items-center gap-1 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="px-4 sm:px-6 pt-4 sm:pt-6 border-b border-slate-100 flex items-center gap-1 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {tabs.map(t => (
                     <button
                       key={t.key}
@@ -443,6 +486,17 @@ export default function StudentAppointments() {
                                 >
                                   View
                                 </Button>
+                                {app.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(app) && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleConfirmByStudent(app)}
+                                    disabled={isConfirmingId === app.id}
+                                    className="h-8 text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm px-3"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                    {isConfirmingId === app.id ? "Confirming..." : "Confirm"}
+                                  </Button>
+                                )}
                                 {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
                                   <>
                                     <Button
@@ -459,7 +513,8 @@ export default function StudentAppointments() {
                                       onClick={() => setCancelTarget(app)}
                                       className="h-8 text-[10px] font-black text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
                                     >
-                                      <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
+                                      <XCircle className="h-3.5 w-3.5 mr-1" />
+                                      {isBookedByCounselor(app) && app.status === APPOINTMENT_STATUS.PENDING ? 'Decline' : 'Cancel'}
                                     </Button>
                                   </>
                                 )}
@@ -516,6 +571,17 @@ export default function StudentAppointments() {
               </div>
             </DialogHeader>
             <div className="p-6 space-y-4">
+              {selectedApp?.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(selectedApp) && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3">
+                  <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-black text-amber-900">Counselor Session Invitation</p>
+                    <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                      Your counselor scheduled this consultation session for you. Please confirm your attendance so your counselor knows you will attend.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> Date</p>
@@ -536,8 +602,10 @@ export default function StudentAppointments() {
               </div>
               {selectedApp?.reason && (
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Target className="h-3 w-3" /> Your Reason</p>
-                  <p className="text-sm font-medium text-slate-600 italic">"{selectedApp.reason}"</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <Target className="h-3 w-3" /> {isBookedByCounselor(selectedApp) ? "Counselor Note / Reason" : "Your Reason"}
+                  </p>
+                  <p className="text-sm font-medium text-slate-600 italic">"{cleanAppointmentReason(selectedApp.reason)}"</p>
                 </div>
               )}
               {selectedApp?.status === 'completed' && (
@@ -637,28 +705,48 @@ export default function StudentAppointments() {
                     </div>
                   </div>
                 )}
-              <div className="flex gap-3 pt-2">
-                {(selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
+              <div className="flex flex-wrap gap-3 pt-2">
+                {selectedApp?.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(selectedApp) ? (
                   <>
                     <Button
-                      variant="outline"
-                      onClick={() => {
-                        const target = selectedApp;
-                        setIsDetailsOpen(false);
-                        setRescheduleTarget(target);
-                      }}
-                      className="flex-1 h-11 rounded-xl font-black bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                      onClick={() => handleConfirmByStudent(selectedApp)}
+                      disabled={isConfirmingId === selectedApp?.id}
+                      className="flex-1 h-11 rounded-xl font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
                     >
-                      <CalendarClock className="h-4 w-4 mr-2" /> Reschedule
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {isConfirmingId === selectedApp?.id ? "Confirming..." : "Confirm Session"}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => { setIsDetailsOpen(false); setCancelTarget(selectedApp); }}
-                      className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-100 hover:bg-red-50"
+                      className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-200 hover:bg-red-50"
                     >
-                      <XCircle className="h-4 w-4 mr-2" /> Cancel
+                      <XCircle className="h-4 w-4 mr-2" /> Decline
                     </Button>
                   </>
+                ) : (
+                  (selectedApp?.status === APPOINTMENT_STATUS.PENDING || selectedApp?.status === APPOINTMENT_STATUS.CONFIRMED) && (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const target = selectedApp;
+                          setIsDetailsOpen(false);
+                          setRescheduleTarget(target);
+                        }}
+                        className="flex-1 h-11 rounded-xl font-black bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                      >
+                        <CalendarClock className="h-4 w-4 mr-2" /> Reschedule
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setIsDetailsOpen(false); setCancelTarget(selectedApp); }}
+                        className="flex-1 h-11 rounded-xl font-bold text-red-500 border-red-100 hover:bg-red-50"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" /> Cancel
+                      </Button>
+                    </>
+                  )
                 )}
                 <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="flex-1 h-11 rounded-xl font-bold border-slate-200">
                   Close
@@ -689,14 +777,24 @@ export default function StudentAppointments() {
             <div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="h-7 w-7 text-red-500" />
             </div>
-            <DialogTitle className="text-xl font-black mb-2">Cancel Session?</DialogTitle>
+            <DialogTitle className="text-xl font-black mb-2">
+              {isBookedByCounselor(cancelTarget) && cancelTarget?.status === APPOINTMENT_STATUS.PENDING
+                ? "Decline Session?"
+                : "Cancel Session?"}
+            </DialogTitle>
             <DialogDescription className="text-sm text-slate-500 font-medium mb-6">
-              This will cancel your <strong>{cancelTarget?.type}</strong> on <strong>{cancelTarget?.date}</strong> at <strong>{cancelTarget?.time}</strong>. This action cannot be undone.
+              {isBookedByCounselor(cancelTarget) && cancelTarget?.status === APPOINTMENT_STATUS.PENDING ? (
+                <>This will decline the consultation scheduled with <strong>{cancelTarget?.counselorName || "your counselor"}</strong> on <strong>{cancelTarget?.date}</strong> at <strong>{cancelTarget?.time}</strong>.</>
+              ) : (
+                <>This will cancel your <strong>{cancelTarget?.type}</strong> on <strong>{cancelTarget?.date}</strong> at <strong>{cancelTarget?.time}</strong>. This action cannot be undone.</>
+              )}
             </DialogDescription>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setCancelTarget(null)} className="flex-1 h-11 rounded-xl font-bold">Keep it</Button>
+              <Button variant="outline" onClick={() => setCancelTarget(null)} className="flex-1 h-11 rounded-xl font-bold">
+                {isBookedByCounselor(cancelTarget) && cancelTarget?.status === APPOINTMENT_STATUS.PENDING ? "Back" : "Keep it"}
+              </Button>
               <Button onClick={handleCancel} disabled={isCancelling} className="flex-1 h-11 rounded-xl font-black bg-red-500 hover:bg-red-600 text-white">
-                {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                {isCancelling ? 'Processing...' : (isBookedByCounselor(cancelTarget) && cancelTarget?.status === APPOINTMENT_STATUS.PENDING ? 'Yes, Decline' : 'Yes, Cancel')}
               </Button>
             </div>
           </DialogContent>

@@ -244,14 +244,14 @@ export default function StudentAssessments() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <main className="p-8 w-full min-h-screen">
-          <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <main className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto min-h-screen">
+          <header className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-1">Student Oversight and Growth</h1>
-              <p className="text-sm text-muted-foreground font-medium">Review your assigned student forms and compare historical counselor feedback across academic years.</p>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight mb-1">Student Oversight and Growth</h1>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">Review your assigned student forms and compare historical counselor feedback across academic years.</p>
             </div>
-            <Badge variant="outline" className="h-9 px-5 rounded-xl border-primary/20 bg-white text-primary font-black uppercase text-[9px] tracking-widest flex items-center gap-2 shadow-sm">
-              <ShieldCheck className="h-4 w-4" /> Professional Counseling Space
+            <Badge variant="outline" className="h-8 sm:h-9 px-3.5 sm:px-5 rounded-xl border-slate-200 bg-white text-slate-700 font-bold uppercase text-[9px] tracking-wider flex items-center gap-2 shadow-xs self-start sm:self-auto">
+              <ShieldCheck className="h-4 w-4 text-primary" /> Professional Counseling Space
             </Badge>
           </header>
 
@@ -344,7 +344,7 @@ export default function StudentAssessments() {
             <TabsContent value="feedback" className="space-y-10 animate-in fade-in-50 duration-300">
               {/* Year-over-Year Summary Header */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="border-none shadow-xl bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[2rem] overflow-hidden p-8 flex flex-col justify-between relative">
+                <Card className="border border-slate-700 shadow-xs bg-slate-900 text-white rounded-2xl overflow-hidden p-5 sm:p-8 flex flex-col justify-between relative">
                   <div className="absolute top-0 right-0 p-8 opacity-10 font-black text-8xl">2024</div>
                   <div>
                     <Badge className="bg-white/10 hover:bg-white/20 text-white border-none font-black text-[10px] uppercase tracking-widest px-3 py-1 mb-6">
@@ -365,7 +365,7 @@ export default function StudentAssessments() {
                   </div>
                 </Card>
 
-                <Card className="border-none shadow-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-[2rem] overflow-hidden p-8 flex flex-col justify-between relative">
+                <Card className="border border-emerald-800 shadow-xs bg-[#246B5C] text-white rounded-2xl overflow-hidden p-5 sm:p-8 flex flex-col justify-between relative">
                   <div className="absolute top-0 right-0 p-8 opacity-10 font-black text-8xl">2025</div>
                   <div>
                     <Badge className="bg-white/20 hover:bg-white/30 text-white border-none font-black text-[10px] uppercase tracking-widest px-3 py-1 mb-6">

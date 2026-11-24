@@ -162,3 +162,20 @@ export function downloadIcsFile(info: CalendarEventInfo, filename = 'guidance-se
     console.error('Failed to download .ics file:', err);
   }
 }
+
+export const COUNSELOR_BOOKING_TAG = '[BOOKED_BY_COUNSELOR]';
+
+export function isBookedByCounselor(apt: any): boolean {
+  if (!apt) return false;
+  if (apt.bookedBy === 'counselor' || apt.booked_by === 'counselor') return true;
+  if (typeof apt.reason === 'string' && apt.reason.includes(COUNSELOR_BOOKING_TAG)) return true;
+  return false;
+}
+
+export function cleanAppointmentReason(reason?: string): string {
+  if (!reason) return '';
+  return reason
+    .replace(/\[BOOKED_BY_COUNSELOR\]/g, '')
+    .replace(/\[Missed:[^\]]*\]/g, '')
+    .trim();
+}

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -581,9 +582,10 @@ export default function AdminDashboard() {
                           <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={`https://picsum.photos/seed/${user.id}/64/64`} />
-                                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">{user.name?.[0] || 'U'}</AvatarFallback>
+                                <Avatar className="h-8 w-8 shrink-0">
+                                  <AvatarFallback className={cn("font-black text-[10px] border shadow-inner", getAvatarColor(user.name || user.id))}>
+                                    {getInitials(user.name)}
+                                  </AvatarFallback>
                                 </Avatar>
                                 <p className="text-xs font-black text-slate-900">{user.name}</p>
                               </div>

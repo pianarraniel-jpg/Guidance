@@ -7,12 +7,14 @@ import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscribeToRealtimeHub } from '@/lib/realtime-hub';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import {
   buildCounselorBookingBellPayload,
   buildStudentAppointmentBellPayload,
   formatCounselorDisplayName,
   type BookingNotificationPayload,
 } from '@/lib/booking-notifications';
+import { isBookedByCounselor } from '@/lib/appointment-utils';
 
 export type NotificationType = 'appointment' | 'assessment' | 'message';
 
@@ -83,12 +85,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const readSet = readIds;
 
     if (isCounselor) {
-      const appointments = await storageService.getCounselorPendingAppointments();
-      appointments.forEach(a => {
-        const booking = a as BookingNotificationPayload;
-        const id = `apt-${booking.id}-${booking.status || 'pending'}`;
-        alerts.push(buildCounselorBookingBellPayload(booking, readSet.has(id)));
+      const allAppointments = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+      const counselorAppointments = allAppointments.filter(a => {
+        if (a.counselorId && a.counselorId === user.id) return true;
+        if (a.counselorName && user.name && (
+          a.counselorName.toLowerCase().includes(user.name.toLowerCase()) ||
+          user.name.toLowerCase().includes(a.counselorName.toLowerCase())
+        )) return true;
+        if (!a.counselorId && !a.counselorName) return true;
+        return false;
       });
+
+      counselorAppointments
+        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === APPOINTMENT_STATUS.CANCELLED)
+        .forEach(a => {
+          const booking = a as BookingNotificationPayload;
+          const notif = buildCounselorBookingBellPayload(booking, false);
+          alerts.push({
+            ...notif,
+            isRead: readSet.has(notif.id),
+          });
+        });
 
       const assessments = await storageService.getSubmittedAssessments();
       assessments.forEach(a => {
@@ -116,18 +133,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
-        const isGroupRead = readSet.has(groupId);
-        if (unreadInGroup.length > 0 || isGroupRead) {
-          alerts.push({
-            id: groupId, type: 'message',
-            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
-            description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Sent session invitation' : (lastMsg.text || 'Message received'),
-            timestamp: lastMsg.timestamp || Date.now(),
-            link: '/counselor/messages',
-            studentName: 'Student',
-            isRead: isGroupRead,
-          });
-        }
+        const isGroupRead = unreadInGroup.length === 0 || readSet.has(groupId);
+        alerts.push({
+          id: groupId, type: 'message',
+          title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
+          description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Sent session invitation' : (lastMsg.text || 'Message received'),
+          timestamp: lastMsg.timestamp || Date.now(),
+          link: '/counselor/messages',
+          studentName: 'Student',
+          isRead: isGroupRead,
+        });
       });
     } else if (isStudent) {
       const appointments = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
@@ -186,18 +201,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const lastMsg = sorted[0];
         const unreadInGroup = sorted.filter(m => !readSet.has(`msg-${m.id}`));
         const groupId = `group-msg-${senderId}-${lastMsg.id}`;
-        const isGroupRead = readSet.has(groupId);
-        if (unreadInGroup.length > 0 || isGroupRead) {
-          alerts.push({
-            id: groupId, type: 'message',
-            title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
-            description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : (lastMsg.text || 'Message received'),
-            timestamp: lastMsg.timestamp || Date.now(),
-            link: '/student/messages',
-            studentName: 'Counselor',
-            isRead: isGroupRead,
-          });
-        }
+        const isGroupRead = unreadInGroup.length === 0 || readSet.has(groupId);
+        alerts.push({
+          id: groupId, type: 'message',
+          title: unreadInGroup.length > 1 ? `${unreadInGroup.length} New Messages` : `New Message`,
+          description: lastMsg.text?.startsWith('[BOOKING_REQUEST]') ? 'Invitation to book a session' : (lastMsg.text || 'Message received'),
+          timestamp: lastMsg.timestamp || Date.now(),
+          link: '/student/messages',
+          studentName: 'Counselor',
+          isRead: isGroupRead,
+        });
       });
     }
 
@@ -255,14 +268,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const timeStr = apt.time ? ` at ${apt.time}` : '';
       const dateStr = apt.date || 'your scheduled date';
       const eventKey = `student-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+      const bookedByCounselor = isBookedByCounselor(apt);
 
       if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
         if (shouldNotify(eventKey)) {
-          const isCounselorBooking = event.action === 'insert';
-          const title = isCounselorBooking ? 'New Session Scheduled 📋' : 'Session Confirmed 🎉';
-          const description = isCounselorBooking
-            ? `${counselor} scheduled a ${apt.type} session with you for ${dateStr}${timeStr}.`
-            : `Your ${apt.type} session on ${dateStr}${timeStr} with ${counselor} has been confirmed.`;
+          const title = 'Session Confirmed 🎉';
+          const description = `Your ${apt.type} session on ${dateStr}${timeStr} with ${counselor} has been confirmed.`;
 
           toast({
             title,
@@ -281,10 +292,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
         }
-      } else if (event.action === 'insert') {
+      } else if (event.action === 'insert' || (apt.status === APPOINTMENT_STATUS.PENDING && bookedByCounselor)) {
         if (shouldNotify(eventKey)) {
-          const title = 'Consultation Scheduled 📋';
-          const description = `${counselor} scheduled a session with you for ${dateStr}${timeStr}.`;
+          const title = bookedByCounselor ? 'Session Invitation 📋' : 'Consultation Scheduled 📋';
+          const description = bookedByCounselor
+            ? `${counselor} scheduled a session for ${dateStr}${timeStr}. Please confirm your attendance.`
+            : `${counselor} scheduled a session with you for ${dateStr}${timeStr}.`;
           toast({
             title,
             description,
@@ -293,13 +306,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       }
     } else if (isCounselor) {
-      const studentName = apt.studentName || 'Student';
+      const cId = apt.counselorId;
+      const cName = apt.counselorName;
+      const isForThisCounselor = !cId || cId === user.id ||
+        (cName && user.name && (
+          cName.toLowerCase().includes(user.name.toLowerCase()) ||
+          user.name.toLowerCase().includes(cName.toLowerCase())
+        )) || !user.department || user.department.toLowerCase() === 'all';
+
+      if (!isForThisCounselor) return;
+
+      const studentName = apt.studentName || 'A student';
       const timeStr = apt.time ? ` at ${apt.time}` : '';
       const dateStr = apt.date || 'the requested date';
       const eventKey = `counselor-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+      const bookedByCounselor = isBookedByCounselor(apt);
 
-      if (event.action === 'insert' && apt.status === APPOINTMENT_STATUS.PENDING) {
-        if (shouldNotify(eventKey)) {
+      if (apt.status === APPOINTMENT_STATUS.PENDING) {
+        if (!bookedByCounselor && shouldNotify(eventKey)) {
           const title = 'New Booking Request 📅';
           const description = `${studentName} requested a ${apt.type} session for ${dateStr}${timeStr}.`;
           toast({
@@ -308,9 +332,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
         }
+      } else if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
+        if (shouldNotify(eventKey)) {
+          const title = bookedByCounselor ? 'Session Confirmed by Student 🎉' : 'Session Confirmed 📅';
+          const description = bookedByCounselor
+            ? `${studentName} confirmed the consultation scheduled for ${dateStr}${timeStr}.`
+            : `Session with ${studentName} for ${dateStr}${timeStr} is confirmed.`;
+          toast({
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
       } else if (apt.status === APPOINTMENT_STATUS.CANCELLED) {
         if (shouldNotify(eventKey)) {
-          const title = 'Session Cancelled';
+          const title = 'Session Cancelled ⚠️';
           const description = `${studentName} cancelled the session for ${dateStr}${timeStr}.`;
           toast({
             variant: 'destructive',
@@ -330,6 +366,81 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     handleRealtimeAppointmentEventRef.current = handleRealtimeAppointmentEvent;
   }, [handleRealtimeAppointmentEvent]);
+
+  const handleRealtimeMessageEvent = useCallback(async (rawPayload: any) => {
+    if (!user) return;
+    const msg = rawPayload?.new || rawPayload || {};
+    const senderId = msg.sender_id || msg.senderId;
+    const receiverId = msg.receiver_id || msg.receiverId;
+    const text = msg.text;
+
+    // Do NOT notify if there's no text or if sent by the current user
+    if (!text || !senderId || senderId === user.id) return;
+
+    // Must be meant for the current user
+    const isForMe = receiverId === user.id || (!receiverId && (isCounselor || isStudent));
+    if (!isForMe) return;
+
+    // Deduplication check
+    const msgKey = msg.id 
+      ? `msg-${msg.id}` 
+      : `msg-${senderId}-${msg.timestamp || Date.now()}-${String(text).slice(0, 15)}`;
+    const now = Date.now();
+    const last = recentlyNotifiedRef.current.get(msgKey);
+    if (last && now - last < 5000) return;
+    recentlyNotifiedRef.current.set(msgKey, now);
+
+    // Look up sender's display name
+    let senderName = '';
+    try {
+      const allUsers = await storageService.getAll<any>(STORAGE_KEYS.USERS);
+      const found = allUsers.find(u => u.id === senderId);
+      if (found?.name) {
+        senderName = found.name;
+      }
+    } catch (e) {
+      console.warn('[NotificationContext] Could not fetch sender user name:', e);
+    }
+
+    if (!senderName) {
+      senderName = isStudent ? 'Your Counselor' : 'Student';
+    }
+
+    const isBooking = typeof text === 'string' && text.startsWith('[BOOKING_REQUEST]');
+    const previewText = isBooking 
+      ? 'Sent a consultation booking invitation' 
+      : (typeof text === 'string' ? text.slice(0, 90) : 'New message received');
+    const chatLink = isStudent ? '/student/messages' : '/counselor/messages';
+
+    // Instant on-screen pop up notification (Toast)
+    toast({
+      title: `New Message from ${senderName} 💬`,
+      description: previewText,
+      action: (
+        <ToastAction
+          altText="View message"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.location.href = chatLink;
+            }
+          }}
+        >
+          View
+        </ToastAction>
+      ),
+    });
+
+    // Browser desktop notification pop up
+    showBrowserNotification(`New Message from ${senderName}`, previewText);
+
+    setLastUpdate(Date.now());
+    refreshNotifications();
+  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications]);
+
+  const handleRealtimeMessageEventRef = useRef(handleRealtimeMessageEvent);
+  useEffect(() => {
+    handleRealtimeMessageEventRef.current = handleRealtimeMessageEvent;
+  }, [handleRealtimeMessageEvent]);
 
   const handleRealtimeUpdate = useCallback(() => {
     setLastUpdate(Date.now());
@@ -362,17 +473,35 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
     };
 
+    const onMessagePostgres = (payload: any) => {
+      handleRealtimeMessageEventRef.current(payload.new || payload);
+      handleRealtimeUpdateRef.current();
+    };
+
+    const onAssessmentPostgres = (payload: any) => {
+      const asmt = payload.new || payload;
+      if (asmt && asmt.status === 'submitted') {
+        const student = asmt.student_name || asmt.studentName || 'A student';
+        toast({
+          title: 'Assessment Submitted 📝',
+          description: `${student} completed a counseling form.`,
+        });
+        showBrowserNotification('Assessment Submitted', `${student} completed a counseling form.`);
+      }
+      handleRealtimeUpdateRef.current();
+    };
+
     if (isStudent) {
       channel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, onAppointmentPostgres)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, onMessagePostgres)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current());
     } else if (isCounselor) {
       channel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, onAppointmentPostgres)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => handleRealtimeUpdateRef.current());
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, onMessagePostgres)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, onAssessmentPostgres);
     } else if (isAdmin) {
       channel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, onAppointmentPostgres)
@@ -390,6 +519,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           action: event.action,
           payload: event.payload,
         });
+      } else if (event.table === 'messages' && (event.action === 'insert' || !event.action)) {
+        handleRealtimeMessageEventRef.current(event.payload);
       } else {
         handleRealtimeUpdateRef.current();
       }

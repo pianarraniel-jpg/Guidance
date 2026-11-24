@@ -69,14 +69,25 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
 import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
-import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
+import {
+  autoExpirePassedAppointments,
+  isAppointmentPassed,
+  getGoogleCalendarUrl,
+  downloadIcsFile,
+  isBookedByCounselor,
+  COUNSELOR_BOOKING_TAG,
+  cleanAppointmentReason,
+} from '@/lib/appointment-utils';
 import { buildBookingEmailPayload, type BookingNotificationPayload } from '@/lib/booking-notifications';
 import { sendBookingConfirmationEmail } from '@/lib/emailjs-booking';
 
@@ -264,6 +275,8 @@ export default function CounselorAppointmentsPage() {
   const [feedbackText, setFeedbackText] = useState("");
   const [actionItems, setActionItems] = useState<string[]>([]);
   const [newAction, setNewAction] = useState("");
+  const [earlyCompleteWarningApp, setEarlyCompleteWarningApp] = useState<any>(null);
+  const [isEarlyCompletionConfirmed, setIsEarlyCompletionConfirmed] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const { toast } = useToast();
   const { notifications, markAsRead, realtimeStatus } = useNotifications();
@@ -479,6 +492,10 @@ export default function CounselorAppointmentsPage() {
 
       const createdAt = new Date().toISOString();
 
+      const taggedReason = bookingReason.trim()
+        ? `${bookingReason.trim()} ${COUNSELOR_BOOKING_TAG}`
+        : COUNSELOR_BOOKING_TAG;
+
       const newAppointment = await storageService.create(STORAGE_KEYS.APPOINTMENTS, {
         studentId: bookingStudentId,
         studentName: selectedStudent.name,
@@ -487,9 +504,9 @@ export default function CounselorAppointmentsPage() {
         date: bookingDate,
         time: bookingTime,
         type: bookingType,
-        status: APPOINTMENT_STATUS.CONFIRMED,
+        status: APPOINTMENT_STATUS.PENDING,
         location: finalLocation,
-        reason: bookingReason.trim(),
+        reason: taggedReason,
         createdAt: createdAt,
       });
 
@@ -504,7 +521,7 @@ export default function CounselorAppointmentsPage() {
         date: bookingDate,
         time: bookingTime,
         type: bookingType,
-        status: APPOINTMENT_STATUS.CONFIRMED,
+        status: APPOINTMENT_STATUS.PENDING,
         location: finalLocation,
         reason: bookingReason.trim(),
         createdAt: createdAt,
@@ -522,10 +539,9 @@ export default function CounselorAppointmentsPage() {
         location: finalLocation,
       });
 
-
       toast({
-        title: "Appointment Booked!",
-        description: `Successfully booked a confirmed session for ${selectedStudent.name}.`,
+        title: "Session Scheduled!",
+        description: `Appointment sent to ${selectedStudent.name}. Awaiting student confirmation.`,
       });
 
       setIsBookingOpen(false);
@@ -698,11 +714,33 @@ export default function CounselorAppointmentsPage() {
     }
   };
 
+  const handleRequestComplete = (appointment: any) => {
+    if (!appointment) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const isFuture = Boolean(appointment.date && appointment.date > todayStr);
+    if (isFuture) {
+      setEarlyCompleteWarningApp(appointment);
+    } else {
+      setIsEarlyCompletionConfirmed(false);
+      openFeedbackModal(appointment);
+    }
+  };
+
+  const handleProceedFromWarning = () => {
+    if (earlyCompleteWarningApp) {
+      const target = earlyCompleteWarningApp;
+      setEarlyCompleteWarningApp(null);
+      setIsEarlyCompletionConfirmed(false);
+      openFeedbackModal(target);
+    }
+  };
+
   const openFeedbackModal = (appointment: any) => {
     setFeedbackAppointment(appointment);
     setFeedbackText(appointment.counselorNotes || "");
     setActionItems(appointment.actionItems || ["Practice 4-7-8 breathing technique before sleep", "Limit caffeine intake after 2:00 PM"]);
     setNewAction("");
+    setIsEarlyCompletionConfirmed(false);
     setIsFeedbackOpen(true);
   };
 
@@ -722,6 +760,17 @@ export default function CounselorAppointmentsPage() {
         variant: "destructive",
         title: "Unable to complete",
         description: "No appointment selected for feedback.",
+      });
+      return;
+    }
+
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const isFutureDate = Boolean(feedbackAppointment?.date && feedbackAppointment.date > todayStr);
+    if (isFutureDate && !isEarlyCompletionConfirmed) {
+      toast({
+        variant: "destructive",
+        title: "Early Completion Acknowledgment Required",
+        description: "Please confirm that this consultation was held ahead of schedule.",
       });
       return;
     }
@@ -827,7 +876,14 @@ export default function CounselorAppointmentsPage() {
         if (app && isAppointmentPassed(app.date, app.time)) {
           return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Missed / Expired</Badge>;
         }
-        return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase">Pending</Badge>;
+        if (isBookedByCounselor(app)) {
+          return (
+            <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] uppercase inline-flex items-center gap-1 shadow-xs">
+              <Clock className="h-3 w-3 text-amber-700" /> Awaiting Student
+            </Badge>
+          );
+        }
+        return <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[9px] uppercase">Pending Review</Badge>;
       default:
         return <Badge variant="outline" className="text-[9px] font-black uppercase">{status}</Badge>;
     }
@@ -1011,23 +1067,29 @@ export default function CounselorAppointmentsPage() {
                     <div className="flex items-center justify-end gap-2">
                       {/* Prominent inline quick-actions */}
                       {app.status === APPOINTMENT_STATUS.PENDING && (
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleUpdateStatus(
-                              app.id,
-                              APPOINTMENT_STATUS.CONFIRMED,
-                            )
-                          }
-                          className="h-7 text-[10px] font-black bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-3 shadow-sm"
-                        >
-                          <Check className="h-3 w-3 mr-1" /> Accept
-                        </Button>
+                        isBookedByCounselor(app) ? (
+                          <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-amber-600" /> Awaiting Student
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleUpdateStatus(
+                                app.id,
+                                APPOINTMENT_STATUS.CONFIRMED,
+                              )
+                            }
+                            className="h-7 text-[10px] font-black bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-3 shadow-sm"
+                          >
+                            <Check className="h-3 w-3 mr-1" /> Accept
+                          </Button>
+                        )
                       )}
                       {app.status === APPOINTMENT_STATUS.CONFIRMED && (
                         <Button
                           size="sm"
-                          onClick={() => openFeedbackModal(app)}
+                          onClick={() => handleRequestComplete(app)}
                           className="h-7 text-[10px] font-black bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 shadow-sm"
                         >
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Complete
@@ -1055,7 +1117,7 @@ export default function CounselorAppointmentsPage() {
                             Details
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="my-1 bg-slate-50" />
-                          {app.status === APPOINTMENT_STATUS.PENDING && (
+                          {app.status === APPOINTMENT_STATUS.PENDING && !isBookedByCounselor(app) && (
                             <DropdownMenuItem
                               onSelect={() =>
                                 handleUpdateStatus(
@@ -1070,7 +1132,7 @@ export default function CounselorAppointmentsPage() {
                           )}
                           {app.status === APPOINTMENT_STATUS.CONFIRMED && (
                             <DropdownMenuItem
-                              onSelect={() => openFeedbackModal(app)}
+                              onSelect={() => handleRequestComplete(app)}
                               className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs hover:bg-blue-50 hover:text-blue-700"
                             >
                               <CheckCircle2 className="h-4 w-4" /> Complete
@@ -1249,9 +1311,17 @@ export default function CounselorAppointmentsPage() {
                 Consultation
               </p>
               <p className="text-sm font-medium text-slate-600 leading-relaxed italic">
-                "{selectedApp?.reason || "No specific reason provided."}"
+                "{cleanAppointmentReason(selectedApp?.reason) || "No specific reason provided."}"
               </p>
             </div>
+            {selectedApp?.status === "pending" && isBookedByCounselor(selectedApp) && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-2.5">
+                <Clock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 leading-relaxed font-medium">
+                  <span className="font-black">Awaiting Student Confirmation:</span> You scheduled this consultation for <span className="font-bold underline">{selectedApp.studentName}</span>. Once the student confirms their attendance, this appointment will automatically switch to confirmed.
+                </div>
+              </div>
+            )}
             {selectedApp?.date && selectedApp?.time && (
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -1300,7 +1370,7 @@ export default function CounselorAppointmentsPage() {
               </div>
             )}
             <div className="flex gap-3 pt-4 border-t">
-              {selectedApp?.status === "pending" && (
+              {selectedApp?.status === "pending" && !isBookedByCounselor(selectedApp) && (
                 <Button
                   onClick={() => {
                     handleUpdateStatus(
@@ -1317,8 +1387,9 @@ export default function CounselorAppointmentsPage() {
               {selectedApp?.status === "confirmed" && (
                 <Button
                   onClick={() => {
-                    openFeedbackModal(selectedApp);
+                    const target = selectedApp;
                     setIsDetailsOpen(false);
+                    handleRequestComplete(target);
                   }}
                   className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black gap-2"
                 >
@@ -1426,14 +1497,43 @@ export default function CounselorAppointmentsPage() {
               </div>
             </div>
 
+            {/* Early Completion Notice & Required Acknowledgment */}
+            {feedbackAppointment?.date && feedbackAppointment.date > format(new Date(), 'yyyy-MM-dd') && (
+              <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-start gap-2.5 text-xs text-amber-900 font-semibold">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black text-amber-950">Early Completion Notice:</span> This session is scheduled for <span className="font-bold underline">{feedbackAppointment.date} at {feedbackAppointment.time}</span>, which is in the future (today is {format(new Date(), 'yyyy-MM-dd')}).
+                  </div>
+                </div>
+                <label className="flex items-center gap-2.5 text-xs font-bold text-slate-800 cursor-pointer pt-2 border-t border-amber-200/60 select-none">
+                  <input
+                    type="checkbox"
+                    checked={isEarlyCompletionConfirmed}
+                    onChange={(e) => setIsEarlyCompletionConfirmed(e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-400 text-primary focus:ring-primary cursor-pointer accent-primary"
+                  />
+                  <span>I confirm that this consultation was held ahead of schedule and is ready to be documented and finalized.</span>
+                </label>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-4 border-t border-slate-100">
               <Button
                 onClick={submitFeedbackAndComplete}
-                disabled={isSubmittingFeedback || !feedbackText.trim()}
+                disabled={
+                  isSubmittingFeedback || 
+                  !feedbackText.trim() || 
+                  Boolean(feedbackAppointment?.date && feedbackAppointment.date > format(new Date(), 'yyyy-MM-dd') && !isEarlyCompletionConfirmed)
+                }
                 className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black text-white shadow-lg shadow-emerald-600/20 disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                {isSubmittingFeedback ? 'Completing Session...' : 'Confirm & Complete Session'}
+                {isSubmittingFeedback 
+                  ? 'Completing Session...' 
+                  : Boolean(feedbackAppointment?.date && feedbackAppointment.date > format(new Date(), 'yyyy-MM-dd'))
+                  ? 'Confirm Early Completion'
+                  : 'Confirm & Complete Session'}
               </Button>
               <Button
                 variant="outline"
@@ -1444,6 +1544,50 @@ export default function CounselorAppointmentsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Early Complete Warning Confirmation Dialog */}
+      <Dialog 
+        open={!!earlyCompleteWarningApp} 
+        onOpenChange={(open) => { if (!open) setEarlyCompleteWarningApp(null); }}
+      >
+        <DialogContent className="max-w-md rounded-[2.5rem] p-6 border-none shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="h-14 w-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mx-auto shadow-inner">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <DialogTitle className="text-xl font-black text-center text-slate-900">
+              Complete Session Ahead of Date?
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-slate-500 leading-relaxed">
+              This session with <span className="font-black text-slate-900">{earlyCompleteWarningApp?.studentName}</span> is scheduled for <span className="font-black text-slate-900">{earlyCompleteWarningApp?.date} at {earlyCompleteWarningApp?.time}</span>. Today is <span className="font-black text-slate-900">{format(new Date(), 'yyyy-MM-dd')}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 my-2 text-xs font-semibold text-amber-900 flex items-start gap-3">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="leading-snug">
+              The scheduled appointment date has not arrived yet. Are you sure you want to mark this consultation as completed and file notes early?
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => setEarlyCompleteWarningApp(null)}
+              className="flex-1 h-11 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50"
+            >
+              No, Keep Scheduled
+            </Button>
+            <Button
+              onClick={handleProceedFromWarning}
+              className="flex-1 h-11 rounded-xl font-black bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 gap-2"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Yes, Proceed to Complete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1579,7 +1723,7 @@ export default function CounselorAppointmentsPage() {
                         {bookingTime || undefined}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border border-slate-100 shadow-2xl bg-white p-1 max-h-72">
+                    <SelectContent className="rounded-xl border border-slate-100 shadow-2xl bg-white p-1.5 max-h-72 min-w-[320px] w-[var(--radix-select-trigger-width)]">
                       {TIME_SLOTS.map((slot) => {
                         const status = getSlotAvailability(slot);
                         return (
@@ -1588,7 +1732,7 @@ export default function CounselorAppointmentsPage() {
                             value={slot} 
                             disabled={!status.isAvailable}
                             className={cn(
-                              "rounded-lg p-2.5 text-xs font-bold transition-all my-0.5",
+                              "rounded-lg pl-8 pr-3 py-2 text-xs font-bold transition-all my-0.5",
                               !status.isAvailable 
                                 ? "opacity-60 cursor-not-allowed bg-slate-50/80 text-slate-400 select-none data-[disabled]:pointer-events-none" 
                                 : "hover:bg-slate-50 cursor-pointer text-slate-700"

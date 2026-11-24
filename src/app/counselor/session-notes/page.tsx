@@ -185,10 +185,10 @@ export default function SessionNotesPage() {
   };
 
   return (
-    <div className="p-8 w-full pb-32">
+    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto pb-32">
       {/* Student Selection Header Card */}
-      <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2.5rem] overflow-hidden mb-8">
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <Card className="border border-slate-200/80 shadow-xs bg-white rounded-2xl overflow-hidden mb-8">
+        <div className="bg-slate-900 p-5 sm:p-8 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-3 w-full md:w-auto">
             <span className="text-[10px] font-black uppercase tracking-widest text-primary px-3 py-1 rounded-full bg-primary/20">
               Active Consultation Record

@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getInitials } from '@/lib/utils';
 import { LogOut, Shield, Key, Mail, Settings as SettingsIcon } from 'lucide-react';
 
 export default function AdminSettings() {
@@ -25,9 +26,10 @@ export default function AdminSettings() {
             <Card className="border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-slate-50/50 border-b pb-6">
                 <div className="flex items-center gap-6">
-                  <Avatar className="h-20 w-20 ring-4 ring-white shadow-lg">
-                    <AvatarImage src={`https://picsum.photos/seed/${user?.id}/128/128`} />
-                    <AvatarFallback className="text-2xl font-bold bg-primary text-white">{user?.name[0]}</AvatarFallback>
+                  <Avatar className="h-20 w-20 ring-4 ring-white shadow-lg shrink-0">
+                    <AvatarFallback className="text-2xl font-black bg-primary text-white">
+                      {getInitials(user?.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
                     <CardTitle className="text-2xl font-bold">{user?.name}</CardTitle>

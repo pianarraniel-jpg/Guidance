@@ -17,7 +17,7 @@ import {
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, isCounselorMatchingDepartment } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import Link from 'next/link';
 
@@ -220,7 +220,7 @@ export default function StudentMessages() {
   return (
     <ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+        <div className="flex h-[calc(100vh-64px-64px)] lg:h-[calc(100vh-64px)] overflow-hidden">
           {/* Sidebar / Counselor List */}
           <div className={cn(
             "w-full md:w-80 lg:w-96 bg-white border-r flex flex-col shrink-0 h-full",
@@ -251,9 +251,13 @@ export default function StudentMessages() {
                     )}
                   >
                     <div className="relative shrink-0">
-                      <Avatar className="h-12 w-12 ring-2 ring-white">
-                        <AvatarImage src={`https://picsum.photos/seed/${counselor.id}/64/64`} />
-                        <AvatarFallback className="font-bold text-primary bg-primary/5">{counselor.name[0]}</AvatarFallback>
+                      <Avatar className="h-12 w-12 ring-2 ring-white shadow-sm shrink-0">
+                        {counselor.avatarUrl && !counselor.avatarUrl.includes('picsum.photos') && (
+                          <AvatarImage src={counselor.avatarUrl} alt={counselor.name} />
+                        )}
+                        <AvatarFallback className={cn("font-black text-xs border shadow-inner", getAvatarColor(counselor.name || counselor.id))}>
+                          {getInitials(counselor.name)}
+                        </AvatarFallback>
                       </Avatar>
                       {counselor.isUnread && (
                         <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm" />
@@ -306,9 +310,13 @@ export default function StudentMessages() {
                     >
                       <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0">
-                      <AvatarImage src={`https://picsum.photos/seed/${activeCounselor.id}/64/64`} />
-                      <AvatarFallback className="font-bold text-primary bg-primary/5">{activeCounselor.name[0]}</AvatarFallback>
+                    <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0 shadow-sm">
+                      {activeCounselor.avatarUrl && !activeCounselor.avatarUrl.includes('picsum.photos') && (
+                        <AvatarImage src={activeCounselor.avatarUrl} alt={activeCounselor.name} />
+                      )}
+                      <AvatarFallback className={cn("font-black text-xs sm:text-sm border shadow-inner", getAvatarColor(activeCounselor.name || activeCounselor.id))}>
+                        {getInitials(activeCounselor.name)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                       <h3 className="font-black text-slate-900 text-sm sm:text-lg truncate">{activeCounselor.name}</h3>
@@ -336,8 +344,9 @@ export default function StudentMessages() {
                       >
                         {msg.senderId !== user?.id && (
                           <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border border-white shadow-sm shrink-0 mt-0.5">
-                            <AvatarImage src={`https://picsum.photos/seed/${msg.senderId}/64/64`} />
-                            <AvatarFallback>{msg.senderRole === 'student' ? 'S' : 'C'}</AvatarFallback>
+                            <AvatarFallback className={cn("font-black text-[10px]", msg.senderRole === 'student' ? 'bg-primary/10 text-primary' : 'bg-emerald-50 text-emerald-700')}>
+                              {msg.senderRole === 'student' ? 'S' : 'C'}
+                            </AvatarFallback>
                           </Avatar>
                         )}
                         <div className={cn(

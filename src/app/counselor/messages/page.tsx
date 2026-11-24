@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 
 type Message = {
   id: string;
@@ -243,10 +243,10 @@ export default function CounselorMessagesPage() {
   );
 
   return (
-    <div className="h-[calc(100vh-120px)] flex gap-6">
+    <div className="h-[calc(100vh-64px-64px)] lg:h-[calc(100vh-120px)] flex gap-0 md:gap-6">
       {/* Sidebar / Student Roster */}
       <Card className={cn(
-        "w-full md:w-80 lg:w-96 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col shrink-0 h-full",
+        "w-full md:w-80 lg:w-96 border border-slate-200/80 shadow-xs bg-white rounded-2xl overflow-hidden flex flex-col shrink-0 h-full",
         activeStudent ? "hidden md:flex" : "flex"
       )}>
         <div className="p-4 sm:p-6 border-b border-slate-50">
@@ -277,9 +277,13 @@ export default function CounselorMessagesPage() {
                 )}
               >
                 <div className="relative shrink-0">
-                  <Avatar className="h-11 w-11 ring-2 ring-white">
-                    <AvatarImage src={`https://picsum.photos/seed/${contact.id}/64/64`} />
-                    <AvatarFallback className="bg-primary/5 text-primary font-bold">{contact.name[0]}</AvatarFallback>
+                  <Avatar className="h-11 w-11 ring-2 ring-white shadow-sm shrink-0">
+                    {contact.avatarUrl && !contact.avatarUrl.includes('picsum.photos') && (
+                      <AvatarImage src={contact.avatarUrl} alt={contact.name} />
+                    )}
+                    <AvatarFallback className={cn("font-black text-xs border shadow-inner", getAvatarColor(contact.name || contact.id))}>
+                      {getInitials(contact.name)}
+                    </AvatarFallback>
                   </Avatar>
                   {contact.isUnread && (
                     <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse shadow-sm" />
@@ -314,7 +318,7 @@ export default function CounselorMessagesPage() {
 
       {/* Chat area */}
       <Card className={cn(
-        "flex-1 border-none shadow-xl shadow-slate-200/50 bg-white rounded-[2rem] overflow-hidden flex flex-col h-full min-w-0",
+        "flex-1 border border-slate-200/80 shadow-xs bg-white rounded-2xl overflow-hidden flex flex-col h-full min-w-0",
         activeStudent ? "flex" : "hidden md:flex"
       )}>
         {activeStudent ? (
@@ -329,9 +333,13 @@ export default function CounselorMessagesPage() {
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0">
-                  <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/64/64`} />
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{activeStudent.name[0]}</AvatarFallback>
+                <Avatar className="h-10 w-10 sm:h-11 sm:w-11 ring-2 ring-primary/5 shrink-0 shadow-sm">
+                  {activeStudent.avatarUrl && !activeStudent.avatarUrl.includes('picsum.photos') && (
+                    <AvatarImage src={activeStudent.avatarUrl} alt={activeStudent.name} />
+                  )}
+                  <AvatarFallback className={cn("font-black text-xs sm:text-sm border shadow-inner", getAvatarColor(activeStudent.name || activeStudent.id))}>
+                    {getInitials(activeStudent.name)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">

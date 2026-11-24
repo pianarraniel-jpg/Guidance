@@ -724,7 +724,7 @@ export default function BookAppointment() {
               <div className="max-w-xl mx-auto py-6">
                 <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden text-left">
                   {/* Digital Pass Header */}
-                  <div className="bg-gradient-to-r from-primary to-emerald-700 p-8 text-white relative">
+                  <div className="bg-[#246B5C] p-6 sm:p-8 text-white relative">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center font-black text-sm">

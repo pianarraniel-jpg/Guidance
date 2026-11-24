@@ -397,14 +397,14 @@ export default function StudentResources() {
           )}
 
           {/* CTA Card */}
-          <Card className="border-none shadow-xl bg-gradient-to-r from-primary/10 to-emerald-500/10 p-8 rounded-3xl">
-            <div className="flex items-center justify-between">
+          <Card className="border border-red-200/80 shadow-xs bg-red-50/60 p-5 sm:p-8 rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-xl font-black text-slate-900 mb-2">Need Immediate Support?</h3>
-                <p className="text-sm text-slate-600 font-medium">If you&apos;re experiencing a crisis, please reach out to the USPF Counseling Center or call the Mental Health Crisis Hotline immediately.</p>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 mb-1 sm:mb-2">Need Immediate Support?</h3>
+                <p className="text-xs sm:text-sm text-slate-600 font-medium">If you&apos;re experiencing a crisis, please reach out to the USPF Counseling Center or call the Mental Health Crisis Hotline immediately.</p>
               </div>
-              <Button className="bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl px-8 py-6 h-auto flex items-center gap-2 shrink-0">
-                <Phone className="h-5 w-5" /> Call Now
+              <Button className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-5 sm:px-6 h-11 flex items-center justify-center gap-2 shrink-0 w-full sm:w-auto text-xs sm:text-sm shadow-xs">
+                <Phone className="h-4 w-4" /> Call Now
               </Button>
             </div>
           </Card>

@@ -168,13 +168,13 @@ export default function LoginPage() {
 
             <div className="inline-flex items-center gap-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-5 py-3 shadow-xl">
               <div className="flex -space-x-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-8 w-8 rounded-full border-2 border-primary bg-muted overflow-hidden">
-                    <img
-                      src={`https://picsum.photos/seed/${i + 50}/64/64`}
-                      alt="Student"
-                      className="h-full w-full object-cover"
-                    />
+                {[
+                  { text: 'US', bg: 'bg-emerald-600' },
+                  { text: 'PF', bg: 'bg-blue-600' },
+                  { text: 'GS', bg: 'bg-teal-600' }
+                ].map((item, idx) => (
+                  <div key={idx} className={`h-8 w-8 rounded-full border-2 border-primary ${item.bg} flex items-center justify-center text-[10px] font-black text-white shadow-sm`}>
+                    {item.text}
                   </div>
                 ))}
               </div>

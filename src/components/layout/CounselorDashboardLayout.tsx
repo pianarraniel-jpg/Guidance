@@ -1,11 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   LayoutDashboard,
   Users,
@@ -17,14 +17,23 @@ import {
   Calendar,
   MessageSquare,
   ClipboardList,
-  MonitorSmartphone,
-  Heart
+  Heart,
+  Menu,
+  ChevronRight,
 } from 'lucide-react';
 import logo from '@/app/assets/logo.png';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import NotificationBell from '@/components/common/NotificationBell';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetClose,
+} from '@/components/ui/sheet';
 
 interface CounselorDashboardLayoutProps {
   children: React.ReactNode;
@@ -34,6 +43,7 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
   const { user, logout } = useAuth();
   const { notifications } = useNotifications();
   const pathname = usePathname();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/counselor/dashboard' },
@@ -45,42 +55,54 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
     { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
   ];
 
+  const mobileBottomItems = [
+    { icon: LayoutDashboard, label: 'Overview', href: '/counselor/dashboard' },
+    { icon: Calendar, label: 'Queue', href: '/counselor/appointments', type: 'appointment' },
+    { icon: Users, label: 'Students', href: '/counselor/students' },
+    { icon: ClipboardList, label: 'Records', href: '/counselor/session-records' },
+    { icon: MessageSquare, label: 'Messages', href: '/counselor/messages', type: 'message' },
+  ];
+
   const getUnreadCount = (type?: string) => {
     if (!type) return 0;
     return notifications.filter(n => n.type === type && !n.isRead).length;
   };
 
+  const currentTitle = sidebarItems.find(i => pathname.startsWith(i.href))?.label || 'Counselor Portal';
+
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
-      {/* Counselor Sidebar */}
-      <aside className="w-64 bg-white border-r hidden lg:flex flex-col py-8 sticky top-0 h-screen shrink-0 z-40">
-        <div className="px-6 mb-12">
-          <div className="flex items-center gap-2 mb-1">
-            <Image src={logo} alt="GuidanceSync Logo" className="h-8 w-8 object-contain" width={32} height={32} />
-            <h2 className="text-xl font-bold text-slate-900 font-headline">GuidanceSync</h2>
+    <div className="flex min-h-screen bg-[#F8FAFC] antialiased">
+      {/* Counselor Desktop Sidebar */}
+      <aside className="w-64 bg-white border-r border-slate-200/80 hidden lg:flex flex-col py-6 sticky top-0 h-screen shrink-0 z-40">
+        <div className="px-6 mb-8">
+          <div className="flex items-center gap-2.5 mb-1">
+            <Image src={logo} alt="GuidanceSync Logo" className="h-8 w-8 object-contain" width={32} height={32} priority />
+            <h2 className="text-xl font-black text-slate-900 tracking-tight font-headline">GuidanceSync</h2>
           </div>
-          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] pl-10 text-primary/80">Guidance Office</p>
+          <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider pl-10">Guidance Office SaaS</p>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1.5">
+        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
           {sidebarItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname.startsWith(item.href);
             const unreadCount = getUnreadCount(item.type);
             
             return (
               <Link 
                 key={item.label} 
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all relative group ${
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative group ${
                   isActive 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-                    : 'text-slate-400 hover:text-primary hover:bg-primary/5'
+                    ? 'bg-primary text-white shadow-sm' 
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
-                <item.icon className={`h-5 w-5 ${isActive ? 'text-white' : ''}`} />
-                <span className="flex-1">{item.label}</span>
+                <item.icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700'}`} />
+                <span className="flex-1 truncate">{item.label}</span>
                 {unreadCount > 0 && (
-                  <span className={`h-5 w-5 rounded-full text-[10px] flex items-center justify-center font-black animate-pulse shadow-sm ${isActive ? 'bg-white text-primary' : 'bg-red-500 text-white'}`}>
+                  <span className={`h-5 min-w-[20px] px-1.5 rounded-full text-[10px] flex items-center justify-center font-black shadow-xs ${
+                    isActive ? 'bg-white text-primary' : 'bg-rose-500 text-white'
+                  }`}>
                     {unreadCount}
                   </span>
                 )}
@@ -89,49 +111,66 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
           })}
         </nav>
 
-        <div className="px-4 mt-auto space-y-1 pt-6 border-t border-slate-50">
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-primary transition-all text-left">
-            <HelpCircle className="h-4 w-4" />
-            Support Help
+        <div className="px-3 pt-3 border-t border-slate-100 space-y-1 mt-auto">
+          <button className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
+            <HelpCircle className="h-4 w-4 text-slate-400 shrink-0" />
+            <span>Support Help</span>
           </button>
           <button 
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold text-slate-400 hover:text-red-500 transition-all text-left"
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all text-left"
           >
-            <LogOut className="h-4 w-4" />
-            Exit Portal
+            <LogOut className="h-4 w-4 text-slate-400 shrink-0" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen relative">
-        {/* Top Header */}
-        <header className="h-16 bg-white border-b px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
-          <div className="relative w-96 group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
-            <Input
-              placeholder="Search student records..."
-              className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-xs font-medium focus-visible:ring-1 focus-visible:ring-primary/20"
-            />
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
+        {/* Responsive Header */}
+        <header className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Mobile Drawer Hamburger */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden text-slate-600 hover:bg-slate-100 rounded-xl h-10 w-10 -ml-1"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation</span>
+            </Button>
+
+            <div className="flex items-center gap-2 lg:hidden">
+              <Image src={logo} alt="GuidanceSync Logo" className="h-7 w-7 object-contain" width={28} height={28} />
+              <span className="font-black text-slate-900 text-sm tracking-tight truncate max-w-[140px] sm:max-w-none">
+                GuidanceSync
+              </span>
+            </div>
+
+            <h2 className="hidden lg:block text-base font-black text-slate-900">
+              {currentTitle}
+            </h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             <NotificationBell />
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-primary transition-colors" asChild>
+            <Button variant="ghost" size="icon" className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full h-9 w-9 sm:h-10 sm:w-10" asChild>
               <Link href="/counselor/settings">
-                <Settings className="h-5 w-5" />
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="sr-only">Settings</span>
               </Link>
             </Button>
             
-            <div className="pl-4 border-l border-slate-100 ml-2">
-              <div className="flex items-center gap-3">
+            <div className="pl-2 sm:pl-3 border-l border-slate-200">
+              <div className="flex items-center gap-2 sm:gap-2.5">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-black leading-none text-slate-900">{user?.name || 'USPF Counselor'}</p>
-                  <p className="text-[9px] text-primary uppercase font-bold tracking-tighter mt-0.5">{user?.department ? `${user.department} Counselor` : 'Staff Account'}</p>
+                  <p className="text-xs font-black leading-tight text-slate-900 truncate max-w-[150px]">{user?.name || 'USPF Counselor'}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{user?.department ? `${user.department} Counselor` : 'Staff Account'}</p>
                 </div>
-                <Avatar className="h-9 w-9 ring-2 ring-primary/5">
-                  <AvatarFallback className="bg-primary/5 text-primary font-bold">{user?.name?.charAt(0).toUpperCase() || 'C'}</AvatarFallback>
+                <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border border-slate-200 shadow-xs shrink-0">
+                  <AvatarFallback className="bg-slate-100 text-slate-700 font-black text-xs">{user?.name?.charAt(0).toUpperCase() || 'C'}</AvatarFallback>
                 </Avatar>
               </div>
             </div>
@@ -139,9 +178,123 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F8FAFC] pb-24 lg:pb-8">
           {children}
         </main>
+
+        {/* Mobile Slide-out Drawer */}
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetContent side="left" className="w-[82vw] max-w-xs p-0 border-r border-slate-200/80 bg-white flex flex-col">
+            <SheetHeader className="p-5 border-b border-slate-100 text-left">
+              <div className="flex items-center gap-2.5 mb-2">
+                <Image src={logo} alt="GuidanceSync" className="h-7 w-7 object-contain" width={28} height={28} />
+                <SheetTitle className="text-lg font-black text-slate-900 tracking-tight">GuidanceSync</SheetTitle>
+              </div>
+              <SheetDescription className="text-xs text-slate-500 font-medium">
+                Guidance Counselor Management System
+              </SheetDescription>
+
+              {/* Counselor mini profile card inside drawer */}
+              <div className="mt-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-primary text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'C'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-slate-900 truncate">{user?.name || 'Guidance Counselor'}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                    {user?.department ? `${user.department} Counselor` : 'Guidance Staff'}
+                  </p>
+                </div>
+              </div>
+            </SheetHeader>
+
+            <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+              {sidebarItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                const unreadCount = getUnreadCount(item.type);
+
+                return (
+                  <SheetClose asChild key={item.label}>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+                        isActive
+                          ? 'bg-primary text-white shadow-sm'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <item.icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {unreadCount > 0 && (
+                        <span className={`h-5 min-w-[20px] px-1.5 rounded-full text-[10px] flex items-center justify-center font-black ${
+                          isActive ? 'bg-white text-primary' : 'bg-rose-500 text-white'
+                        }`}>
+                          {unreadCount}
+                        </span>
+                      )}
+                      <ChevronRight className={`h-3.5 w-3.5 opacity-40 ${isActive ? 'text-white' : ''}`} />
+                    </Link>
+                  </SheetClose>
+                );
+              })}
+            </nav>
+
+            {/* Bottom actions in drawer */}
+            <div className="p-4 border-t border-slate-100 space-y-2 mt-auto bg-slate-50/50">
+              <SheetClose asChild>
+                <Link
+                  href="/counselor/settings"
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 transition-all border border-transparent hover:border-slate-200"
+                >
+                  <Settings className="h-4 w-4 text-slate-400" />
+                  Account Settings
+                </Link>
+              </SheetClose>
+
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all text-left"
+              >
+                <LogOut className="h-4 w-4 text-rose-500" />
+                Sign Out
+              </button>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Mobile Bottom Navigation Bar (Counselor) */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-2px_12px_rgba(0,0,0,0.03)] z-50 px-2 flex items-center justify-around">
+          {mobileBottomItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            const unreadCount = getUnreadCount(item.type);
+
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex flex-col items-center justify-center gap-1 flex-1 h-full relative transition-all ${
+                  isActive ? 'text-primary' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <div className="relative">
+                  <item.icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1.5 h-4 w-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[10px] tracking-tight line-clamp-1 ${isActive ? 'font-black' : 'font-semibold'}`}>
+                  {item.label}
+                </span>
+                {isActive && <div className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );

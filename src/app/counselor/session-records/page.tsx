@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import {
   Calendar,
   Clock,
@@ -337,10 +338,9 @@ export default function SessionRecordsPage() {
                 className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer select-none group/trigger"
               >
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-12 w-12 ring-2 ring-slate-100">
-                    <AvatarImage src={`https://picsum.photos/seed/${group.studentName}/128/128`} />
-                    <AvatarFallback className="bg-slate-100 text-slate-700 font-black text-sm">
-                      {group.studentName[0]}
+                  <Avatar className="h-12 w-12 ring-2 ring-slate-100 shadow-sm shrink-0">
+                    <AvatarFallback className={cn("font-black text-sm border shadow-inner", getAvatarColor(group.studentName || group.studentId))}>
+                      {getInitials(group.studentName)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
