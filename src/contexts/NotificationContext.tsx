@@ -5,9 +5,12 @@ import { supabase } from '@/lib/supabase';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { subscribeToRealtimeHub } from '@/lib/realtime-hub';
+import { toast } from '@/hooks/use-toast';
 import {
   buildCounselorBookingBellPayload,
   buildStudentAppointmentBellPayload,
+  formatCounselorDisplayName,
   type BookingNotificationPayload,
 } from '@/lib/booking-notifications';
 
@@ -45,22 +48,32 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const [realtimeStatus, setRealtimeStatus] = useState<string>('connecting');
   const shownBrowserIds = useRef<Set<string>>(new Set());
+  const isInitialMountRef = useRef<boolean>(true);
+  const recentlyNotifiedRef = useRef<Map<string, number>>(new Map());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showBrowserNotification = useCallback((title: string, body: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon: '/favicon.ico' });
+      try {
+        new Notification(title, { body, icon: '/favicon.ico' });
+      } catch (e) {
+        console.warn('[NotificationContext] Could not show browser notification:', e);
+      }
     }
   }, []);
 
   const loadReadIds = useCallback(async () => {
     if (!user) { setReadIds(new Set()); return; }
-    const { data } = await supabase
-      .from(STORAGE_KEYS.NOTIFICATIONS_READ)
-      .select('notification_id')
-      .eq('user_id', user.id);
-    setReadIds(new Set((data ?? []).map((r: any) => r.notification_id)));
+    try {
+      const { data } = await supabase
+        .from(STORAGE_KEYS.NOTIFICATIONS_READ)
+        .select('notification_id')
+        .eq('user_id', user.id);
+      setReadIds(new Set((data ?? []).map((r: any) => r.notification_id)));
+    } catch (e) {
+      console.warn('[NotificationContext] Error loading read notification IDs:', e);
+    }
   }, [user]);
 
   const fetchNotificationsData = useCallback(async () => {
@@ -73,7 +86,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const appointments = await storageService.getCounselorPendingAppointments();
       appointments.forEach(a => {
         const booking = a as BookingNotificationPayload;
-        const id = `apt-${booking.id}`;
+        const id = `apt-${booking.id}-${booking.status || 'pending'}`;
         alerts.push(buildCounselorBookingBellPayload(booking, readSet.has(id)));
       });
 
@@ -119,11 +132,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } else if (isStudent) {
       const appointments = await storageService.getByField<any>(STORAGE_KEYS.APPOINTMENTS, 'studentId', user.id);
       appointments
-        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.CANCELLED)
+        .filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.CANCELLED || a.status === APPOINTMENT_STATUS.PENDING)
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
-          const id = `apt-status-${booking.id}-${booking.status}`;
-          alerts.push(buildStudentAppointmentBellPayload(booking, readSet.has(id)));
+          const notif = buildStudentAppointmentBellPayload(booking, false);
+          alerts.push({
+            ...notif,
+            isRead: readSet.has(notif.id),
+          });
         });
 
       const assessments = await storageService.getByField<any>(STORAGE_KEYS.ASSESSMENTS, 'studentId', user.id);
@@ -150,7 +166,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           alerts.push({
             id, type: 'assessment',
             title: 'New Student Task',
-            description: `Dr. ${t.counselorName?.split(' ').pop()} assigned: ${t.title}`,
+            description: `${formatCounselorDisplayName(t.counselorName)} assigned: ${t.title}`,
             timestamp: t.timestamp || Date.now(),
             link: '/student/assessments',
             studentName: 'You',
@@ -187,12 +203,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const sorted = alerts.sort((a, b) => b.timestamp - a.timestamp);
 
-    sorted
-      .filter(n => !n.isRead && !shownBrowserIds.current.has(n.id))
-      .forEach(n => {
-        showBrowserNotification(n.title, n.description);
-        shownBrowserIds.current.add(n.id);
-      });
+    // On initial mount, register existing unread items so we don't spam popups
+    if (isInitialMountRef.current) {
+      sorted.forEach(n => shownBrowserIds.current.add(n.id));
+      isInitialMountRef.current = false;
+    } else {
+      sorted
+        .filter(n => !n.isRead && !shownBrowserIds.current.has(n.id))
+        .forEach(n => {
+          showBrowserNotification(n.title, n.description);
+          shownBrowserIds.current.add(n.id);
+        });
+    }
 
     setNotifications(sorted);
   }, [isCounselor, isStudent, user, readIds, showBrowserNotification]);
@@ -201,8 +223,113 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       fetchNotificationsData();
-    }, 400);
+    }, 300);
   }, [fetchNotificationsData]);
+
+  const handleRealtimeAppointmentEvent = useCallback((event: { action: string; payload: any }) => {
+    if (!user) return;
+    const raw = event.payload?.new || event.payload || {};
+    const apt = {
+      id: raw.id || event.payload?.id,
+      studentId: raw.student_id || raw.studentId,
+      studentName: raw.student_name || raw.studentName || 'Student',
+      counselorId: raw.counselor_id || raw.counselorId,
+      counselorName: raw.counselor_name || raw.counselorName,
+      date: raw.date,
+      time: raw.time,
+      type: raw.type || 'Consultation',
+      status: raw.status,
+      reason: raw.reason,
+    };
+
+    const now = Date.now();
+    const shouldNotify = (key: string) => {
+      const last = recentlyNotifiedRef.current.get(key);
+      if (last && now - last < 4000) return false;
+      recentlyNotifiedRef.current.set(key, now);
+      return true;
+    };
+
+    if (isStudent && apt.studentId === user.id) {
+      const counselor = formatCounselorDisplayName(apt.counselorName);
+      const timeStr = apt.time ? ` at ${apt.time}` : '';
+      const dateStr = apt.date || 'your scheduled date';
+      const eventKey = `student-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+
+      if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
+        if (shouldNotify(eventKey)) {
+          const isCounselorBooking = event.action === 'insert';
+          const title = isCounselorBooking ? 'New Session Scheduled 📋' : 'Session Confirmed 🎉';
+          const description = isCounselorBooking
+            ? `${counselor} scheduled a ${apt.type} session with you for ${dateStr}${timeStr}.`
+            : `Your ${apt.type} session on ${dateStr}${timeStr} with ${counselor} has been confirmed.`;
+
+          toast({
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
+      } else if (apt.status === APPOINTMENT_STATUS.CANCELLED) {
+        if (shouldNotify(eventKey)) {
+          const title = 'Session Cancelled ⚠️';
+          const description = `Your session on ${dateStr}${timeStr} with ${counselor} has been cancelled.`;
+          toast({
+            variant: 'destructive',
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
+      } else if (event.action === 'insert') {
+        if (shouldNotify(eventKey)) {
+          const title = 'Consultation Scheduled 📋';
+          const description = `${counselor} scheduled a session with you for ${dateStr}${timeStr}.`;
+          toast({
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
+      }
+    } else if (isCounselor) {
+      const studentName = apt.studentName || 'Student';
+      const timeStr = apt.time ? ` at ${apt.time}` : '';
+      const dateStr = apt.date || 'the requested date';
+      const eventKey = `counselor-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
+
+      if (event.action === 'insert' && apt.status === APPOINTMENT_STATUS.PENDING) {
+        if (shouldNotify(eventKey)) {
+          const title = 'New Booking Request 📅';
+          const description = `${studentName} requested a ${apt.type} session for ${dateStr}${timeStr}.`;
+          toast({
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
+      } else if (apt.status === APPOINTMENT_STATUS.CANCELLED) {
+        if (shouldNotify(eventKey)) {
+          const title = 'Session Cancelled';
+          const description = `${studentName} cancelled the session for ${dateStr}${timeStr}.`;
+          toast({
+            variant: 'destructive',
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        }
+      }
+    }
+
+    setLastUpdate(Date.now());
+    refreshNotifications();
+  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications]);
+
+  const handleRealtimeAppointmentEventRef = useRef(handleRealtimeAppointmentEvent);
+  useEffect(() => {
+    handleRealtimeAppointmentEventRef.current = handleRealtimeAppointmentEvent;
+  }, [handleRealtimeAppointmentEvent]);
 
   const handleRealtimeUpdate = useCallback(() => {
     setLastUpdate(Date.now());
@@ -228,43 +355,62 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     fetchNotificationsData();
 
     const channel = supabase.channel(`notif-${user.id}`);
-    const callback = () => {
-      handleRealtimeUpdateRef.current();
+    const onAppointmentPostgres = (payload: any) => {
+      handleRealtimeAppointmentEventRef.current({
+        action: payload.eventType === 'INSERT' ? 'insert' : payload.eventType === 'DELETE' ? 'delete' : 'update',
+        payload: payload.new || payload.old || payload,
+      });
     };
 
     if (isStudent) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, callback)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, callback)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, callback)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, callback);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `student_id=eq.${user.id}` }, onAppointmentPostgres)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments', filter: `student_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessment_tasks', filter: `student_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current());
     } else if (isCounselor) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, callback)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, callback)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, callback);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, onAppointmentPostgres)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => handleRealtimeUpdateRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => handleRealtimeUpdateRef.current());
     } else if (isAdmin) {
       channel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, callback)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, callback)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, callback);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, onAppointmentPostgres)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => handleRealtimeUpdateRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => handleRealtimeUpdateRef.current());
     }
 
     channel.subscribe((status) => {
-      console.log(`[NotificationContext] Subscription status for channel notif-${user.id}:`, status);
       setRealtimeStatus(status);
     });
+
+    const unsubHub = subscribeToRealtimeHub((event) => {
+      if (event.table === 'appointments') {
+        handleRealtimeAppointmentEventRef.current({
+          action: event.action,
+          payload: event.payload,
+        });
+      } else {
+        handleRealtimeUpdateRef.current();
+      }
+    });
+
     return () => {
       setRealtimeStatus('closed');
       supabase.removeChannel(channel);
+      unsubHub();
     };
   }, [user?.id, isStudent, isCounselor, isAdmin, fetchNotificationsData]);
 
   const persistReadIds = useCallback(async (ids: string[]) => {
     if (!user || ids.length === 0) return;
-    const rows = ids.map(notification_id => ({ user_id: user.id, notification_id }));
-    await supabase.from(STORAGE_KEYS.NOTIFICATIONS_READ).upsert(rows, { onConflict: 'user_id,notification_id' });
-    setReadIds(prev => new Set([...prev, ...ids]));
+    try {
+      const rows = ids.map(notification_id => ({ user_id: user.id, notification_id }));
+      await supabase.from(STORAGE_KEYS.NOTIFICATIONS_READ).upsert(rows, { onConflict: 'user_id,notification_id' });
+      setReadIds(prev => new Set([...prev, ...ids]));
+    } catch (e) {
+      console.warn('[NotificationContext] Error persisting read IDs:', e);
+    }
   }, [user]);
 
   const markAsRead = useCallback((id: string) => { persistReadIds([id]); }, [persistReadIds]);

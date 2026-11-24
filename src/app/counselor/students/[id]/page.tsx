@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { safeUpdateProfile } from '@/lib/profile-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { exerciseService, ExerciseCompletionRecord } from '@/lib/exercise-service';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -138,6 +139,8 @@ export default function StudentRecordPage() {
   useEffect(() => {
     loadStudentRecord();
   }, [loadStudentRecord]);
+
+  useLiveSync(loadStudentRecord, ['profiles', 'assessments', 'session_notes', 'global_self_care_tools']);
 
   // Compute stats
   const avgStress = useMemo(() => {

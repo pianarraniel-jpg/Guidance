@@ -47,7 +47,10 @@ import {
   ExternalLink,
   Video,
   Building2,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { storageService } from '@/lib/storage-service';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_KEYS, APPOINTMENT_STATUS, getCollegesForCounselor } from '@/lib/constants';
@@ -70,6 +73,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
 import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
 import { autoExpirePassedAppointments, isAppointmentPassed, getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
@@ -99,6 +103,7 @@ export default function CounselorAppointmentsPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   // Counselor-to-Student booking states
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -113,6 +118,98 @@ export default function CounselorAppointmentsPage() {
   const [bookingModality, setBookingModality] = useState<'in-person' | 'online'>('in-person');
   const [bookingLocation, setBookingLocation] = useState("Guidance Office — Room 302");
   const [isBookingSubmit, setIsBookingSubmit] = useState(false);
+  const isBookingSubmitRef = React.useRef(false);
+
+  const slotConflictMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    appointments.forEach(a => {
+      if (a.status === APPOINTMENT_STATUS.CANCELLED) return;
+      const key = `${a.date}|${a.time}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [appointments]);
+
+  // Track booked slots on the selected bookingDate to disable conflicts in real-time
+  const [dateBookedSlots, setDateBookedSlots] = useState<{
+    counselorSlots: string[];
+    studentSlots: string[];
+  }>({ counselorSlots: [], studentSlots: [] });
+
+  useEffect(() => {
+    if (!isBookingOpen || !bookingDate) {
+      setDateBookedSlots({ counselorSlots: [], studentSlots: [] });
+      return;
+    }
+
+    let isMounted = true;
+    const fetchDateConflicts = async () => {
+      try {
+        const { data } = await supabase
+          .from('appointments')
+          .select('id, counselor_id, student_id, time, status')
+          .eq('date', bookingDate)
+          .neq('status', APPOINTMENT_STATUS.CANCELLED);
+
+        if (!isMounted) return;
+
+        const counselorSlots = (data || [])
+          .filter(a => a.counselor_id === counselor?.id)
+          .map(a => a.time);
+
+        const studentSlots = (data || [])
+          .filter(a => bookingStudentId && a.student_id === bookingStudentId)
+          .map(a => a.time);
+
+        setDateBookedSlots({ counselorSlots, studentSlots });
+      } catch (err) {
+        console.error('Error fetching date conflicts:', err);
+      }
+    };
+
+    fetchDateConflicts();
+    return () => { isMounted = false; };
+  }, [isBookingOpen, bookingDate, bookingStudentId, counselor?.id, appointments]);
+
+  const getSlotAvailability = useCallback((slot: string) => {
+    if (!bookingDate) {
+      return { isAvailable: true, badgeText: '', reason: '' };
+    }
+
+    // 1. Is this slot already in the past for today?
+    if (isAppointmentPassed(bookingDate, slot)) {
+      return { isAvailable: false, badgeText: 'Past Time', reason: 'past' };
+    }
+
+    // 2. Is this counselor already booked for this slot?
+    const isCounselorBooked = appointments.some(
+      a => a.date === bookingDate &&
+           a.time === slot &&
+           a.status !== APPOINTMENT_STATUS.CANCELLED
+    ) || dateBookedSlots.counselorSlots.includes(slot);
+
+    if (isCounselorBooked) {
+      return { isAvailable: false, badgeText: 'Already Booked', reason: 'counselor_conflict' };
+    }
+
+    // 3. Is the selected student already booked for this slot?
+    const isStudentBusy = Boolean(bookingStudentId && dateBookedSlots.studentSlots.includes(slot));
+    if (isStudentBusy) {
+      return { isAvailable: false, badgeText: 'Student Busy', reason: 'student_conflict' };
+    }
+
+    return { isAvailable: true, badgeText: 'Available', reason: '' };
+  }, [bookingDate, appointments, dateBookedSlots, bookingStudentId]);
+
+  // Clear bookingTime automatically if it becomes unavailable when date or student changes
+  useEffect(() => {
+    if (bookingTime && bookingDate) {
+      const status = getSlotAvailability(bookingTime);
+      if (!status.isAvailable) {
+        setBookingTime('');
+      }
+    }
+  }, [bookingDate, bookingStudentId, bookingTime, getSlotAvailability]);
 
   const isOnlineLocation = (loc?: string) => {
     if (!loc) return false;
@@ -230,20 +327,151 @@ export default function CounselorAppointmentsPage() {
     loadStudents();
   }, [loadStudents]);
 
+  const dispatchConfirmationEmail = async (params: {
+    appointmentId: string;
+    studentId: string;
+    studentEmail?: string;
+    studentName: string;
+    counselorName: string;
+    date: string;
+    time: string;
+    type: string;
+    location: string;
+  }) => {
+    try {
+      const res = await fetch('/api/appointments/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId: params.appointmentId,
+          studentId: params.studentId,
+          toEmail: params.studentEmail,
+          studentName: params.studentName,
+          counselorName: params.counselorName,
+          date: params.date,
+          time: params.time,
+          type: params.type,
+          location: params.location,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (data.success) {
+        toast({
+          title: 'Confirmation Email Sent ✉️',
+          description: `Sent to ${params.studentEmail || params.studentName}.`,
+        });
+        return;
+      }
+
+      console.warn('[Email] Server SMTP send failed, testing client EmailJS fallback...', data.error);
+
+      // Client-side EmailJS fallback if studentEmail is available
+      if (params.studentEmail) {
+        try {
+          await sendBookingConfirmationEmail(
+            {
+              id: params.appointmentId,
+              studentId: params.studentId,
+              studentName: params.studentName,
+              counselorName: params.counselorName,
+              date: params.date,
+              time: params.time,
+              type: params.type,
+              status: 'confirmed',
+              location: params.location,
+              reason: '',
+              createdAt: new Date().toISOString(),
+            },
+            { email: params.studentEmail, name: params.studentName }
+          );
+          toast({
+            title: 'Confirmation Email Sent ✉️',
+            description: `Sent to ${params.studentEmail} via EmailJS.`,
+          });
+          return;
+        } catch (clientErr) {
+          console.error('[EmailJS fallback failed]', clientErr);
+        }
+      }
+
+      // Display actionable message to user
+      if (
+        data.error?.includes('App Password') ||
+        data.error?.includes('535') ||
+        data.error?.includes('BadCredentials') ||
+        data.error?.includes('Username and Password not accepted')
+      ) {
+        toast({
+          variant: 'destructive',
+          title: 'Gmail Blocked SMTP Login',
+          description: 'Gmail requires a 16-character App Password (not your regular Gmail password). Generate one at myaccount.google.com/apppasswords.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Email Delivery Notice',
+          description: data.error || 'Could not send confirmation email.',
+        });
+      }
+    } catch (err: any) {
+      console.error('[Email] Unexpected dispatch error:', err);
+    }
+  };
+
   const handleCounselorBooking = async () => {
-    if (!bookingStudentId || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()) {
+    if (isBookingSubmitRef.current || isBookingSubmit) return;
+    const missing: string[] = [];
+    if (!bookingStudentId) missing.push("Student");
+    if (!bookingType) missing.push("Session Type");
+    if (!bookingDate) missing.push("Date");
+    if (!bookingTime) missing.push("Time Slot");
+    if (!bookingReason.trim()) missing.push("Reason for Consultation");
+
+    if (missing.length > 0) {
       toast({
         variant: "destructive",
-        title: "Validation Error",
-        description: "Please fill in all required fields.",
+        title: "Missing Required Fields",
+        description: `Please fill in: ${missing.join(", ")}.`,
       });
       return;
     }
     
+    isBookingSubmitRef.current = true;
     setIsBookingSubmit(true);
     try {
       const selectedStudent = students.find(s => s.id === bookingStudentId);
       if (!selectedStudent) throw new Error("Student not found");
+
+      // Pre-check for duplicate slot before booking
+      const { data: existingSlots } = await supabase
+        .from('appointments')
+        .select('id, counselor_id, student_id')
+        .eq('date', bookingDate)
+        .eq('time', bookingTime)
+        .neq('status', APPOINTMENT_STATUS.CANCELLED);
+
+      const counselorConflict = (existingSlots || []).find(a => a.counselor_id === counselor?.id);
+      const studentConflict = (existingSlots || []).find(a => a.student_id === bookingStudentId);
+
+      if (counselorConflict) {
+        toast({
+          variant: "destructive",
+          title: "Slot Conflict",
+          description: `You already have an active appointment scheduled at ${bookingTime} on ${bookingDate}.`,
+        });
+        return;
+      }
+
+      if (studentConflict) {
+        toast({
+          variant: "destructive",
+          title: "Student Conflict",
+          description: `${selectedStudent.name} already has an appointment scheduled at ${bookingTime} on ${bookingDate}.`,
+        });
+        return;
+      }
 
       const finalLocation = bookingModality === 'online'
         ? 'Online (Google Meet)'
@@ -282,11 +510,16 @@ export default function CounselorAppointmentsPage() {
         createdAt: createdAt,
       });
 
-      void sendBookingConfirmationEmail(emailBooking, {
-        email: selectedStudent.email || '',
-        name: selectedStudent.name,
-      }).catch((error) => {
-        console.error('[EmailJS] Booking confirmation email failed:', error);
+      void dispatchConfirmationEmail({
+        appointmentId: newAppointment.id,
+        studentId: bookingStudentId,
+        studentEmail: selectedStudent.email || '',
+        studentName: selectedStudent.name,
+        counselorName: counselor?.name || 'Guidance Counselor',
+        date: bookingDate,
+        time: bookingTime,
+        type: bookingType,
+        location: finalLocation,
       });
 
 
@@ -310,6 +543,7 @@ export default function CounselorAppointmentsPage() {
         description: err.message || "An error occurred while booking.",
       });
     } finally {
+      isBookingSubmitRef.current = false;
       setIsBookingSubmit(false);
     }
   };
@@ -317,9 +551,9 @@ export default function CounselorAppointmentsPage() {
   useEffect(() => {
     loadAppointments();
 
-    // Realtime: watch all appointment changes
+    // Realtime: watch all appointment changes with unique channel ID
     const channel = supabase
-      .channel('counselor-appointments')
+      .channel(`counselor-appointments-${counselor?.id || 'live'}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -330,7 +564,7 @@ export default function CounselorAppointmentsPage() {
         if (isThisCounselorAppointment(newApt)) {
           toast({
             title: '📋 New Booking Request',
-            description: `${newApt.student_name} has requested a session for ${newApt.date} at ${newApt.time}.`,
+            description: `${newApt.student_name || 'A student'} has requested a session for ${newApt.date} at ${newApt.time}.`,
           });
         }
         loadAppointments();
@@ -355,7 +589,14 @@ export default function CounselorAppointmentsPage() {
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, [loadAppointments]);
+  }, [counselor?.id, loadAppointments, isThisCounselorAppointment, toast]);
+
+  // Integrated Real-time LiveSync for Broadcast, Cross-tab, and Background Heartbeat
+  useLiveSync(() => {
+    setIsLive(true);
+    loadAppointments();
+    setTimeout(() => setIsLive(false), 3000);
+  }, ['appointments', 'appointment_feedback']);
 
   // Auto-clear appointment notifications when viewing this page
   useEffect(() => {
@@ -364,11 +605,81 @@ export default function CounselorAppointmentsPage() {
   }, [notifications, markAsRead]);
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
+    const targetApp = appointments.find(a => a.id === id);
+
+    if (newStatus === APPOINTMENT_STATUS.CONFIRMED && targetApp) {
+      // 0. Verify session date/time hasn't already passed
+      if (isAppointmentPassed(targetApp.date, targetApp.time)) {
+        toast({
+          variant: 'destructive',
+          title: 'Cannot Accept Past Session',
+          description: `This session for ${targetApp.date} at ${targetApp.time} has already passed. Please reschedule with the student instead.`,
+        });
+        return;
+      }
+
+      // 1. Check if another session is already confirmed for this counselor on this date & time
+      const alreadyConfirmed = appointments.find(
+        a => a.id !== id &&
+             a.date === targetApp.date &&
+             a.time === targetApp.time &&
+             a.status === APPOINTMENT_STATUS.CONFIRMED
+      );
+
+      if (alreadyConfirmed) {
+        toast({
+          variant: 'destructive',
+          title: 'Schedule Conflict',
+          description: `Cannot accept: You already have a confirmed session with ${alreadyConfirmed.studentName || 'another student'} at ${targetApp.time} on ${targetApp.date}.`,
+        });
+        return;
+      }
+
+      // 2. Auto-resolve any duplicate pending booking requests for the same slot
+      const duplicates = appointments.filter(
+        a => a.id !== id &&
+             a.date === targetApp.date &&
+             a.time === targetApp.time &&
+             a.status === APPOINTMENT_STATUS.PENDING
+      );
+
+      if (duplicates.length > 0) {
+        for (const dup of duplicates) {
+          try {
+            await storageService.update(STORAGE_KEYS.APPOINTMENTS, dup.id, {
+              status: APPOINTMENT_STATUS.CANCELLED,
+              reason: `${dup.reason || ''}\n\n[Auto-resolved: duplicate booking cancelled when appointment #${id.slice(-4).toUpperCase()} was accepted.]`,
+            });
+          } catch (e) {
+            console.error('Error auto-resolving duplicate booking:', e);
+          }
+        }
+      }
+    }
+
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
     if (selectedApp?.id === id) setSelectedApp((prev: any) => prev ? { ...prev, status: newStatus } : null);
     try {
       await storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
       toast({ title: 'Status Updated', description: `Appointment is now ${newStatus}.` });
+
+      // When appointment is confirmed, dispatch open-source confirmation email to student
+      if (newStatus === APPOINTMENT_STATUS.CONFIRMED && targetApp) {
+        const student = students.find(s => s.id === (targetApp.studentId || targetApp.student_id));
+        void dispatchConfirmationEmail({
+          appointmentId: id,
+          studentId: targetApp.studentId || targetApp.student_id,
+          studentEmail: student?.email || targetApp.studentEmail || targetApp.email || '',
+          studentName: targetApp.studentName || targetApp.student_name || student?.name || 'Student',
+          counselorName: targetApp.counselorName || targetApp.counselor_name || counselor?.name || 'Guidance Counselor',
+          date: targetApp.date,
+          time: targetApp.time,
+          type: targetApp.type,
+          location: targetApp.location,
+        });
+      }
+
+      loadAppointments();
     } catch {
       toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update appointment status.' });
       loadAppointments();
@@ -396,11 +707,12 @@ export default function CounselorAppointmentsPage() {
   };
 
   const submitFeedbackAndComplete = async () => {
+    if (isSubmittingFeedback) return;
     if (!feedbackText.trim()) {
       toast({
         variant: "destructive",
         title: "Feedback required",
-        description: "Please enter counselor feedback before completing the session.",
+        description: "Please enter counselor feedback reflections before completing the session.",
       });
       return;
     }
@@ -414,38 +726,50 @@ export default function CounselorAppointmentsPage() {
       return;
     }
 
-    await storageService.create("appointment_feedback", {
-      appointmentId: feedbackAppointment.id,
-      counselorId: feedbackAppointment.counselorId,
-      counselorName: feedbackAppointment.counselorName,
-      studentId: feedbackAppointment.studentId,
-      feedback: JSON.stringify({
-        counselorNotes: feedbackText,
-        actionItems: actionItems
-      }),
-      createdAt: new Date().toISOString(),
-    });
+    setIsSubmittingFeedback(true);
+    try {
+      await storageService.create("appointment_feedback", {
+        appointmentId: feedbackAppointment.id,
+        counselorId: feedbackAppointment.counselorId,
+        counselorName: feedbackAppointment.counselorName,
+        studentId: feedbackAppointment.studentId,
+        feedback: JSON.stringify({
+          counselorNotes: feedbackText,
+          actionItems: actionItems
+        }),
+        createdAt: new Date().toISOString(),
+      });
 
-    await storageService.update(
-      STORAGE_KEYS.APPOINTMENTS,
-      feedbackAppointment.id,
-      { 
-        status: APPOINTMENT_STATUS.COMPLETED,
-      },
-    );
+      await storageService.update(
+        STORAGE_KEYS.APPOINTMENTS,
+        feedbackAppointment.id,
+        { 
+          status: APPOINTMENT_STATUS.COMPLETED,
+        },
+      );
 
-    const completedApp = { status: APPOINTMENT_STATUS.COMPLETED, counselorNotes: feedbackText, actionItems };
-    setAppointments(prev => prev.map(a => a.id === feedbackAppointment.id ? { ...a, ...completedApp } : a));
-    setSelectedApp((prev: any) =>
-      prev?.id === feedbackAppointment.id ? { ...prev, ...completedApp } : prev,
-    );
+      const completedApp = { status: APPOINTMENT_STATUS.COMPLETED, counselorNotes: feedbackText, actionItems };
+      setAppointments(prev => prev.map(a => a.id === feedbackAppointment.id ? { ...a, ...completedApp } : a));
+      setSelectedApp((prev: any) =>
+        prev?.id === feedbackAppointment.id ? { ...prev, ...completedApp } : prev,
+      );
 
-    toast({
-      title: "Session Completed",
-      description: "Feedback has been saved and the appointment is now completed.",
-    });
+      toast({
+        title: "Session Completed",
+        description: "Feedback has been saved and the appointment is now marked completed.",
+      });
 
-    setIsFeedbackOpen(false);
+      setIsFeedbackOpen(false);
+    } catch (err: any) {
+      console.error('Error completing session with feedback:', err);
+      toast({
+        variant: "destructive",
+        title: "Error Completing Session",
+        description: err?.message || "Failed to record session completion. Please try again.",
+      });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
   };
 
   const filteredAppointments = React.useMemo(() => {
@@ -674,6 +998,12 @@ export default function CounselorAppointmentsPage() {
                       <span className="text-[10px] font-bold text-slate-400">
                         {app.time}
                       </span>
+                      {(slotConflictMap.get(`${app.date}|${app.time}`) || 0) > 1 && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-1 w-fit shadow-xs">
+                          <AlertTriangle className="h-2.5 w-2.5 text-rose-500 shrink-0" />
+                          Double Booking
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(app.status, app)}</TableCell>
@@ -753,6 +1083,19 @@ export default function CounselorAppointmentsPage() {
                           >
                             <CalendarClock className="h-4 w-4" /> Reschedule Session
                           </DropdownMenuItem>
+                          {app.status !== APPOINTMENT_STATUS.CANCELLED && app.status !== APPOINTMENT_STATUS.COMPLETED && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                handleUpdateStatus(
+                                  app.id,
+                                  APPOINTMENT_STATUS.CANCELLED,
+                                )
+                              }
+                              className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                            >
+                              <AlertTriangle className="h-4 w-4 text-amber-500" /> Cancel Session
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator className="my-1 bg-slate-50" />
                           <DropdownMenuItem
                             onSelect={() => handleDelete(app.id)}
@@ -986,6 +1329,18 @@ export default function CounselorAppointmentsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
+                    handleUpdateStatus(selectedApp.id, APPOINTMENT_STATUS.CANCELLED);
+                    setIsDetailsOpen(false);
+                  }}
+                  className="h-12 px-4 rounded-xl font-bold border-amber-200 text-amber-700 hover:bg-amber-50 gap-1.5"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500" /> Cancel
+                </Button>
+              )}
+              {selectedApp?.status !== "completed" && selectedApp?.status !== "cancelled" && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
                     const target = selectedApp;
                     setIsDetailsOpen(false);
                     setRescheduleTarget(target);
@@ -1074,9 +1429,11 @@ export default function CounselorAppointmentsPage() {
             <div className="flex gap-3 pt-4 border-t border-slate-100">
               <Button
                 onClick={submitFeedbackAndComplete}
-                className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black text-white shadow-lg shadow-emerald-600/20"
+                disabled={isSubmittingFeedback || !feedbackText.trim()}
+                className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black text-white shadow-lg shadow-emerald-600/20 disabled:opacity-50"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" /> Confirm & Complete Session
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {isSubmittingFeedback ? 'Completing Session...' : 'Confirm & Complete Session'}
               </Button>
               <Button
                 variant="outline"
@@ -1212,19 +1569,66 @@ export default function CounselorAppointmentsPage() {
 
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-900">Time Slot *</Label>
-                  <Select value={bookingTime} onValueChange={setBookingTime}>
-                    <SelectTrigger className="w-full h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-primary">
-                      <SelectValue placeholder="Choose time slot..." />
+                  <Select 
+                    value={bookingTime} 
+                    onValueChange={setBookingTime}
+                    disabled={!bookingDate}
+                  >
+                    <SelectTrigger className="w-full h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:ring-primary disabled:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400">
+                      <SelectValue placeholder={bookingDate ? "Choose available time slot..." : "Select date first..."}>
+                        {bookingTime || undefined}
+                      </SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-none shadow-2xl bg-white">
-                      {TIME_SLOTS.map((slot) => (
-                        <SelectItem key={slot} value={slot} className="hover:bg-slate-50 rounded-lg p-2.5 cursor-pointer text-xs font-bold text-slate-700">
-                          {slot}
-                        </SelectItem>
-                      ))}
+                    <SelectContent className="rounded-xl border border-slate-100 shadow-2xl bg-white p-1 max-h-72">
+                      {TIME_SLOTS.map((slot) => {
+                        const status = getSlotAvailability(slot);
+                        return (
+                          <SelectItem 
+                            key={slot} 
+                            value={slot} 
+                            disabled={!status.isAvailable}
+                            className={cn(
+                              "rounded-lg p-2.5 text-xs font-bold transition-all my-0.5",
+                              !status.isAvailable 
+                                ? "opacity-60 cursor-not-allowed bg-slate-50/80 text-slate-400 select-none data-[disabled]:pointer-events-none" 
+                                : "hover:bg-slate-50 cursor-pointer text-slate-700"
+                            )}
+                          >
+                            <div className="flex items-center justify-between w-full gap-3">
+                              <span className={cn(
+                                "font-bold",
+                                !status.isAvailable ? "line-through text-slate-400" : "text-slate-800"
+                              )}>
+                                {slot}
+                              </span>
+                              {!status.isAvailable && (
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[9px] font-black uppercase px-2 py-0.5 rounded-md border tracking-wider shadow-none shrink-0",
+                                    status.reason === 'counselor_conflict'
+                                      ? "bg-red-50 text-red-600 border-red-200"
+                                      : status.reason === 'student_conflict'
+                                      ? "bg-amber-50 text-amber-600 border-amber-200"
+                                      : "bg-slate-100 text-slate-500 border-slate-200"
+                                  )}
+                                >
+                                  {status.badgeText}
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
+                {bookingDate && TIME_SLOTS.filter(s => getSlotAvailability(s).isAvailable).length === 0 && (
+                  <div className="col-span-1 sm:col-span-2 p-2.5 rounded-xl bg-red-50 border border-red-100 flex items-center gap-2 text-xs font-bold text-red-700 animate-in fade-in-50">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                    <span>All time slots on {bookingDate} are booked or passed. Please select a different date.</span>
+                  </div>
+                )}
               </div>
 
               {/* Modality Selector */}

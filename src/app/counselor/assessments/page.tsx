@@ -432,10 +432,10 @@ export default function CounselorAssessmentsPage() {
 
   useLiveSync(loadData);
 
-  // Real-time subscription to global_self_care_tools
+  // Real-time subscription to global_self_care_tools, assessments, and tasks
   useEffect(() => {
     const channel = supabase
-      .channel("counselor-self-care-sync")
+      .channel("counselor-assessments-sync")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "global_self_care_tools" },
@@ -443,12 +443,26 @@ export default function CounselorAssessmentsPage() {
           loadSelfCareProtocols();
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "assessments" },
+        () => {
+          loadData();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "assessment_tasks" },
+        () => {
+          loadData();
+        },
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadSelfCareProtocols]);
+  }, [loadData, loadSelfCareProtocols]);
 
   useEffect(() => {
     const unread = notifications.filter(

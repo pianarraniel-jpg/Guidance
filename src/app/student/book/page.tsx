@@ -7,6 +7,8 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { storageService } from '@/lib/storage-service';
+import { broadcastDataChange } from '@/lib/realtime-hub';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_KEYS, APPOINTMENT_STATUS, isCounselorMatchingDepartment } from '@/lib/constants';
 import { getGoogleCalendarUrl, downloadIcsFile } from '@/lib/appointment-utils';
@@ -46,6 +48,7 @@ import {
   Briefcase,
   Brain,
   AlertTriangle,
+  AlertCircle,
   Video,
   Building2,
   ShieldCheck,
@@ -56,7 +59,8 @@ import {
   Tag,
   Sunrise,
   Sun,
-  GraduationCap
+  GraduationCap,
+  Lock
 } from 'lucide-react';
 import { format, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -130,6 +134,7 @@ export default function BookAppointment() {
   const [reason, setReason] = useState('');
   const [consentAgreed, setConsentAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = React.useRef(false);
   const [confirmedAppointment, setConfirmedAppointment] = useState<any>(null);
 
   const [counselors, setCounselors] = useState<any[]>([]);
@@ -164,7 +169,11 @@ export default function BookAppointment() {
       if (matched.length > 0) {
         counselorList = matched;
         setSelectedCounselor(matched[0].id);
+      } else if (counselorList.length > 0) {
+        setSelectedCounselor(counselorList[0].id);
       }
+    } else if (counselorList.length > 0) {
+      setSelectedCounselor(counselorList[0].id);
     }
 
     setCounselors(counselorList);
@@ -258,11 +267,18 @@ export default function BookAppointment() {
         event: '*',
         schema: 'public',
         table: 'appointments',
-        filter: `counselor_id=eq.${selectedCounselor}`,
-      }, () => loadBookedSlots())
+      }, () => {
+        loadBookedSlots();
+        loadStudentAppointments();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedDate, selectedCounselor, loadBookedSlots]);
+  }, [selectedDate, selectedCounselor, loadBookedSlots, loadStudentAppointments]);
+
+  useLiveSync(() => {
+    loadBookedSlots();
+    loadStudentAppointments();
+  }, ['appointments']);
 
   const isDateDisabled = useCallback((date: Date) => {
     if (isBefore(startOfDay(date), startOfDay(new Date())) || isWeekend(date)) return true;
@@ -320,7 +336,7 @@ export default function BookAppointment() {
   const studentBookedTimesOnSelectedDate = useMemo(() => {
     if (!selectedDateStr) return [];
     return studentAppointments
-      .filter(a => a.date === selectedDateStr)
+      .filter(a => a.date === selectedDateStr && a.status !== APPOINTMENT_STATUS.CANCELLED)
       .map(a => a.time);
   }, [studentAppointments, selectedDateStr]);
 
@@ -377,11 +393,13 @@ export default function BookAppointment() {
   const next = () => {
     if (currentStep === STEPS.DATE && selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const sameDayAppointments = studentAppointments.filter(a => a.date === dateStr);
+      const sameDayAppointments = studentAppointments.filter(
+        a => a.date === dateStr && a.status !== APPOINTMENT_STATUS.CANCELLED
+      );
       if (sameDayAppointments.length >= 3) {
         setConflictingAppointments(sameDayAppointments);
         setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
-        setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+        setConflictModalDescription('You already have 3 active appointments scheduled on this day.');
         setIsConflictModalOpen(true);
         setSelectedDate(undefined);
         return;
@@ -399,80 +417,96 @@ export default function BookAppointment() {
   };
 
   const handleBooking = async () => {
-    if (!isAcademicClassificationComplete(user)) {
-      toast({
-        variant: 'destructive',
-        title: 'Academic Classification Required',
-        description: 'Please complete your college, degree program, and year level before booking.',
-      });
-      setIsClassificationModalOpen(true);
-      return;
-    }
-
-    if (!canProceed(STEPS.REASON) || !selectedDate) return;
-    if (!availableSlots.includes(selectedTime) || isSlotInPast(selectedDate, selectedTime)) {
-      toast({ variant: 'destructive', title: 'Slot Unavailable', description: 'This slot has expired or is unavailable. Please choose another.' });
-      setCurrentStep(STEPS.TIME);
-      setSelectedTime('');
-      return;
-    }
-
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-
-    // 1. Check max 3 appointments per day in database
-    const { data: studentDayApps } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('student_id', user?.id)
-      .eq('date', dateStr)
-      .neq('status', APPOINTMENT_STATUS.CANCELLED);
-
-    if ((studentDayApps || []).length >= 3) {
-      setConflictingAppointments(studentDayApps || []);
-      setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
-      setConflictModalDescription('You already have 3 appointments scheduled on this day.');
-      setIsConflictModalOpen(true);
-      setCurrentStep(STEPS.DATE);
-      setSelectedDate(undefined);
-      return;
-    }
-
-    // 2. Check if student already has a session at this exact time
-    if ((studentDayApps || []).some(a => a.time === selectedTime)) {
-      toast({
-        variant: 'destructive',
-        title: 'Time Slot Conflict',
-        description: `You already have another session scheduled at ${selectedTime} on this date.`,
-      });
-      setCurrentStep(STEPS.TIME);
-      setSelectedTime('');
-      return;
-    }
-
-    // 3. Check if counselor slot is still free
-    const { data: counselorSlot } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('counselor_id', selectedCounselor)
-      .eq('date', dateStr)
-      .eq('time', selectedTime)
-      .neq('status', APPOINTMENT_STATUS.CANCELLED)
-      .maybeSingle();
-
-    if (counselorSlot) {
-      toast({
-        variant: 'destructive',
-        title: 'Slot Already Booked',
-        description: 'This counselor slot was just taken by another student. Please choose another time.',
-      });
-      await loadBookedSlots();
-      setCurrentStep(STEPS.TIME);
-      setSelectedTime('');
-      return;
-    }
-
+    if (isSubmittingRef.current || isSubmitting) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
+
     try {
+      if (!isAcademicClassificationComplete(user)) {
+        toast({
+          variant: 'destructive',
+          title: 'Academic Classification Required',
+          description: 'Please complete your college, degree program, and year level before booking.',
+        });
+        setIsClassificationModalOpen(true);
+        return;
+      }
+
+      if (!canProceed(STEPS.REASON) || !selectedDate) return;
+      if (!availableSlots.includes(selectedTime) || isSlotInPast(selectedDate, selectedTime)) {
+        toast({ variant: 'destructive', title: 'Slot Unavailable', description: 'This slot has expired or is unavailable. Please choose another.' });
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+      // 1. Check max 3 appointments per day in database
+      const { data: studentDayApps } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('student_id', user?.id)
+        .eq('date', dateStr)
+        .neq('status', APPOINTMENT_STATUS.CANCELLED);
+
+      if ((studentDayApps || []).length >= 3) {
+        setConflictingAppointments(studentDayApps || []);
+        setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
+        setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+        setIsConflictModalOpen(true);
+        setCurrentStep(STEPS.DATE);
+        setSelectedDate(undefined);
+        return;
+      }
+
+      // 2. Check if student already has a session at this exact time
+      if ((studentDayApps || []).some(a => a.time === selectedTime)) {
+        toast({
+          variant: 'destructive',
+          title: 'Time Slot Conflict',
+          description: `You already have another session scheduled at ${selectedTime} on this date.`,
+        });
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+
+      // 3. Strict Pre-insert Check: Check if slot is already occupied (prevents race-condition double bookings)
+      const { data: existingSlots } = await supabase
+        .from('appointments')
+        .select('id, counselor_id, student_id')
+        .eq('date', dateStr)
+        .eq('time', selectedTime)
+        .neq('status', APPOINTMENT_STATUS.CANCELLED);
+
+      const counselorConflict = (existingSlots || []).find(a => a.counselor_id === selectedCounselor);
+      const studentConflict = (existingSlots || []).find(a => a.student_id === user?.id);
+
+      if (counselorConflict) {
+        toast({
+          variant: 'destructive',
+          title: 'Slot Already Booked',
+          description: 'This counselor slot was just taken by another student. Please choose another time.',
+        });
+        await loadBookedSlots();
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+
+      if (studentConflict) {
+        toast({
+          variant: 'destructive',
+          title: 'Slot Already Booked',
+          description: 'You already have an appointment requested or confirmed at this exact time.',
+        });
+        await loadBookedSlots();
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+
       const counselor = counselors.find(c => c.id === selectedCounselor);
       const locationText = modality === 'online' 
         ? 'Online (Google Meet — Link will be provided upon confirmation)' 
@@ -497,6 +531,12 @@ export default function BookAppointment() {
       });
 
       setConfirmedAppointment(created);
+      void broadcastDataChange({
+        table: 'appointments',
+        action: 'insert',
+        id: created.id,
+        payload: created,
+      });
       setCurrentStep(STEPS.CONFIRM);
 
       const emailBooking: BookingNotificationPayload = buildBookingEmailPayload({
@@ -523,6 +563,7 @@ export default function BookAppointment() {
     } catch {
       toast({ variant: 'destructive', title: 'Booking Failed', description: 'An error occurred. Please try again.' });
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -792,15 +833,25 @@ export default function BookAppointment() {
                     <Card className="border-none shadow-xl rounded-3xl p-4 sm:p-8 bg-white">
                       <CardHeader className="p-0 mb-8">
                         <CardTitle className="text-2xl font-black">1. Session Details</CardTitle>
-                        <p className="text-sm text-slate-400 font-medium mt-1">Select your designated counselor, consultation format, and focus area.</p>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Review your assigned counselor, consultation format, and focus area.</p>
                       </CardHeader>
                       <div className="space-y-6">
                         {/* Counselor Picker */}
                         <div className="space-y-3">
-                          <Label className="text-xs font-black uppercase text-slate-400 tracking-widest">Guidance Counselor</Label>
-                          <Select value={selectedCounselor} onValueChange={setSelectedCounselor}>
-                            <SelectTrigger className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold">
-                              <SelectValue placeholder="Select a counselor..." />
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                              <Lock className="h-3.5 w-3.5 text-slate-400" /> Guidance Counselor
+                            </Label>
+                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                              Department Assigned
+                            </span>
+                          </div>
+                          <Select value={selectedCounselor} onValueChange={setSelectedCounselor} disabled>
+                            <SelectTrigger className="h-14 rounded-2xl border-slate-200 bg-slate-100/70 font-bold text-slate-700 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-90">
+                              <SelectValue placeholder="Assigned guidance counselor...">
+                                {activeCounselor ? `${activeCounselor.name} ${activeCounselor.department ? `(${activeCounselor.department})` : ''}` : undefined}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               {counselors.map(c => (
@@ -810,6 +861,9 @@ export default function BookAppointment() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <p className="text-xs text-slate-400 font-medium">
+                            Automatically assigned based on your registered college department.
+                          </p>
                         </div>
 
                         {/* Consultation Modality Selection */}
@@ -906,6 +960,12 @@ export default function BookAppointment() {
                         <Button size="lg" disabled={!canProceed(STEPS.DETAILS)} onClick={next} className="w-full h-14 rounded-2xl font-black text-base shadow-lg shadow-primary/20">
                           Continue to Select Date →
                         </Button>
+                        {!selectedSessionType && (
+                          <p className="text-xs text-amber-600 font-semibold text-center flex items-center justify-center gap-1.5 pt-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>Please select a primary session category above to continue.</span>
+                          </p>
+                        )}
                       </div>
                     </Card>
                   )}
@@ -1078,10 +1138,23 @@ export default function BookAppointment() {
                         </div>
                       )}
 
+                      {availableSlots.length === 0 && !isSlotLoading && (
+                        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-3 text-xs font-bold text-amber-800 animate-in fade-in-50 mb-4">
+                          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                          <span>All consultation time slots on this date are fully booked or have passed. Please click Back to select a different date.</span>
+                        </div>
+                      )}
+
                       <div className="flex gap-4 w-full mt-8">
                         <Button variant="outline" size="lg" onClick={back} className="flex-1 h-14 rounded-2xl font-bold">Back</Button>
                         <Button size="lg" disabled={!canProceed(STEPS.TIME)} onClick={next} className="flex-1 h-14 rounded-2xl font-black">Continue to Intake & Consent →</Button>
                       </div>
+                      {!selectedTime && availableSlots.length > 0 && !isSlotLoading && (
+                        <p className="text-xs text-slate-500 font-semibold text-center flex items-center justify-center gap-1.5 pt-2">
+                          <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>Please choose an available time slot above to continue.</span>
+                        </p>
+                      )}
                     </Card>
                   )}
 
@@ -1191,11 +1264,32 @@ export default function BookAppointment() {
                             size="lg"
                             disabled={!canProceed(STEPS.REASON) || isSubmitting}
                             onClick={handleBooking}
-                            className="flex-1 h-14 rounded-2xl font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 text-base"
+                            className={cn(
+                              "flex-1 h-14 rounded-2xl font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 text-base transition-all",
+                              isSubmitting && "opacity-60 pointer-events-none cursor-not-allowed"
+                            )}
                           >
-                            {isSubmitting ? 'Submitting Request...' : 'Confirm & Submit Booking'}
+                            {isSubmitting ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <Clock className="h-4 w-4 animate-spin" /> Securing Appointment...
+                              </span>
+                            ) : (
+                              'Confirm & Submit Booking'
+                            )}
                           </Button>
                         </div>
+                        {reason.length > 0 && reason.trim().length < 10 && (
+                          <p className="text-xs text-amber-600 font-semibold flex items-center justify-center gap-1.5 pt-1 animate-in fade-in">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>Please provide at least 10 characters describing what you would like to discuss ({10 - reason.trim().length} more needed).</span>
+                          </p>
+                        )}
+                        {reason.trim().length >= 10 && !consentAgreed && (
+                          <p className="text-xs text-amber-600 font-semibold flex items-center justify-center gap-1.5 pt-1 animate-in fade-in">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>Please check the Informed Consent & Confidentiality checkbox above to submit your booking.</span>
+                          </p>
+                        )}
                       </div>
                     </Card>
                   )}

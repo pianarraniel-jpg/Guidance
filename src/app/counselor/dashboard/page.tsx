@@ -105,7 +105,7 @@ export default function CounselorDashboard() {
     loadData();
 
     const channel = supabase
-      .channel('dashboard-alerts')
+      .channel(`counselor-dashboard-${counselor?.id || 'live'}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_alerts' }, (payload) => {
         const alert = payload.new as any;
         setUnackAlertCount(prev => prev + 1);
@@ -119,10 +119,16 @@ export default function CounselorDashboard() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_alerts' }, () => {
         loadData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => {
+        loadData();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [loadData, toast]);
+  }, [counselor?.id, loadData, toast]);
 
   useLiveSync(() => {
     loadData();

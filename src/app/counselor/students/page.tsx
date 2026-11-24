@@ -28,6 +28,7 @@ import {
   getProgramsForCounselor
 } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -136,6 +137,7 @@ export default function CounselorStudentsPage() {
   };
 
   useEffect(() => { loadStudents(); }, []);
+  useLiveSync(loadStudents, ['profiles', 'assessments', 'ai_insights']);
 
   useEffect(() => {
     const fetchGlobalAndStudentTools = async () => {

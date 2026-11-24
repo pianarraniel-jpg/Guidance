@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { broadcastDataChange } from './realtime-hub';
 
 // camelCase ↔ snake_case converters
 const toSnake = (s: string) => s.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
@@ -36,18 +37,29 @@ export const storageService = {
   create: async <T extends { id: string }>(table: string, item: Omit<T, 'id'>): Promise<T> => {
     const { data, error } = await supabase.from(table).insert(toSnakeCase(item as any)).select().single();
     if (error) { console.error(`storageService.create(${table}):`, error.message); throw error; }
-    return toCamelCase<T>(data);
+    const result = toCamelCase<T>(data);
+    void broadcastDataChange({ table, action: 'insert', id: (result as any)?.id, payload: data });
+    return result;
   },
 
   update: async <T = any>(table: string, id: string, updates: Partial<T>): Promise<T | undefined> => {
-    const { data, error } = await supabase.from(table).update(toSnakeCase(updates as any)).eq('id', id).select().single();
+    // Strip client-only meta fields that don't belong in db tables (like lastUpdate)
+    const sanitized: Record<string, any> = { ...(updates as any) };
+    delete sanitized.lastUpdate;
+    if (table === 'appointments') {
+      delete sanitized.last_update;
+    }
+    const { data, error } = await supabase.from(table).update(toSnakeCase(sanitized)).eq('id', id).select().single();
     if (error) { console.error(`storageService.update(${table}):`, error.message); return undefined; }
-    return data ? toCamelCase<T>(data) : undefined;
+    const result = data ? toCamelCase<T>(data) : undefined;
+    void broadcastDataChange({ table, action: 'update', id, payload: data });
+    return result;
   },
 
   delete: async (table: string, id: string): Promise<boolean> => {
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) { console.error(`storageService.delete(${table}):`, error.message); return false; }
+    void broadcastDataChange({ table, action: 'delete', id });
     return true;
   },
 

@@ -110,7 +110,35 @@ export default function StudentAppointments() {
   useEffect(() => {
     if (!user) return;
     loadAppointments();
-  }, [user, loadAppointments]);
+
+    const channel = supabase
+      .channel(`student-appointments-page-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `student_id=eq.${user.id}`,
+      }, () => {
+        setIsLive(true);
+        loadAppointments();
+        setTimeout(() => setIsLive(false), 3000);
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_feedback',
+        filter: `student_id=eq.${user.id}`,
+      }, () => {
+        setIsLive(true);
+        loadAppointments();
+        setTimeout(() => setIsLive(false), 3000);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadAppointments]);
 
   useLiveSync(() => {
     setIsLive(true);
@@ -205,7 +233,6 @@ export default function StudentAppointments() {
     try {
       await storageService.update(STORAGE_KEYS.APPOINTMENTS, targetId, {
         status: APPOINTMENT_STATUS.CANCELLED,
-        lastUpdate: Date.now()
       });
       toast({
         title: 'Session Cancelled',

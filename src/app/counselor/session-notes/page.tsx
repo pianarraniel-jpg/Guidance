@@ -34,6 +34,7 @@ import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 
 export default function SessionNotesPage() {
   const router = useRouter();
@@ -56,40 +57,43 @@ export default function SessionNotesPage() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    const loadData = async () => {
-      const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      const isThisCounselor = (apt: any) => {
-        if (!counselor) return true;
-        const cId = apt.counselorId || apt.counselor_id;
-        const cName = apt.counselorName || apt.counselor_name;
-        if (cId && counselor.id && cId === counselor.id) return true;
-        if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
-        if (!cId && !cName) {
-          return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
-        }
-        return false;
-      };
-      const scopedData = counselor ? data.filter(isThisCounselor) : data;
-      const activeApts = scopedData.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === 'completed');
-      activeApts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setAppointments(activeApts);
-
-      // Check query parameter
-      let queryId: string | null = null;
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        queryId = params.get('id');
+  const loadData = React.useCallback(async () => {
+    const data = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+    const isThisCounselor = (apt: any) => {
+      if (!counselor) return true;
+      const cId = apt.counselorId || apt.counselor_id;
+      const cName = apt.counselorName || apt.counselor_name;
+      if (cId && counselor.id && cId === counselor.id) return true;
+      if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+      if (!cId && !cName) {
+        return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
       }
-
-      if (queryId && activeApts.some(a => a.id === queryId)) {
-        handleSelectApt(queryId, activeApts);
-      } else if (activeApts.length > 0) {
-        handleSelectApt(activeApts[0].id, activeApts);
-      }
+      return false;
     };
-    loadData();
+    const scopedData = counselor ? data.filter(isThisCounselor) : data;
+    const activeApts = scopedData.filter(a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING || a.status === 'completed');
+    activeApts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAppointments(activeApts);
+
+    // Check query parameter
+    let queryId: string | null = null;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      queryId = params.get('id');
+    }
+
+    if (queryId && activeApts.some(a => a.id === queryId)) {
+      handleSelectApt(queryId, activeApts);
+    } else if (activeApts.length > 0) {
+      handleSelectApt(activeApts[0].id, activeApts);
+    }
   }, [counselor]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useLiveSync(loadData, ['appointments']);
 
   const handleSelectApt = (id: string, aptList = appointments) => {
     setSelectedAptId(id);

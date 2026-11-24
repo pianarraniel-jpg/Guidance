@@ -17,6 +17,7 @@ import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, getCollegesForCounselor } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -150,6 +151,8 @@ export default function CounselorMessagesPage() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user, loadData]);
+
+  useLiveSync(loadData, ['messages']);
 
   useEffect(() => {
     if (activeStudent && user && messages.length > 0) {

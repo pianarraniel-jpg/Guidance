@@ -32,6 +32,7 @@ import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveSync } from '@/hooks/useLiveSync';
 
 const SESSION_TYPE_ICONS: Record<string, any> = {
   'Wellness Check-in': Heart,
@@ -48,55 +49,58 @@ export default function SessionRecordsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    const loadData = async () => {
-      const rawApts = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
-      const isThisCounselor = (apt: any) => {
-        if (!counselor) return true;
-        const cId = apt.counselorId || apt.counselor_id;
-        const cName = apt.counselorName || apt.counselor_name;
-        if (cId && counselor.id && cId === counselor.id) return true;
-        if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
-        if (!cId && !cName) {
-          return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
-        }
-        return false;
-      };
-      const allApts = counselor ? rawApts.filter(isThisCounselor) : rawApts;
-      const allNotes = await storageService.getAll<any>(STORAGE_KEYS.SESSION_NOTES);
-      
-      const notesMap = new Map();
-      allNotes.forEach(note => {
-        if (note.appointmentId) {
-          notesMap.set(note.appointmentId, note);
-        }
-      });
-      
-      const aptsWithNotes = allApts.map(apt => {
-        const note = notesMap.get(apt.id);
-        if (note) {
-          return {
-            ...apt,
-            stressLevel: note.stressLevel,
-            topics: note.topics || [],
-            counselorNotes: note.clientReflections,
-            privateNotes: note.privateNotes,
-            actionItems: Array.isArray(note.homework) ? note.homework : [],
-          };
-        }
+  const loadData = React.useCallback(async () => {
+    const rawApts = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
+    const isThisCounselor = (apt: any) => {
+      if (!counselor) return true;
+      const cId = apt.counselorId || apt.counselor_id;
+      const cName = apt.counselorName || apt.counselor_name;
+      if (cId && counselor.id && cId === counselor.id) return true;
+      if (cName && counselor.name && cName.trim().toLowerCase() === counselor.name.trim().toLowerCase()) return true;
+      if (!cId && !cName) {
+        return !counselor.department || counselor.department.trim().toLowerCase() === 'all';
+      }
+      return false;
+    };
+    const allApts = counselor ? rawApts.filter(isThisCounselor) : rawApts;
+    const allNotes = await storageService.getAll<any>(STORAGE_KEYS.SESSION_NOTES);
+    
+    const notesMap = new Map();
+    allNotes.forEach(note => {
+      if (note.appointmentId) {
+        notesMap.set(note.appointmentId, note);
+      }
+    });
+    
+    const aptsWithNotes = allApts.map(apt => {
+      const note = notesMap.get(apt.id);
+      if (note) {
         return {
           ...apt,
-          topics: [],
-          actionItems: [],
+          stressLevel: note.stressLevel,
+          topics: note.topics || [],
+          counselorNotes: note.clientReflections,
+          privateNotes: note.privateNotes,
+          actionItems: Array.isArray(note.homework) ? note.homework : [],
         };
-      });
+      }
+      return {
+        ...apt,
+        topics: [],
+        actionItems: [],
+      };
+    });
 
-      // Sort newest first
-      aptsWithNotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setAppointments(aptsWithNotes);
-    };
-    loadData();
+    // Sort newest first
+    aptsWithNotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAppointments(aptsWithNotes);
   }, [counselor]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useLiveSync(loadData, ['appointments', 'session_notes']);
 
   // Safe local date parsing to prevent timezone offset shifts
   const parseLocalDate = (dateStr: string) => {

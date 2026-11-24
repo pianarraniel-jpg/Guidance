@@ -18,6 +18,7 @@ import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, isCounselorMatchingDepartment } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useLiveSync } from '@/hooks/useLiveSync';
 import Link from 'next/link';
 
 type ChatMessage = {
@@ -166,6 +167,8 @@ export default function StudentMessages() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user, loadData]);
+
+  useLiveSync(loadData, ['messages']);
 
   useEffect(() => {
     if (activeCounselor && user && chatHistory.length > 0) {
