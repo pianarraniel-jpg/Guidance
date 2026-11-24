@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { sendConfirmationEmailViaNodemailer } from '@/lib/nodemailer-service';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
   try {
+    const origin = req.headers.get('origin') || 
+                   (req.headers.get('x-forwarded-host') ? `https://${req.headers.get('x-forwarded-host')}` : undefined) ||
+                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
     const body = await req.json().catch(() => ({}));
     let {
       appointmentId,
@@ -67,6 +74,7 @@ export async function POST(req: NextRequest) {
       type: type || 'Counseling Session',
       location: location || 'Guidance Office — Room 302',
       appointmentId: appointmentId || '',
+      origin: origin || undefined,
     });
 
     return NextResponse.json({

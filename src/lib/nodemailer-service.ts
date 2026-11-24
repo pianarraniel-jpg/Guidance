@@ -9,52 +9,89 @@ export interface ConfirmationEmailData {
   type: string;
   location: string;
   appointmentId: string;
+  origin?: string;
+}
+
+/**
+ * Resolves the canonical base URL for email action links.
+ * Prioritizes:
+ * 1. Request origin header (e.g. https://guidance-rho.vercel.app from incoming request)
+ * 2. NEXT_PUBLIC_APP_URL environment variable
+ * 3. VERCEL_URL environment variable
+ * 4. Production fallback: https://guidance-rho.vercel.app
+ */
+export function getAppBaseUrl(origin?: string): string {
+  if (origin && origin.startsWith('http')) {
+    const cleanOrigin = origin.replace(/\/$/, '');
+    if (!cleanOrigin.includes('localhost') || process.env.NODE_ENV !== 'production') {
+      return cleanOrigin;
+    }
+  }
+
+  if (process.env.NEXT_PUBLIC_APP_URL && process.env.NEXT_PUBLIC_APP_URL.trim()) {
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, '');
+    if (process.env.NODE_ENV === 'production' && envUrl.includes('localhost')) {
+      return 'https://guidance-rho.vercel.app';
+    }
+    return envUrl;
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`;
+  }
+
+  return 'https://guidance-rho.vercel.app';
 }
 
 /**
  * Creates an open-source nodemailer transporter.
- * Supports SMTP (Host/Port/User/Pass), Gmail, or Ethereal test account fallback.
+ * Supports Gmail directly via service: 'gmail' (with port 465 SSL) to prevent Vercel/Lambda port 587 STARTTLS freezes,
+ * standard custom SMTP with configurable timeouts, or test fallback.
  */
 async function getTransporter() {
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || 'guidancesync.confirm@gmail.com').trim();
+  const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || 'luxnixpiyzjoiuza').replace(/\s+/g, '');
 
-  if (host && user && pass) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
-  }
+  const isGmail = host === 'smtp.gmail.com' || user.toLowerCase().endsWith('@gmail.com');
 
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+  // For Gmail in serverless (e.g. Vercel / AWS Lambda):
+  // Using service: 'gmail' uses direct TLS/SSL (port 465) without STARTTLS upgrade handshakes
+  // which prevents connection timeouts and hanging on Vercel.
+  if (isGmail) {
     return nodemailer.createTransport({
       service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
+      auth: { user, pass },
+      pool: false,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+      tls: {
+        rejectUnauthorized: false,
       },
     });
   }
 
-  // Fallback: Generate open-source Ethereal test SMTP account for testing
-  const testAccount = await nodemailer.createTestAccount();
+  // Standard Custom SMTP (e.g. SendGrid, Mailgun, AWS SES, or university mail relay)
   return nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    secure: false,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass,
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    pool: false,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 }
 
 /**
- * Sends a confirmation email to the student with only the confirmed date, time, and session details.
+ * Sends an official consultation confirmation email to the student with clear schedule details
+ * and a direct action button linking to https://guidance-rho.vercel.app.
  */
 export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmailData) {
   const transporter = await getTransporter();
@@ -63,23 +100,23 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
     ? `#USPF-GS-${data.appointmentId.slice(0, 8).toUpperCase()}` 
     : '';
 
-  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || 'guidance@uspf.edu.ph';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  const appointmentsUrl = appUrl ? new URL('/student/appointments', appUrl).href : '';
-  const appointmentsHref = appointmentsUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || 'guidancesync.confirm@gmail.com';
+  const baseUrl = getAppBaseUrl(data.origin);
+  const appointmentsUrl = `${baseUrl}/student/appointments`;
 
   const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Appointment Confirmed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consultation Confirmed</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
     .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .header { background: #059669; padding: 24px; text-align: center; color: #ffffff; }
+    .header { background: #059669; padding: 28px 24px; text-align: center; color: #ffffff; }
     .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.025em; }
-    .header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+    .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.95; }
     .content { padding: 28px; }
     .info-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     .info-table tr { border-bottom: 1px solid #f1f5f9; }
@@ -88,14 +125,17 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
     .label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; width: 38%; }
     .value { color: #0f172a; font-weight: 700; text-align: right; }
     .highlight { color: #059669; font-size: 15px; }
-    .footer { text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #fafafa; }
+    .btn-container { text-align: center; margin: 28px 0 16px; }
+    .btn { display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 28px; border-radius: 12px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2); }
+    .direct-link { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px; word-break: break-all; }
+    .footer { text-align: center; padding: 18px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #fafafa; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
       <h1>Booking Confirmed</h1>
-      <p>Your guidance consultation has been approved.</p>
+      <p>Your guidance consultation session has been approved.</p>
     </div>
     <div class="content">
       <table class="info-table">
@@ -130,10 +170,18 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
         </tr>
         ` : ''}
       </table>
-      ${appointmentsHref ? `<p><a href="${appointmentsHref}" style="color: #047857; font-weight: 700;">View appointment in Guidance Sync</a></p>` : ''}
+
+      <div class="btn-container">
+        <a href="${appointmentsUrl}" class="btn">
+          View Your Appointment
+        </a>
+      </div>
+      <p class="direct-link">
+        Direct portal link: <a href="${appointmentsUrl}" style="color: #059669;">${appointmentsUrl}</a>
+      </p>
     </div>
     <div class="footer">
-      USPF Guidance & Counseling Center
+      USPF Guidance & Counseling Center • GuidanceSync Campus Wellness
     </div>
   </div>
 </body>
@@ -150,7 +198,8 @@ Guidance Counselor: ${data.counselorName}
 Session Type: ${data.type}
 Location / Mode: ${data.location}
 ${formattedRef ? `Reference ID: ${formattedRef}` : ''}
-${appointmentsUrl ? `\nView appointment in Guidance Sync: ${appointmentsUrl}` : ''}
+
+View appointment in GuidanceSync: ${appointmentsUrl}
   `.trim();
 
   const mailOptions = {
@@ -170,7 +219,7 @@ ${appointmentsUrl ? `\nView appointment in Guidance Sync: ${appointmentsUrl}` : 
       console.log('[Nodemailer] Test Preview URL:', previewUrl);
     }
 
-    return { success: true, messageId: info.messageId, previewUrl };
+    return { success: true, messageId: info.messageId, previewUrl, link: appointmentsUrl };
   } catch (err: any) {
     console.error('[Nodemailer Error]:', err);
     if (
@@ -179,9 +228,10 @@ ${appointmentsUrl ? `\nView appointment in Guidance Sync: ${appointmentsUrl}` : 
       err?.message?.includes('Username and Password not accepted')
     ) {
       throw new Error(
-        'Gmail SMTP Authentication Failed: Gmail requires a 16-character Google App Password (not your normal Gmail password). Please generate an App Password at https://myaccount.google.com/apppasswords and update SMTP_PASS in .env.'
+        'Gmail SMTP Authentication Failed: Gmail requires a 16-character Google App Password. Please check SMTP_PASS.'
       );
     }
     throw err;
   }
 }
+
