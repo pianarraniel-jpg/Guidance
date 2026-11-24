@@ -103,6 +103,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 3. Fallback: if magiclink failed (e.g. rate limit), synchronize password with student ID and sign in
+  if (!session) {
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(profileData.id, {
+        password: cleanId,
+        email_confirm: true,
+      });
+      const fallbackSignIn = await supabaseAdmin.auth.signInWithPassword({
+        email: profileData.email,
+        password: cleanId,
+      });
+      if (fallbackSignIn.data?.session) {
+        session = fallbackSignIn.data.session;
+      }
+    } catch (fallbackErr) {
+      console.error('[student-login] Password sync fallback failed:', fallbackErr);
+    }
+  }
+
   if (!session) {
     return NextResponse.json({ error: 'Authentication failed for this student ID.' }, { status: 401 });
   }

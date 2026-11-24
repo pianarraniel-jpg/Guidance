@@ -146,6 +146,8 @@ export default function BookAppointment() {
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [conflictModalTitle, setConflictModalTitle] = useState('Daily Limit Reached (Max 3 Sessions)');
   const [conflictModalDescription, setConflictModalDescription] = useState('You already have 3 appointments scheduled on this day.');
+  const [sameDayWarningApps, setSameDayWarningApps] = useState<any[] | null>(null);
+  const [pendingDate, setPendingDate] = useState<Date | undefined>(undefined);
 
   const isAcademicComplete = isAcademicClassificationComplete(user);
   const [isClassificationModalOpen, setIsClassificationModalOpen] = useState(false);
@@ -246,14 +248,26 @@ export default function BookAppointment() {
   const loadBookedSlots = useCallback(async () => {
     if (!selectedDate || !selectedCounselor) { setBookedSlots([]); return; }
     setIsSlotLoading(true);
-    const { data } = await supabase
-      .from('appointments')
-      .select('time')
-      .eq('counselor_id', selectedCounselor)
-      .eq('date', format(selectedDate, 'yyyy-MM-dd'))
-      .neq('status', APPOINTMENT_STATUS.CANCELLED);
-    setBookedSlots((data ?? []).map(a => a.time));
-    setIsSlotLoading(false);
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const res = await fetch(`/api/appointments/booked-slots?counselorId=${selectedCounselor}&date=${dateStr}`);
+      const json = await res.json().catch(() => ({}));
+      if (json?.bookedSlots && Array.isArray(json.bookedSlots)) {
+        setBookedSlots(json.bookedSlots);
+      } else {
+        const { data } = await supabase
+          .from('appointments')
+          .select('time')
+          .eq('counselor_id', selectedCounselor)
+          .eq('date', dateStr)
+          .neq('status', APPOINTMENT_STATUS.CANCELLED);
+        setBookedSlots((data ?? []).map(a => a.time));
+      }
+    } catch (e) {
+      console.warn('[loadBookedSlots] Error fetching booked slots:', e);
+    } finally {
+      setIsSlotLoading(false);
+    }
   }, [selectedDate, selectedCounselor]);
 
   useEffect(() => { loadBookedSlots(); }, [loadBookedSlots]);
@@ -315,8 +329,11 @@ export default function BookAppointment() {
     }
 
     const dateStr = format(d, 'yyyy-MM-dd');
-    const sameDayAppointments = studentAppointments.filter(a => a.date === dateStr);
+    const sameDayAppointments = studentAppointments.filter(
+      a => a.date === dateStr && a.status !== APPOINTMENT_STATUS.CANCELLED
+    );
 
+    // Hard limit: max 3 appointments per day
     if (sameDayAppointments.length >= 3) {
       setConflictingAppointments(sameDayAppointments);
       setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
@@ -324,6 +341,13 @@ export default function BookAppointment() {
       setIsConflictModalOpen(true);
       setSelectedDate(undefined);
       setSelectedTime('');
+      return;
+    }
+
+    // Warning validation: student is booking a second appointment on the same date
+    if (sameDayAppointments.length >= 1) {
+      setSameDayWarningApps(sameDayAppointments);
+      setPendingDate(d);
       return;
     }
 
@@ -472,7 +496,23 @@ export default function BookAppointment() {
         return;
       }
 
-      // 3. Strict Pre-insert Check: Check if slot is already occupied (prevents race-condition double bookings)
+      // 3. Strict Pre-insert Check: Check if slot is already occupied using server-side API (bypasses RLS)
+      const slotRes = await fetch(`/api/appointments/booked-slots?counselorId=${selectedCounselor}&date=${dateStr}`).catch(() => null);
+      const slotJson = slotRes ? await slotRes.json().catch(() => ({})) : {};
+      const activeBookedSlots: string[] = slotJson?.bookedSlots || [];
+
+      if (activeBookedSlots.includes(selectedTime)) {
+        toast({
+          variant: 'destructive',
+          title: 'Slot Already Booked',
+          description: 'This counselor slot was just taken by another student. Please choose another time.',
+        });
+        await loadBookedSlots();
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+
       const { data: existingSlots } = await supabase
         .from('appointments')
         .select('id, counselor_id, student_id')
@@ -560,8 +600,20 @@ export default function BookAppointment() {
       }).catch((error) => {
         console.error('[EmailJS] Booking confirmation email failed:', error);
       });
-    } catch {
-      toast({ variant: 'destructive', title: 'Booking Failed', description: 'An error occurred. Please try again.' });
+    } catch (err: any) {
+      console.error('[handleBooking] Error:', err);
+      if (err?.message?.includes('unique_counselor_active_slot') || err?.message?.includes('duplicate key')) {
+        toast({
+          variant: 'destructive',
+          title: 'Time Slot Already Booked',
+          description: 'This time slot was just booked by another student. Please select another time.',
+        });
+        await loadBookedSlots();
+        setCurrentStep(STEPS.TIME);
+        setSelectedTime('');
+        return;
+      }
+      toast({ variant: 'destructive', title: 'Booking Failed', description: err?.message || 'An error occurred. Please try again.' });
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -1024,6 +1076,14 @@ export default function BookAppointment() {
                             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Real-time Slot Verification</span>
                           </div>
                         </div>
+                        {studentBookedTimesOnSelectedDate.length > 0 && (
+                          <div className="mt-4 p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-2.5 text-xs font-semibold text-amber-900">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                            <span>
+                              You already have a session booked at <strong>{studentBookedTimesOnSelectedDate.join(', ')}</strong> on this day. Please select a different available time slot.
+                            </span>
+                          </div>
+                        )}
                       </CardHeader>
 
                       {isSlotLoading ? (
@@ -1437,6 +1497,87 @@ export default function BookAppointment() {
                 <Link href="/student/appointments">
                   View Appointments
                 </Link>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Same-Day Second Booking Warning Alert Modal */}
+        <Dialog open={!!sameDayWarningApps} onOpenChange={(open) => {
+          if (!open) {
+            setSameDayWarningApps(null);
+            setPendingDate(undefined);
+          }
+        }}>
+          <DialogContent className="max-w-md p-6 sm:p-8 rounded-[2rem] border border-amber-200/80 shadow-2xl bg-white animate-in fade-in-50 zoom-in-95 duration-200">
+            <DialogHeader className="flex flex-col items-center text-center pb-2">
+              <div className="h-16 w-16 rounded-3xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center mb-4 ring-8 ring-amber-50/60 shadow-xs">
+                <AlertTriangle className="h-8 w-8 text-amber-600" />
+              </div>
+              <DialogTitle className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Second Appointment on Same Day
+              </DialogTitle>
+              <DialogDescription className="text-xs font-semibold text-slate-500 mt-1">
+                You already have a session scheduled on {pendingDate ? format(pendingDate, 'EEEE, MMMM d, yyyy') : 'this day'}.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/70 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-amber-600" />
+                  Your Existing Session on This Date:
+                </p>
+                {sameDayWarningApps?.map((app, idx) => (
+                  <div key={app.id || idx} className="bg-white rounded-xl p-3 border border-amber-200/50 flex items-center justify-between text-xs font-bold text-slate-800 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-primary" />
+                      <span>{app.time}</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-slate-600 truncate max-w-[140px]">{app.type || 'Consultation'}</span>
+                    </div>
+                    <Badge variant="outline" className={cn(
+                      "text-[9px] font-black py-0.5 px-2 rounded-md uppercase",
+                      app.status === 'confirmed' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-300"
+                    )}>
+                      {app.status === 'confirmed' ? 'Confirmed' : 'Needs Confirmation'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-slate-600 leading-relaxed text-center font-medium">
+                Are you sure you want to schedule an additional consultation on the same date?
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 sm:space-x-0">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSameDayWarningApps(null);
+                  setPendingDate(undefined);
+                }}
+                className="w-full sm:flex-1 h-11 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-700"
+              >
+                No, Choose Another Date
+              </Button>
+              <Button
+                onClick={() => {
+                  if (pendingDate) {
+                    setSelectedDate(pendingDate);
+                    setSelectedTime('');
+                  }
+                  setSameDayWarningApps(null);
+                  setPendingDate(undefined);
+                  toast({
+                    title: "Date Selected",
+                    description: `Proceeding with secondary session on ${pendingDate ? format(pendingDate, 'MMM d') : 'this day'}.`,
+                  });
+                }}
+                className="w-full sm:flex-1 h-11 rounded-xl font-black bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+              >
+                Yes, Continue
               </Button>
             </DialogFooter>
           </DialogContent>
