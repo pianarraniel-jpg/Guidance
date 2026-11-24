@@ -133,6 +133,7 @@ export default function CounselorAppointmentsPage() {
   const [bookingReason, setBookingReason] = useState("");
   const [bookingModality, setBookingModality] = useState<'in-person' | 'online'>('in-person');
   const [bookingLocation, setBookingLocation] = useState("Guidance Office — Room 302");
+  const [bookingMeetingLink, setBookingMeetingLink] = useState("");
   const [isBookingSubmit, setIsBookingSubmit] = useState(false);
   const isBookingSubmitRef = React.useRef(false);
 
@@ -457,6 +458,7 @@ export default function CounselorAppointmentsPage() {
     if (!bookingDate) missing.push("Date");
     if (!bookingTime) missing.push("Time Slot");
     if (!bookingReason.trim()) missing.push("Reason for Consultation");
+    if (bookingModality === 'online' && !bookingMeetingLink.trim()) missing.push("Virtual Meeting Link");
 
     if (missing.length > 0) {
       toast({
@@ -503,7 +505,7 @@ export default function CounselorAppointmentsPage() {
       }
 
       const finalLocation = bookingModality === 'online'
-        ? 'Online (Google Meet)'
+        ? (bookingMeetingLink.trim() ? `Online (Meet: ${bookingMeetingLink.trim()})` : 'Online (Google Meet)')
         : (bookingLocation.trim() || 'Guidance Office — Room 302');
 
       const createdAt = new Date().toISOString();
@@ -528,9 +530,24 @@ export default function CounselorAppointmentsPage() {
 
       setAppointments(prev => [newAppointment as any, ...prev]);
 
+      // Dispatch session invitation email to the student with meeting link attached
+      const studentEmail = selectedStudent.email || selectedStudent.studentEmail || '';
+      void dispatchConfirmationEmail({
+        appointmentId: (newAppointment as any).id,
+        studentId: bookingStudentId,
+        studentEmail: studentEmail,
+        studentName: selectedStudent.name,
+        counselorName: counselor?.name || 'Guidance Counselor',
+        date: bookingDate,
+        time: bookingTime,
+        type: bookingType,
+        location: finalLocation,
+        meetingLink: bookingModality === 'online' && bookingMeetingLink.trim() ? bookingMeetingLink.trim() : undefined,
+      });
+
       toast({
         title: "Session Invitation Sent! 📋",
-        description: `Appointment sent to ${selectedStudent.name}. Awaiting student confirmation.`,
+        description: `Appointment sent to ${selectedStudent.name}. Email notification dispatched.`,
       });
 
       setIsBookingOpen(false);
@@ -541,6 +558,7 @@ export default function CounselorAppointmentsPage() {
       setBookingReason("");
       setBookingModality("in-person");
       setBookingLocation("Guidance Office — Room 302");
+      setBookingMeetingLink("");
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -1942,6 +1960,34 @@ export default function CounselorAppointmentsPage() {
                 </div>
               )}
 
+              {/* Virtual Meeting Link Input for Online */}
+              {bookingModality === 'online' && (
+                <div className="space-y-2.5 p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <Video className="h-3.5 w-3.5 text-sky-600" /> Virtual Meeting Link *
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => window.open('https://meet.google.com/new', '_blank')}
+                      className="text-[10px] font-bold text-sky-700 hover:text-sky-900 underline inline-flex items-center gap-1"
+                    >
+                      Create Google Meet <ExternalLink className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                  <Input
+                    type="url"
+                    placeholder="e.g. https://meet.google.com/abc-defg-hij or Zoom / Teams link"
+                    value={bookingMeetingLink}
+                    onChange={(e) => setBookingMeetingLink(e.target.value)}
+                    className="h-11 rounded-xl text-xs font-semibold bg-white border border-sky-200 focus:border-sky-500 focus:ring-sky-500/20"
+                  />
+                  <p className="text-[11px] text-sky-800 font-medium leading-relaxed">
+                    This meeting link will be attached to the student&apos;s email invitation and added to their appointment card.
+                  </p>
+                </div>
+              )}
+
               {/* Consultation Reason */}
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-900">Consultation Reason / Goal *</Label>
@@ -1957,7 +2003,15 @@ export default function CounselorAppointmentsPage() {
             <div className="flex gap-3 pt-4 border-t border-slate-100">
               <Button
                 onClick={handleCounselorBooking}
-                disabled={isBookingSubmit || !bookingStudentId || !bookingType || !bookingDate || !bookingTime || !bookingReason.trim()}
+                disabled={
+                  isBookingSubmit || 
+                  !bookingStudentId || 
+                  !bookingType || 
+                  !bookingDate || 
+                  !bookingTime || 
+                  !bookingReason.trim() ||
+                  (bookingModality === 'online' && !bookingMeetingLink.trim())
+                }
                 className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black text-white shadow-lg shadow-primary/20"
               >
                 <Calendar className="h-4 w-4 mr-2" /> {isBookingSubmit ? "Scheduling..." : "Send Session Invitation"}
@@ -1973,6 +2027,7 @@ export default function CounselorAppointmentsPage() {
                   setBookingReason("");
                   setBookingModality("in-person");
                   setBookingLocation("Guidance Office — Room 302");
+                  setBookingMeetingLink("");
                 }}
                 className="flex-1 h-12 rounded-xl font-bold border-slate-200"
               >

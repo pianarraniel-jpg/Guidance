@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       time,
       type,
       location,
+      meetingLink,
     } = body;
 
     // 1. Fetch missing appointment details from Supabase if appointmentId is present
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
       type: type || 'Counseling Session',
       location: location || 'Guidance Office — Room 302',
       appointmentId: appointmentId || '',
+      meetingLink: meetingLink || undefined,
       origin: origin || undefined,
     });
 
