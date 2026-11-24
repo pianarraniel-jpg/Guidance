@@ -13,14 +13,26 @@ export interface AcademicProfileData {
  * which routes their consultation requests and wellness records to their designated counselor.
  */
 export function isAcademicClassificationComplete(
-  user: { department?: string; program?: string; yearLevel?: string; year_level?: string; role?: string } | null | undefined
+  user: { department?: string; program?: string; yearLevel?: string; year_level?: string; role?: string; studentId?: string; student_id?: string } | null | undefined
 ): boolean {
   if (!user) return false;
   // Non-students (e.g. counselors, admins) don't need student classification
   if (user.role && user.role !== 'student') return true;
 
   const dept = user.department?.trim();
-  return Boolean(dept && dept.toLowerCase() !== 'all' && dept.toLowerCase() !== 'unassigned');
+  const studentId = (user.studentId || user.student_id)?.trim();
+
+  // If student has an assigned department, they are classified
+  if (dept && dept.toLowerCase() !== 'all' && dept.toLowerCase() !== 'unassigned') {
+    return true;
+  }
+
+  // If student already has a registered student ID, consider them already registered
+  if (studentId) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
