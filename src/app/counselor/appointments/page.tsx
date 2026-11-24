@@ -1885,14 +1885,14 @@ export default function CounselorAppointmentsPage() {
 
       {/* Counselor Availability Dialog */}
       <Dialog open={isAvailabilityOpen} onOpenChange={setIsAvailabilityOpen}>
-        <DialogContent className="max-w-3xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-          <DialogHeader className="p-8 bg-slate-50 border-b">
+        <DialogContent className="max-w-4xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-6 sm:p-8 bg-slate-50 border-b border-slate-200/80">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+              <div className="h-12 w-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
                 <CalendarClock className="h-6 w-6" />
               </div>
               <div>
-                <DialogTitle className="text-2xl font-black text-slate-900">
+                <DialogTitle className="text-xl sm:text-2xl font-black text-slate-900">
                   Manage Consultation Availability
                 </DialogTitle>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -1901,7 +1901,7 @@ export default function CounselorAppointmentsPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="p-8 max-h-[75vh] overflow-y-auto">
+          <div className="p-5 sm:p-8 max-h-[75vh] overflow-y-auto">
             <CounselorAvailabilityManager onSaveSuccess={() => setIsAvailabilityOpen(false)} />
           </div>
         </DialogContent>

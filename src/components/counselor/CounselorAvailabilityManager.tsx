@@ -384,33 +384,36 @@ export default function CounselorAvailabilityManager({
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header Bar & Summary (Soft UI / No Gradients) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
-        <div className="flex items-center gap-3.5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
           <div className="h-11 w-11 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xs shrink-0">
             <CalendarClock className="h-5 w-5" />
           </div>
-          <div>
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              Weekly Consultation Schedule
-              <Badge className="bg-emerald-100 text-emerald-800 border-none font-bold text-[9px] uppercase px-2 py-0.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-black text-slate-900">
+                Weekly Consultation Schedule
+              </h3>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 whitespace-nowrap shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Active in Student Booking
-              </Badge>
-            </h3>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
               Configure which days, consultation minute intervals, and specific time slots students can book with you.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Capacity</p>
-            <p className="text-xs font-black text-slate-900">{totalWeeklySlots} slots / {activeDaysCount} days</p>
+        <div className="flex items-center justify-between md:justify-end gap-3.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60">
+          <div className="text-left md:text-right">
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Capacity</p>
+            <p className="text-xs font-black text-slate-900">{totalWeeklySlots} slots <span className="font-medium text-slate-400">/ {activeDaysCount} days</span></p>
           </div>
           <Button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
-            className="h-10 px-5 rounded-xl font-black text-xs bg-primary hover:bg-primary/90 text-white shadow-xs disabled:opacity-50"
+            className="h-10 px-5 rounded-xl font-black text-xs bg-primary hover:bg-primary/90 text-white shadow-xs disabled:opacity-50 whitespace-nowrap shrink-0"
           >
             {isSaving ? (
               <>
