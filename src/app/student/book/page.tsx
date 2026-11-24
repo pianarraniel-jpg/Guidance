@@ -333,36 +333,59 @@ export default function BookAppointment() {
       a => a.date === dateStr && a.status !== APPOINTMENT_STATUS.CANCELLED
     );
 
-    // Hard limit: max 3 appointments per day
-    if (sameDayAppointments.length >= 3) {
+    // Confirmed and active pending appointments count towards the daily limit (max 3 per day)
+    const confirmedCount = sameDayAppointments.filter(
+      a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING
+    ).length;
+
+    // Hard limit: max 3 confirmed / active appointments per day per student -> booking disabled
+    if (confirmedCount >= 3) {
       setConflictingAppointments(sameDayAppointments);
-      setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
-      setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+      setConflictModalTitle('Booking Disabled: Daily Limit Reached');
+      setConflictModalDescription('You already have 3 active/confirmed appointments scheduled on this day. Booking is disabled for this date.');
       setIsConflictModalOpen(true);
       setSelectedDate(undefined);
       setSelectedTime('');
       return;
     }
 
-    // Warning validation: student is booking a second appointment on the same date
+    // Else: If there are existing bookings on this day (confirmed or completed):
+    // Booking is ENABLED, but show warning because the student is booking again on the same day!
     if (sameDayAppointments.length >= 1) {
       setSameDayWarningApps(sameDayAppointments);
       setPendingDate(d);
       return;
     }
 
+    // First booking on this date -> proceed directly
     setSelectedDate(d);
     setSelectedTime('');
   };
 
   const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
 
-  const studentBookedTimesOnSelectedDate = useMemo(() => {
+  const sameDayAppointmentsOnSelectedDate = useMemo(() => {
     if (!selectedDateStr) return [];
-    return studentAppointments
-      .filter(a => a.date === selectedDateStr && a.status !== APPOINTMENT_STATUS.CANCELLED)
-      .map(a => a.time);
+    return studentAppointments.filter(
+      a => a.date === selectedDateStr && a.status !== APPOINTMENT_STATUS.CANCELLED
+    );
   }, [studentAppointments, selectedDateStr]);
+
+  const confirmedCountOnSelectedDate = useMemo(() => {
+    return sameDayAppointmentsOnSelectedDate.filter(
+      a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING
+    ).length;
+  }, [sameDayAppointmentsOnSelectedDate]);
+
+  const completedCountOnSelectedDate = useMemo(() => {
+    return sameDayAppointmentsOnSelectedDate.filter(
+      a => a.status === APPOINTMENT_STATUS.COMPLETED
+    ).length;
+  }, [sameDayAppointmentsOnSelectedDate]);
+
+  const studentBookedTimesOnSelectedDate = useMemo(() => {
+    return sameDayAppointmentsOnSelectedDate.map(a => a.time);
+  }, [sameDayAppointmentsOnSelectedDate]);
 
   const activeDaySlots = useMemo(() => {
     if (!selectedDate) return TIME_SLOTS;
@@ -420,10 +443,14 @@ export default function BookAppointment() {
       const sameDayAppointments = studentAppointments.filter(
         a => a.date === dateStr && a.status !== APPOINTMENT_STATUS.CANCELLED
       );
-      if (sameDayAppointments.length >= 3) {
+      const confirmedCount = sameDayAppointments.filter(
+        a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING
+      ).length;
+
+      if (confirmedCount >= 3) {
         setConflictingAppointments(sameDayAppointments);
-        setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
-        setConflictModalDescription('You already have 3 active appointments scheduled on this day.');
+        setConflictModalTitle('Booking Disabled: Daily Limit Reached');
+        setConflictModalDescription('You already have reached the maximum limit of 3 active/confirmed appointments scheduled on this day. Booking is disabled for this date.');
         setIsConflictModalOpen(true);
         setSelectedDate(undefined);
         return;
@@ -466,7 +493,7 @@ export default function BookAppointment() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // 1. Check max 3 appointments per day in database
+      // 1. Check max 3 confirmed / active appointments per day in database
       const { data: studentDayApps } = await supabase
         .from('appointments')
         .select('*')
@@ -474,10 +501,14 @@ export default function BookAppointment() {
         .eq('date', dateStr)
         .neq('status', APPOINTMENT_STATUS.CANCELLED);
 
-      if ((studentDayApps || []).length >= 3) {
+      const confirmedCountInDb = (studentDayApps || []).filter(
+        a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING
+      ).length;
+
+      if (confirmedCountInDb >= 3) {
         setConflictingAppointments(studentDayApps || []);
-        setConflictModalTitle('Daily Limit Reached (Max 3 Sessions)');
-        setConflictModalDescription('You already have 3 appointments scheduled on this day.');
+        setConflictModalTitle('Booking Disabled: Daily Limit Reached');
+        setConflictModalDescription('You already have reached the maximum limit of 3 active/confirmed appointments on this day. Booking is disabled for this date.');
         setIsConflictModalOpen(true);
         setCurrentStep(STEPS.DATE);
         setSelectedDate(undefined);
@@ -1076,12 +1107,28 @@ export default function BookAppointment() {
                             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Real-time Slot Verification</span>
                           </div>
                         </div>
-                        {studentBookedTimesOnSelectedDate.length > 0 && (
-                          <div className="mt-4 p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-2.5 text-xs font-semibold text-amber-900">
-                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                            <span>
-                              You already have a session booked at <strong>{studentBookedTimesOnSelectedDate.join(', ')}</strong> on this day. Please select a different available time slot.
-                            </span>
+                        {sameDayAppointmentsOnSelectedDate.length > 0 && (
+                          <div className="mt-4 p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3 text-xs font-semibold text-amber-900">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <div className="font-black text-amber-950 flex items-center gap-2">
+                                <span>Same-Day Booking Notice</span>
+                                {completedCountOnSelectedDate > 0 && confirmedCountOnSelectedDate === 0 && (
+                                  <Badge className="bg-sky-100 text-sky-800 border-none text-[9px] font-black uppercase">
+                                    Booking Enabled (Session Completed)
+                                  </Badge>
+                                )}
+                                {confirmedCountOnSelectedDate > 0 && (
+                                  <Badge className="bg-amber-100 text-amber-900 border-none text-[9px] font-black uppercase">
+                                    {confirmedCountOnSelectedDate} of 3 active bookings
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-slate-600 font-medium">
+                                You already have {sameDayAppointmentsOnSelectedDate.length === 1 ? 'a session' : `${sameDayAppointmentsOnSelectedDate.length} sessions`} on this day ({sameDayAppointmentsOnSelectedDate.map(a => `${a.time} [${a.status}]`).join(', ')}).
+                                {confirmedCountOnSelectedDate < 3 ? ' Booking is enabled. Please choose a different available time slot below.' : ' Maximum daily limit reached.'}
+                              </p>
+                            </div>
                           </div>
                         )}
                       </CardHeader>
@@ -1515,10 +1562,10 @@ export default function BookAppointment() {
                 <AlertTriangle className="h-8 w-8 text-amber-600" />
               </div>
               <DialogTitle className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Second Appointment on Same Day
+                Same-Day Booking Notice
               </DialogTitle>
               <DialogDescription className="text-xs font-semibold text-slate-500 mt-1">
-                You already have a session scheduled on {pendingDate ? format(pendingDate, 'EEEE, MMMM d, yyyy') : 'this day'}.
+                You already have a session on {pendingDate ? format(pendingDate, 'EEEE, MMMM d, yyyy') : 'this day'}.
               </DialogDescription>
             </DialogHeader>
 
@@ -1526,29 +1573,58 @@ export default function BookAppointment() {
               <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/70 space-y-2">
                 <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-amber-600" />
-                  Your Existing Session on This Date:
+                  Your Existing Session(s) on This Date:
                 </p>
-                {sameDayWarningApps?.map((app, idx) => (
-                  <div key={app.id || idx} className="bg-white rounded-xl p-3 border border-amber-200/50 flex items-center justify-between text-xs font-bold text-slate-800 shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5 text-primary" />
-                      <span>{app.time}</span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-600 truncate max-w-[140px]">{app.type || 'Consultation'}</span>
+                {sameDayWarningApps?.map((app, idx) => {
+                  const isCompleted = app.status?.toLowerCase() === 'completed';
+                  const isConfirmed = app.status?.toLowerCase() === 'confirmed';
+                  return (
+                    <div key={app.id || idx} className="bg-white rounded-xl p-3 border border-amber-200/50 flex items-center justify-between text-xs font-bold text-slate-800 shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-primary" />
+                        <span>{app.time}</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-600 truncate max-w-[140px]">{app.type || 'Consultation'}</span>
+                      </div>
+                      <Badge variant="outline" className={cn(
+                        "text-[9px] font-black py-0.5 px-2 rounded-md uppercase",
+                        isCompleted 
+                          ? "bg-sky-50 text-sky-700 border-sky-200" 
+                          : isConfirmed 
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                          : "bg-amber-50 text-amber-800 border-amber-300"
+                      )}>
+                        {isCompleted ? 'Completed' : isConfirmed ? 'Confirmed' : 'Needs Confirmation'}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className={cn(
-                      "text-[9px] font-black py-0.5 px-2 rounded-md uppercase",
-                      app.status === 'confirmed' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-300"
-                    )}>
-                      {app.status === 'confirmed' ? 'Confirmed' : 'Needs Confirmation'}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-slate-600 leading-relaxed text-center font-medium">
-                Are you sure you want to schedule an additional consultation on the same date?
-              </div>
+              {/* Status context & limit details */}
+              {(() => {
+                const confirmedCnt = sameDayWarningApps?.filter(
+                  a => a.status === APPOINTMENT_STATUS.CONFIRMED || a.status === APPOINTMENT_STATUS.PENDING
+                ).length || 0;
+                const completedCnt = sameDayWarningApps?.filter(
+                  a => a.status === APPOINTMENT_STATUS.COMPLETED
+                ).length || 0;
+
+                return (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-slate-600 leading-relaxed font-medium space-y-1">
+                    <p className="font-bold text-slate-800">
+                      {completedCnt > 0 && confirmedCnt === 0 ? (
+                        'Prior session is completed. Booking is enabled to schedule an additional consultation.'
+                      ) : (
+                        `Active Bookings: ${confirmedCnt} of 3 maximum bookings used for this day.`
+                      )}
+                    </p>
+                    <p className="text-slate-500 text-[11px]">
+                      Are you sure you want to schedule an additional consultation on the same date?
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 sm:space-x-0">
@@ -1572,7 +1648,7 @@ export default function BookAppointment() {
                   setPendingDate(undefined);
                   toast({
                     title: "Date Selected",
-                    description: `Proceeding with secondary session on ${pendingDate ? format(pendingDate, 'MMM d') : 'this day'}.`,
+                    description: `Proceeding with booking on ${pendingDate ? format(pendingDate, 'MMM d') : 'this day'}.`,
                   });
                 }}
                 className="w-full sm:flex-1 h-11 rounded-xl font-black bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
