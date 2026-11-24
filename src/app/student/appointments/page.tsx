@@ -53,6 +53,8 @@ import {
   isBookedByCounselor,
   isRescheduledByStudent,
   cleanAppointmentReason,
+  isOnlineLocation,
+  extractMeetingUrl,
 } from '@/lib/appointment-utils';
 
 
@@ -482,13 +484,30 @@ export default function StudentAppointments() {
                                 <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <span>{app.time}</span>
                               </div>
-                              <div className="flex items-center gap-1.5 mt-1">
-                                {app.location?.toLowerCase().includes('online') || app.location?.toLowerCase().includes('meet') ? (
-                                  <Badge className="bg-sky-50 text-sky-700 border border-sky-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none">
-                                    <Video className="h-3 w-3 text-sky-600" /> Online (Meet)
-                                  </Badge>
+                              <div className="flex flex-col gap-1 mt-1">
+                                {isOnlineLocation(app.location) ? (
+                                  <>
+                                    <Badge className="bg-sky-50 text-sky-700 border border-sky-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none w-fit">
+                                      <Video className="h-3 w-3 text-sky-600" /> Online (Meet)
+                                    </Badge>
+                                    {extractMeetingUrl(app.location) ? (
+                                      <a
+                                        href={extractMeetingUrl(app.location)!}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+                                      >
+                                        <ExternalLink className="h-2.5 w-2.5" /> Join Meet
+                                      </a>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 italic">
+                                        Link pending confirmation
+                                      </span>
+                                    )}
+                                  </>
                                 ) : (
-                                  <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none">
+                                  <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[9px] uppercase px-2 py-0.5 inline-flex items-center gap-1 rounded-md shadow-none w-fit">
                                     <Building2 className="h-3 w-3 text-indigo-600" /> {app.location || 'Room 302'}
                                   </Badge>
                                 )}
@@ -520,6 +539,15 @@ export default function StudentAppointments() {
                                   >
                                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                                     {isConfirmingId === app.id ? "Confirming..." : "Confirm"}
+                                  </Button>
+                                )}
+                                {app.status === APPOINTMENT_STATUS.CONFIRMED && extractMeetingUrl(app.location) && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => window.open(extractMeetingUrl(app.location)!, '_blank')}
+                                    className="h-8 text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm px-3 gap-1"
+                                  >
+                                    <Video className="h-3 w-3" /> Join Meet
                                   </Button>
                                 )}
                                 {(app.status === APPOINTMENT_STATUS.PENDING || app.status === APPOINTMENT_STATUS.CONFIRMED) && (
@@ -636,6 +664,44 @@ export default function StudentAppointments() {
                   <p className="text-sm font-bold text-slate-900">{selectedApp?.location || 'Room 302'}</p>
                 </div>
               </div>
+              {selectedApp?.location && isOnlineLocation(selectedApp.location) && (
+                <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Video className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-sky-800">
+                        Virtual Consultation Access
+                      </p>
+                      {extractMeetingUrl(selectedApp.location) ? (
+                        <a
+                          href={extractMeetingUrl(selectedApp.location)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-sky-950 hover:underline break-all"
+                        >
+                          {extractMeetingUrl(selectedApp.location)}
+                        </a>
+                      ) : (
+                        <p className="text-xs text-sky-700 italic">
+                          Online Google Meet link will be provided by your counselor upon confirming this session.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {extractMeetingUrl(selectedApp.location) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => window.open(extractMeetingUrl(selectedApp.location)!, '_blank')}
+                      className="h-9 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl px-4 gap-1.5 shrink-0 shadow-sm"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Join Meet
+                    </Button>
+                  )}
+                </div>
+              )}
               {selectedApp?.reason && (
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">

@@ -79,6 +79,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import RescheduleModal from '@/components/appointments/RescheduleModal';
 import CounselorAvailabilityManager from '@/components/counselor/CounselorAvailabilityManager';
+import VirtualMeetingModal from '@/components/appointments/VirtualMeetingModal';
 import {
   autoExpirePassedAppointments,
   isAppointmentPassed,
@@ -88,6 +89,8 @@ import {
   isRescheduledByStudent,
   COUNSELOR_BOOKING_TAG,
   cleanAppointmentReason,
+  isOnlineLocation,
+  extractMeetingUrl,
 } from '@/lib/appointment-utils';
 import { buildBookingEmailPayload, type BookingNotificationPayload } from '@/lib/booking-notifications';
 import { sendBookingConfirmationEmail } from '@/lib/emailjs-booking';
@@ -114,6 +117,7 @@ export default function CounselorAppointmentsPage() {
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
+  const [virtualConfirmTarget, setVirtualConfirmTarget] = useState<any>(null);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
@@ -223,20 +227,28 @@ export default function CounselorAppointmentsPage() {
     }
   }, [bookingDate, bookingStudentId, bookingTime, getSlotAvailability]);
 
-  const isOnlineLocation = (loc?: string) => {
-    if (!loc) return false;
-    const l = loc.toLowerCase();
-    return l.includes('online') || l.includes('meet') || l.includes('virtual') || l.includes('zoom');
-  };
-
   const renderLocationBadge = (location?: string) => {
     const online = isOnlineLocation(location);
+    const meetingUrl = extractMeetingUrl(location);
     if (online) {
       return (
-        <Badge className="bg-sky-50 text-sky-700 hover:bg-sky-50 border border-sky-100 font-bold text-[9px] uppercase px-2.5 py-1 inline-flex items-center gap-1.5 rounded-lg shadow-none">
-          <Video className="h-3 w-3 text-sky-600" />
-          <span>Online (Meet)</span>
-        </Badge>
+        <div className="flex flex-col gap-1 items-start">
+          <Badge className="bg-sky-50 text-sky-700 hover:bg-sky-50 border border-sky-100 font-bold text-[9px] uppercase px-2.5 py-1 inline-flex items-center gap-1.5 rounded-lg shadow-none">
+            <Video className="h-3 w-3 text-sky-600" />
+            <span>Online (Meet)</span>
+          </Badge>
+          {meetingUrl && (
+            <a
+              href={meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+            >
+              <ExternalLink className="h-2.5 w-2.5" /> Join Meet
+            </a>
+          )}
+        </div>
       );
     }
     return (
@@ -351,6 +363,7 @@ export default function CounselorAppointmentsPage() {
     time: string;
     type: string;
     location: string;
+    meetingLink?: string;
   }) => {
     try {
       const res = await fetch('/api/appointments/confirm-email', {
@@ -366,6 +379,8 @@ export default function CounselorAppointmentsPage() {
           time: params.time,
           type: params.type,
           location: params.location,
+          meetingLink: params.meetingLink,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         }),
       });
 
@@ -594,10 +609,21 @@ export default function CounselorAppointmentsPage() {
     if (unreadApts.length > 0) unreadApts.forEach(n => markAsRead(n.id));
   }, [notifications, markAsRead]);
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: string,
+    options?: { meetingLink?: string; customLocation?: string }
+  ) => {
     const targetApp = appointments.find(a => a.id === id);
 
     if (newStatus === APPOINTMENT_STATUS.CONFIRMED && targetApp) {
+      // Check if this is an online appointment and counselor hasn't attached a meeting link yet
+      const existingLink = extractMeetingUrl(targetApp.location);
+      if (isOnlineLocation(targetApp.location) && !options?.meetingLink && !existingLink) {
+        setVirtualConfirmTarget(targetApp);
+        return;
+      }
+
       // 0. Verify session date/time hasn't already passed
       if (isAppointmentPassed(targetApp.date, targetApp.time)) {
         toast({
@@ -647,15 +673,36 @@ export default function CounselorAppointmentsPage() {
       }
     }
 
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
-    if (selectedApp?.id === id) setSelectedApp((prev: any) => prev ? { ...prev, status: newStatus } : null);
+    const updatedLocation = options?.customLocation ||
+      (options?.meetingLink ? `Online (Meet: ${options.meetingLink.trim()})` : undefined);
+
+    setAppointments(prev => prev.map(a => a.id === id ? {
+      ...a,
+      status: newStatus,
+      ...(updatedLocation ? { location: updatedLocation } : {})
+    } : a));
+    if (selectedApp?.id === id) {
+      setSelectedApp((prev: any) => prev ? {
+        ...prev,
+        status: newStatus,
+        ...(updatedLocation ? { location: updatedLocation } : {})
+      } : null);
+    }
+
     try {
-      await storageService.update(STORAGE_KEYS.APPOINTMENTS, id, { status: newStatus });
+      const updatePayload: any = { status: newStatus };
+      if (updatedLocation) {
+        updatePayload.location = updatedLocation;
+      }
+      await storageService.update(STORAGE_KEYS.APPOINTMENTS, id, updatePayload);
       toast({ title: 'Status Updated', description: `Appointment is now ${newStatus}.` });
 
       // When appointment is confirmed, dispatch open-source confirmation email to student
       if (newStatus === APPOINTMENT_STATUS.CONFIRMED && targetApp) {
         const student = students.find(s => s.id === (targetApp.studentId || targetApp.student_id));
+        const effectiveLocation = updatedLocation || targetApp.location;
+        const meetingLink = options?.meetingLink || extractMeetingUrl(effectiveLocation) || undefined;
+
         void dispatchConfirmationEmail({
           appointmentId: id,
           studentId: targetApp.studentId || targetApp.student_id,
@@ -665,7 +712,8 @@ export default function CounselorAppointmentsPage() {
           date: targetApp.date,
           time: targetApp.time,
           type: targetApp.type,
-          location: targetApp.location,
+          location: effectiveLocation,
+          meetingLink,
         });
       }
 
@@ -674,6 +722,13 @@ export default function CounselorAppointmentsPage() {
       toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update appointment status.' });
       loadAppointments();
     }
+  };
+
+  const handleConfirmVirtualSession = async (appointmentId: string, meetingLink: string) => {
+    await handleUpdateStatus(appointmentId, APPOINTMENT_STATUS.CONFIRMED, {
+      meetingLink,
+      customLocation: `Online (Meet: ${meetingLink.trim()})`,
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -1324,6 +1379,57 @@ export default function CounselorAppointmentsPage() {
                 </div>
               </div>
             )}
+            {selectedApp?.location && isOnlineLocation(selectedApp.location) && (
+              <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Video className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-sky-800">
+                      Virtual Consultation Link
+                    </p>
+                    {extractMeetingUrl(selectedApp.location) ? (
+                      <a
+                        href={extractMeetingUrl(selectedApp.location)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold text-sky-950 hover:underline break-all"
+                      >
+                        {extractMeetingUrl(selectedApp.location)}
+                      </a>
+                    ) : (
+                      <p className="text-xs text-sky-700 italic">
+                        No meeting link attached yet. Accepting this session will prompt you for a link.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {extractMeetingUrl(selectedApp.location) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => window.open(extractMeetingUrl(selectedApp.location)!, '_blank')}
+                    className="h-8 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-lg px-3 gap-1 shrink-0"
+                  >
+                    <ExternalLink className="h-3 w-3" /> Join Meet
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const appToLink = selectedApp;
+                      setIsDetailsOpen(false);
+                      setVirtualConfirmTarget(appToLink);
+                    }}
+                    className="h-8 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-lg px-3 gap-1 shrink-0"
+                  >
+                    <Plus className="h-3 w-3" /> Set Meeting Link
+                  </Button>
+                )}
+              </div>
+            )}
             {selectedApp?.date && selectedApp?.time && (
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -1920,6 +2026,14 @@ export default function CounselorAppointmentsPage() {
           }
           loadAppointments();
         }}
+      />
+
+      {/* Virtual Meeting Link Setup Modal */}
+      <VirtualMeetingModal
+        isOpen={!!virtualConfirmTarget}
+        onClose={() => setVirtualConfirmTarget(null)}
+        appointment={virtualConfirmTarget}
+        onConfirm={handleConfirmVirtualSession}
       />
     </div>
   );
