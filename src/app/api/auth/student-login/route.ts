@@ -35,8 +35,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Auto-confirm student email if it is currently unconfirmed
+  let authUser: any = null;
   try {
-    const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(profileData.id);
+    const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profileData.id);
+    authUser = authUserData?.user || null;
     if (authUser && !authUser.email_confirmed_at) {
       await supabaseAdmin.auth.admin.updateUserById(profileData.id, { email_confirm: true });
     }
@@ -113,10 +115,10 @@ export async function POST(req: NextRequest) {
       name: profileData.name,
       email: profileData.email,
       role: profileData.role,
-      studentId: profileData.student_id ?? undefined,
-      department: profileData.department ?? undefined,
-      program: profileData.program || profileData.course || undefined,
-      yearLevel: profileData.year_level || profileData.year || undefined,
+      studentId: profileData.student_id ?? authUser?.user_metadata?.student_id ?? undefined,
+      department: profileData.department ?? authUser?.user_metadata?.department ?? undefined,
+      program: profileData.program || profileData.course || authUser?.user_metadata?.program || undefined,
+      yearLevel: profileData.year_level || profileData.year || authUser?.user_metadata?.year_level || undefined,
     },
   });
 }

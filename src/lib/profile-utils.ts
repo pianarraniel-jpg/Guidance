@@ -9,17 +9,18 @@ export interface AcademicProfileData {
 
 /**
  * Checks whether a user has completed their academic classification.
- * A student must have a department/college, degree program, and year level.
+ * A registered student has an assigned college/department (e.g. CCS, CBA, etc.)
+ * which routes their consultation requests and wellness records to their designated counselor.
  */
 export function isAcademicClassificationComplete(
-  user: { department?: string; program?: string; yearLevel?: string; year_level?: string } | null | undefined
+  user: { department?: string; program?: string; yearLevel?: string; year_level?: string; role?: string } | null | undefined
 ): boolean {
   if (!user) return false;
-  const dept = user.department?.trim();
-  const prog = user.program?.trim();
-  const yr = (user.yearLevel || user.year_level)?.trim();
+  // Non-students (e.g. counselors, admins) don't need student classification
+  if (user.role && user.role !== 'student') return true;
 
-  return Boolean(dept && prog && yr);
+  const dept = user.department?.trim();
+  return Boolean(dept && dept.toLowerCase() !== 'all' && dept.toLowerCase() !== 'unassigned');
 }
 
 /**
