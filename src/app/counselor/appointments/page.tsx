@@ -1994,7 +1994,7 @@ export default function CounselorAppointmentsPage() {
                         }}
                         className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline inline-flex items-center gap-1"
                       >
-                        <Sparkles className="h-2.5 w-2.5" /> Built-in Jitsi Room
+                        <Sparkles className="h-2.5 w-2.5" /> Built-in WebRTC Room
                       </button>
                       <span className="text-sky-300">•</span>
                       <button

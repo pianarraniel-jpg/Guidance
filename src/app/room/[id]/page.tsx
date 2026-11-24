@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
-import JitsiMeetingRoom from '@/components/video/JitsiMeetingRoom';
+import WebRTCMeetingRoom from '@/components/video/WebRTCMeetingRoom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Video, ArrowLeft, AlertCircle, Loader2, ShieldAlert } from 'lucide-react';
@@ -115,16 +115,12 @@ export default function VirtualRoomPage() {
     );
   }
 
-  // Generate safe sanitized alphanumeric Jitsi room name
-  const cleanId = appointment.id.replace(/[^a-zA-Z0-9]/g, '');
-  const roomName = `USPFGuidanceConsultation-${cleanId}`;
-
   return (
-    <JitsiMeetingRoom
-      roomName={roomName}
-      displayName={user?.name || (isCounselor ? 'Counselor' : 'Student')}
-      email={user?.email || undefined}
-      userRole={isCounselor ? 'counselor' : 'student'}
+    <WebRTCMeetingRoom
+      appointmentId={appointment.id}
+      userId={user?.id || ''}
+      userName={user?.name || (isCounselor ? 'Counselor' : 'Student')}
+      userRole={isCounselor ? 'counselor' : (isStudent ? 'student' : 'admin')}
       appointment={appointment}
       onLeave={handleLeaveRoom}
     />

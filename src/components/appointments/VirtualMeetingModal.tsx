@@ -66,7 +66,7 @@ export default function VirtualMeetingModal({
     }
   };
 
-  const handleUseBuiltInJitsi = () => {
+  const handleUseBuiltInWebRTC = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://guidance-rho.vercel.app';
     setMeetingUrl(`${origin}/room/${appointment.id}`);
     setError(null);
@@ -171,10 +171,10 @@ export default function VirtualMeetingModal({
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 <button
                   type="button"
-                  onClick={handleUseBuiltInJitsi}
+                  onClick={handleUseBuiltInWebRTC}
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline"
                 >
-                  <Sparkles className="h-3 w-3" /> Built-in Jitsi Room
+                  <Sparkles className="h-3 w-3" /> Built-in WebRTC Room
                 </button>
                 <span className="text-slate-300">•</span>
                 <button
