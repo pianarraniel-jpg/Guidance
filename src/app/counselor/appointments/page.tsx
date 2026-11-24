@@ -100,8 +100,8 @@ const SESSION_TYPES = [
 ];
 
 const TIME_SLOTS = [
-  '09:00 AM', '10:00 AM', '11:00 AM',
-  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+  '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+  '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
 ];
 
 export default function CounselorAppointmentsPage() {
@@ -1867,7 +1867,7 @@ export default function CounselorAppointmentsPage() {
                   Manage Consultation Availability
                 </DialogTitle>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Set the weekly days and specific hour slots students can book with you.
+                  Set the weekly days, consultation minute intervals, and specific time slots students can book with you.
                 </p>
               </div>
             </div>

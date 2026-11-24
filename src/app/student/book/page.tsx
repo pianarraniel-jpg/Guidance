@@ -78,9 +78,21 @@ const SESSION_TYPES = [
   { value: 'Mental Health Support', label: 'Mental Health Support', icon: Sparkles, color: 'text-pink-500 bg-pink-50' },
 ];
 
-const MORNING_SLOTS = ['09:00 AM', '10:00 AM', '11:00 AM'];
-const AFTERNOON_SLOTS = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM'];
-const TIME_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
+const parseTimeToMinutes = (t: string): number => {
+  try {
+    const [time, modifier] = t.trim().split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + (minutes || 0);
+  } catch {
+    return 0;
+  }
+};
+
+const DEFAULT_MORNING_SLOTS = ['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM'];
+const DEFAULT_AFTERNOON_SLOTS = ['01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM'];
+const TIME_SLOTS = [...DEFAULT_MORNING_SLOTS, ...DEFAULT_AFTERNOON_SLOTS];
 
 const QUICK_CONCERN_TAGS = [
   'Academic Pressure',
@@ -399,6 +411,20 @@ export default function BookAppointment() {
     return TIME_SLOTS;
   }, [selectedDate, counselorAvailability]);
 
+  const displayMorningSlots = useMemo(() => {
+    const morning = activeDaySlots.filter(s => parseTimeToMinutes(s) < 12 * 60);
+    return morning.length > 0
+      ? [...morning].sort((a, b) => parseTimeToMinutes(a) - parseTimeToMinutes(b))
+      : DEFAULT_MORNING_SLOTS;
+  }, [activeDaySlots]);
+
+  const displayAfternoonSlots = useMemo(() => {
+    const afternoon = activeDaySlots.filter(s => parseTimeToMinutes(s) >= 12 * 60);
+    return afternoon.length > 0
+      ? [...afternoon].sort((a, b) => parseTimeToMinutes(a) - parseTimeToMinutes(b))
+      : DEFAULT_AFTERNOON_SLOTS;
+  }, [activeDaySlots]);
+
   const availableSlots = useMemo(() => {
     return activeDaySlots.filter(s => {
       if (bookedSlots.includes(s)) return false;
@@ -409,12 +435,12 @@ export default function BookAppointment() {
   }, [activeDaySlots, bookedSlots, studentBookedTimesOnSelectedDate, selectedDate]);
 
   const morningAvailableCount = useMemo(() => {
-    return MORNING_SLOTS.filter(s => availableSlots.includes(s)).length;
-  }, [availableSlots]);
+    return displayMorningSlots.filter(s => availableSlots.includes(s)).length;
+  }, [displayMorningSlots, availableSlots]);
 
   const afternoonAvailableCount = useMemo(() => {
-    return AFTERNOON_SLOTS.filter(s => availableSlots.includes(s)).length;
-  }, [availableSlots]);
+    return displayAfternoonSlots.filter(s => availableSlots.includes(s)).length;
+  }, [displayAfternoonSlots, availableSlots]);
 
   const isCrisisDetected = useMemo(() => {
     const text = reason.toLowerCase();
@@ -1150,7 +1176,7 @@ export default function BookAppointment() {
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {MORNING_SLOTS.map(slot => {
+                              {displayMorningSlots.map(slot => {
                                 const isOffered = activeDaySlots.includes(slot);
                                 const takenByCounselor = bookedSlots.includes(slot);
                                 const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
@@ -1201,8 +1227,8 @@ export default function BookAppointment() {
                               <span className="text-[10px] font-bold text-slate-400">{afternoonAvailableCount} available</span>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              {AFTERNOON_SLOTS.map(slot => {
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {displayAfternoonSlots.map(slot => {
                                 const isOffered = activeDaySlots.includes(slot);
                                 const takenByCounselor = bookedSlots.includes(slot);
                                 const takenByStudent = studentBookedTimesOnSelectedDate.includes(slot);
