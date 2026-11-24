@@ -292,7 +292,7 @@ export default function CounselorAppointmentsPage() {
   const [isEarlyCompletionConfirmed, setIsEarlyCompletionConfirmed] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const { toast } = useToast();
-  const { notifications, markAsRead, realtimeStatus } = useNotifications();
+  const { notifications, markAsRead, refreshNotifications, realtimeStatus } = useNotifications();
 
   const getBookingTimestamp = (app: any) => {
     const raw = app.createdAt || app.created_at;
@@ -712,6 +712,7 @@ export default function CounselorAppointmentsPage() {
       }
 
       loadAppointments();
+      refreshNotifications();
     } catch {
       toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update appointment status.' });
       loadAppointments();
@@ -921,7 +922,6 @@ export default function CounselorAppointmentsPage() {
 
   const openDetails = (app: any) => {
     setSelectedApp(app);
-    markAsRead(`apt-${app.id}`);
     setTimeout(() => setIsDetailsOpen(true), 100);
   };
 

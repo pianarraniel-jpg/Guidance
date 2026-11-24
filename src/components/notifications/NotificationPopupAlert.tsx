@@ -98,7 +98,7 @@ export default function NotificationPopupAlert() {
   if (!activePopup) return null;
 
   const handleAction = () => {
-    if (activePopup.id) {
+    if (activePopup.id && activePopup.type !== 'appointment') {
       markAsRead(activePopup.id);
     }
     const targetLink = activePopup.link;

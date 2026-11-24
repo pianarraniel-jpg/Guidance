@@ -107,8 +107,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const fetchNotificationsData = useCallback(async () => {
     if (!user) { setNotifications([]); return; }
 
+    // Fetch latest read IDs concurrently to prevent initial race condition/flicker on page load
+    let currentReadSet = readIds;
+    try {
+      const { data: readData } = await supabase
+        .from(STORAGE_KEYS.NOTIFICATIONS_READ)
+        .select('notification_id')
+        .eq('user_id', user.id);
+      if (readData) {
+        currentReadSet = new Set(readData.map((r: any) => r.notification_id));
+        setReadIds(currentReadSet);
+      }
+    } catch (e) {
+      console.warn('[NotificationContext] Error loading read notification IDs:', e);
+    }
+
     const alerts: AppNotification[] = [];
-    const readSet = readIds;
+    const readSet = currentReadSet;
 
     if (isCounselor) {
       const allAppointments = await storageService.getAll<any>(STORAGE_KEYS.APPOINTMENTS);
@@ -131,9 +146,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
           const notif = buildCounselorBookingBellPayload(booking, false);
+          // Active pending booking or reschedule request awaiting counselor action
+          const isPendingAction = a.status === APPOINTMENT_STATUS.PENDING && (!isBookedByCounselor(a) || isRescheduledByStudent(a));
           alerts.push({
             ...notif,
-            isRead: readSet.has(notif.id),
+            isRead: isPendingAction ? false : readSet.has(notif.id),
           });
         });
 
@@ -185,9 +202,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
           const notif = buildStudentAppointmentBellPayload(booking, false);
+          // Active invitation from counselor awaiting student confirmation
+          const isPendingStudentAction = a.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(a) && !isRescheduledByStudent(a);
           alerts.push({
             ...notif,
-            isRead: readSet.has(notif.id),
+            isRead: isPendingStudentAction ? false : readSet.has(notif.id),
           });
         });
 
@@ -275,7 +294,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     setNotifications(sorted);
-  }, [isCounselor, isStudent, user, readIds, showBrowserNotification, triggerPopupAlert]);
+  }, [isCounselor, isStudent, user, showBrowserNotification, triggerPopupAlert]);
 
   const refreshNotifications = useCallback(() => {
     void fetchNotificationsData();
