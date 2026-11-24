@@ -504,7 +504,14 @@ export default function CounselorAppointmentsPage() {
         return;
       }
 
-      const finalLocation = bookingModality === 'online'
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://guidance-rho.vercel.app';
+      const isBuiltInRoom = bookingModality === 'online' && (
+        bookingMeetingLink.includes('/room/') || 
+        bookingMeetingLink.toLowerCase().includes('built-in') || 
+        bookingMeetingLink.toLowerCase().includes('jitsi')
+      );
+
+      let finalLocation = bookingModality === 'online'
         ? (bookingMeetingLink.trim() ? `Online (Meet: ${bookingMeetingLink.trim()})` : 'Online (Google Meet)')
         : (bookingLocation.trim() || 'Guidance Office — Room 302');
 
@@ -528,12 +535,23 @@ export default function CounselorAppointmentsPage() {
         createdAt: createdAt,
       });
 
+      let effectiveMeetingLink = bookingMeetingLink.trim();
+      const createdId = (newAppointment as any)?.id;
+      if (isBuiltInRoom && createdId) {
+        effectiveMeetingLink = `${origin}/room/${createdId}`;
+        finalLocation = `Online (Meet: ${effectiveMeetingLink})`;
+        await storageService.update(STORAGE_KEYS.APPOINTMENTS, createdId, {
+          location: finalLocation
+        });
+        (newAppointment as any).location = finalLocation;
+      }
+
       setAppointments(prev => [newAppointment as any, ...prev]);
 
       // Dispatch session invitation email to the student with meeting link attached
       const studentEmail = selectedStudent.email || selectedStudent.studentEmail || '';
       void dispatchConfirmationEmail({
-        appointmentId: (newAppointment as any).id,
+        appointmentId: createdId,
         studentId: bookingStudentId,
         studentEmail: studentEmail,
         studentName: selectedStudent.name,
@@ -542,7 +560,7 @@ export default function CounselorAppointmentsPage() {
         time: bookingTime,
         type: bookingType,
         location: finalLocation,
-        meetingLink: bookingModality === 'online' && bookingMeetingLink.trim() ? bookingMeetingLink.trim() : undefined,
+        meetingLink: bookingModality === 'online' && effectiveMeetingLink ? effectiveMeetingLink : undefined,
       });
 
       toast({
@@ -1967,13 +1985,26 @@ export default function CounselorAppointmentsPage() {
                     <Label className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
                       <Video className="h-3.5 w-3.5 text-sky-600" /> Virtual Meeting Link *
                     </Label>
-                    <button
-                      type="button"
-                      onClick={() => window.open('https://meet.google.com/new', '_blank')}
-                      className="text-[10px] font-bold text-sky-700 hover:text-sky-900 underline inline-flex items-center gap-1"
-                    >
-                      Create Google Meet <ExternalLink className="h-2.5 w-2.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://guidance-rho.vercel.app';
+                          setBookingMeetingLink(`${origin}/room/auto`);
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline inline-flex items-center gap-1"
+                      >
+                        <Sparkles className="h-2.5 w-2.5" /> Built-in Jitsi Room
+                      </button>
+                      <span className="text-sky-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => window.open('https://meet.google.com/new', '_blank')}
+                        className="text-[10px] font-bold text-sky-700 hover:text-sky-900 underline inline-flex items-center gap-1"
+                      >
+                        Create Google Meet <ExternalLink className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
                   </div>
                   <Input
                     type="url"

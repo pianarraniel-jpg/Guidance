@@ -66,6 +66,12 @@ export default function VirtualMeetingModal({
     }
   };
 
+  const handleUseBuiltInJitsi = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://guidance-rho.vercel.app';
+    setMeetingUrl(`${origin}/room/${appointment.id}`);
+    setError(null);
+  };
+
   const handleGenerateMeet = () => {
     // Generate an institutional USPF consultation Meet code
     const randCode = Math.random().toString(36).substring(2, 5) + '-' +
@@ -162,13 +168,21 @@ export default function VirtualMeetingModal({
               <Label htmlFor="meetingUrl" className="text-xs font-black uppercase tracking-wider text-slate-700">
                 Virtual Meeting Link (URL) <span className="text-rose-500">*</span>
               </Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handleUseBuiltInJitsi}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline"
+                >
+                  <Sparkles className="h-3 w-3" /> Built-in Jitsi Room
+                </button>
+                <span className="text-slate-300">•</span>
                 <button
                   type="button"
                   onClick={handleGenerateMeet}
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
                 >
-                  <Sparkles className="h-3 w-3" /> Generate Meet
+                  Generate Meet
                 </button>
                 <span className="text-slate-300">•</span>
                 <button

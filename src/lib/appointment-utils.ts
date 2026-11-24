@@ -203,6 +203,6 @@ export function isOnlineLocation(loc?: string): boolean {
 
 export function extractMeetingUrl(location?: string): string | null {
   if (!location) return null;
-  const match = location.match(/https?:\/\/[^\s),"]+/);
+  const match = location.match(/(https?:\/\/[^\s),"]+|\/room\/[a-zA-Z0-9_-]+)/);
   return match ? match[0] : null;
 }
