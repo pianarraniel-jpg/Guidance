@@ -4,7 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Bell } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
+import NotificationBell from '@/components/common/NotificationBell';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -48,10 +49,7 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 flex h-2 w-2 rounded-full bg-secondary" />
-          </Button>
+          <NotificationBell />
           
           <div className="flex items-center gap-2 pl-4 border-l">
             <div className="hidden lg:block text-right">

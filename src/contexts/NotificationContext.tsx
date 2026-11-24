@@ -15,8 +15,19 @@ import {
   type BookingNotificationPayload,
 } from '@/lib/booking-notifications';
 import { isBookedByCounselor, isRescheduledByStudent } from '@/lib/appointment-utils';
+import NotificationPopupAlert from '@/components/notifications/NotificationPopupAlert';
 
 export type NotificationType = 'appointment' | 'assessment' | 'message';
+
+export interface PopupAlert {
+  id?: string;
+  type: NotificationType;
+  title: string;
+  description: string;
+  link?: string;
+  studentName?: string;
+  timestamp?: number;
+}
 
 export interface AppNotification {
   id: string;
@@ -32,6 +43,9 @@ export interface AppNotification {
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
+  activePopup: PopupAlert | null;
+  triggerPopupAlert: (alert: PopupAlert) => void;
+  dismissPopupAlert: () => void;
   markAsRead: (id: string) => void;
   markIdsAsRead: (ids: string[]) => void;
   markAllAsRead: () => void;
@@ -49,10 +63,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const [realtimeStatus, setRealtimeStatus] = useState<string>('connecting');
+  const [activePopup, setActivePopup] = useState<PopupAlert | null>(null);
   const shownBrowserIds = useRef<Set<string>>(new Set());
   const isInitialMountRef = useRef<boolean>(true);
   const recentlyNotifiedRef = useRef<Map<string, number>>(new Map());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerPopupAlert = useCallback((alert: PopupAlert) => {
+    setActivePopup({
+      ...alert,
+      timestamp: alert.timestamp || Date.now(),
+    });
+  }, []);
+
+  const dismissPopupAlert = useCallback(() => {
+    setActivePopup(null);
+  }, []);
 
   const showBrowserNotification = useCallback((title: string, body: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -229,16 +255,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       sorted.forEach(n => shownBrowserIds.current.add(n.id));
       isInitialMountRef.current = false;
     } else {
-      sorted
-        .filter(n => !n.isRead && !shownBrowserIds.current.has(n.id))
-        .forEach(n => {
+      const newlyUnread = sorted.filter(n => !n.isRead && !shownBrowserIds.current.has(n.id));
+      if (newlyUnread.length > 0) {
+        newlyUnread.forEach(n => {
           showBrowserNotification(n.title, n.description);
           shownBrowserIds.current.add(n.id);
         });
+        const top = newlyUnread[0];
+        triggerPopupAlert({
+          id: top.id,
+          type: top.type,
+          title: top.title,
+          description: top.description,
+          link: top.link,
+          studentName: top.studentName,
+          timestamp: top.timestamp,
+        });
+      }
     }
 
     setNotifications(sorted);
-  }, [isCounselor, isStudent, user, readIds, showBrowserNotification]);
+  }, [isCounselor, isStudent, user, readIds, showBrowserNotification, triggerPopupAlert]);
 
   const refreshNotifications = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -291,6 +328,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/student/appointments',
+          });
         }
       } else if (apt.status === APPOINTMENT_STATUS.CANCELLED) {
         if (shouldNotify(eventKey)) {
@@ -302,6 +346,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/student/appointments',
+          });
         }
       } else if ((event.action === 'insert' || apt.status === APPOINTMENT_STATUS.PENDING) && bookedByCounselor && !rescheduledByStudent) {
         if (shouldNotify(eventKey)) {
@@ -312,6 +363,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/student/appointments',
+          });
         }
       }
     } else if (isCounselor) {
@@ -341,6 +399,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/counselor/appointments',
+          });
         } else if (!bookedByCounselor && shouldNotify(eventKey)) {
           const title = 'New Booking Request 📅';
           const description = `${studentName} requested a ${apt.type} session for ${dateStr}${timeStr}.`;
@@ -349,6 +414,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/counselor/appointments',
+          });
         }
       } else if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
         if (shouldNotify(eventKey)) {
@@ -365,6 +437,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/counselor/appointments',
+          });
         }
       } else if (apt.status === APPOINTMENT_STATUS.CANCELLED) {
         if (shouldNotify(eventKey)) {
@@ -376,13 +455,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             description,
           });
           showBrowserNotification(title, description);
+          triggerPopupAlert({
+            id: apt.id,
+            type: 'appointment',
+            title,
+            description,
+            link: '/counselor/appointments',
+          });
         }
       }
     }
 
     setLastUpdate(Date.now());
     refreshNotifications();
-  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications]);
+  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications, triggerPopupAlert]);
 
   const handleRealtimeAppointmentEventRef = useRef(handleRealtimeAppointmentEvent);
   useEffect(() => {
@@ -455,9 +541,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Browser desktop notification pop up
     showBrowserNotification(`New Message from ${senderName}`, previewText);
 
+    // Instant floating interactive popup alert
+    triggerPopupAlert({
+      id: msgKey,
+      type: 'message',
+      title: `New Message from ${senderName} 💬`,
+      description: previewText,
+      link: chatLink,
+    });
+
     setLastUpdate(Date.now());
     refreshNotifications();
-  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications]);
+  }, [user, isStudent, isCounselor, showBrowserNotification, refreshNotifications, triggerPopupAlert]);
 
   const handleRealtimeMessageEventRef = useRef(handleRealtimeMessageEvent);
   useEffect(() => {
@@ -509,6 +604,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           description: `${student} completed a counseling form.`,
         });
         showBrowserNotification('Assessment Submitted', `${student} completed a counseling form.`);
+        if (isCounselor) {
+          triggerPopupAlert({
+            id: asmt.id,
+            type: 'assessment',
+            title: 'Assessment Submitted 📝',
+            description: `${student} completed a counseling form.`,
+            link: '/counselor/assessments',
+          });
+        }
+      } else if (asmt && asmt.status === 'evaluated' && isStudent) {
+        toast({
+          title: 'Assessment Feedback Received 📝',
+          description: 'Your counselor has evaluated your assessment form.',
+        });
+        showBrowserNotification('Assessment Feedback', 'Your counselor has evaluated your assessment form.');
+        triggerPopupAlert({
+          id: asmt.id,
+          type: 'assessment',
+          title: 'Assessment Feedback Received 📝',
+          description: 'Your counselor has evaluated your assessment form.',
+          link: '/student/assessments',
+        });
       }
       handleRealtimeUpdateRef.current();
     };
@@ -579,6 +696,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <NotificationContext.Provider value={{
       notifications,
       unreadCount: notifications.filter(n => !n.isRead).length,
+      activePopup,
+      triggerPopupAlert,
+      dismissPopupAlert,
       markAsRead,
       markIdsAsRead,
       markAllAsRead,
@@ -588,6 +708,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       realtimeStatus,
     }}>
       {children}
+      <NotificationPopupAlert />
     </NotificationContext.Provider>
   );
 };

@@ -282,8 +282,11 @@ export default function CounselorDashboardLayout({ children }: CounselorDashboar
                 <div className="relative">
                   <item.icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1.5 h-4 w-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs">
-                      {unreadCount}
+                    <span className="absolute -top-1 -right-1 flex items-center justify-center">
+                      <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-rose-400 opacity-75" />
+                      <span className="relative min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
                     </span>
                   )}
                 </div>

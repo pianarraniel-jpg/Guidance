@@ -43,12 +43,16 @@ const NotificationBell = () => {
         <Button
           variant="ghost"
           size="icon"
+          aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : 'Notifications'}
           className="relative h-10 w-10 rounded-xl text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-all"
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-rose-500 text-[9px] font-black text-white flex items-center justify-center border-2 border-white ring-2 ring-rose-500/20 animate-pulse">
-              {unreadCount}
+            <span className="absolute -top-1 -right-1 flex items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-rose-400 opacity-75" />
+              <span className="relative min-w-[19px] h-[19px] px-1 rounded-full bg-rose-600 text-[10px] font-black text-white flex items-center justify-center border-2 border-white shadow-xs">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
             </span>
           )}
         </Button>
@@ -58,13 +62,25 @@ const NotificationBell = () => {
         align="end"
       >
         <div className="bg-white p-4 border-b border-slate-100 flex items-center justify-between">
-          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
-            Notifications
-          </h4>
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+              Notifications
+            </h4>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                {unreadCount} New
+              </span>
+            )}
+          </div>
           {unreadCount > 0 ? (
-            <Badge className="bg-primary text-white border-none text-[10px] font-black shadow-xs">
-              {unreadCount} New
-            </Badge>
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              className="text-[10px] font-black uppercase tracking-wider text-primary hover:underline hover:text-primary/80 transition-colors"
+            >
+              Mark all read
+            </button>
           ) : (
             <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 font-bold text-[10px]">
               All Read ({notifications.length})
@@ -97,7 +113,10 @@ const NotificationBell = () => {
                       {notif.title}
                     </p>
                     {!notif.isRead && (
-                      <span className="h-2 w-2 rounded-full bg-primary ring-2 ring-primary/20 shrink-0" />
+                      <span className="flex h-2 w-2 relative shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-700 font-medium line-clamp-2 leading-relaxed">
