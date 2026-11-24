@@ -14,7 +14,7 @@ import {
   formatCounselorDisplayName,
   type BookingNotificationPayload,
 } from '@/lib/booking-notifications';
-import { isBookedByCounselor } from '@/lib/appointment-utils';
+import { isBookedByCounselor, isRescheduledByStudent } from '@/lib/appointment-utils';
 
 export type NotificationType = 'appointment' | 'assessment' | 'message';
 
@@ -99,7 +99,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       counselorAppointments
         .filter(a => 
           a.status === APPOINTMENT_STATUS.CONFIRMED || 
-          (a.status === APPOINTMENT_STATUS.PENDING && !isBookedByCounselor(a)) || 
+          (a.status === APPOINTMENT_STATUS.PENDING && (!isBookedByCounselor(a) || isRescheduledByStudent(a))) || 
           a.status === APPOINTMENT_STATUS.CANCELLED
         )
         .forEach(a => {
@@ -154,7 +154,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .filter(a => 
           a.status === APPOINTMENT_STATUS.CONFIRMED || 
           a.status === APPOINTMENT_STATUS.CANCELLED || 
-          (a.status === APPOINTMENT_STATUS.PENDING && isBookedByCounselor(a))
+          (a.status === APPOINTMENT_STATUS.PENDING && (isBookedByCounselor(a) || isRescheduledByStudent(a)))
         )
         .forEach(a => {
           const booking = a as BookingNotificationPayload;
@@ -277,11 +277,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const dateStr = apt.date || 'your scheduled date';
       const eventKey = `student-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
       const bookedByCounselor = isBookedByCounselor(apt);
+      const rescheduledByStudent = isRescheduledByStudent(apt);
 
       if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
         if (shouldNotify(eventKey)) {
-          const title = 'Session Confirmed 🎉';
-          const description = `Your ${apt.type} session on ${dateStr}${timeStr} with ${counselor} has been confirmed.`;
+          const title = rescheduledByStudent ? 'Reschedule Approved 🎉' : 'Session Confirmed 🎉';
+          const description = rescheduledByStudent
+            ? `Your request to reschedule on ${dateStr}${timeStr} with ${counselor} has been confirmed.`
+            : `Your ${apt.type} session on ${dateStr}${timeStr} with ${counselor} has been confirmed.`;
 
           toast({
             title,
@@ -300,12 +303,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           showBrowserNotification(title, description);
         }
-      } else if (event.action === 'insert' || (apt.status === APPOINTMENT_STATUS.PENDING && bookedByCounselor)) {
+      } else if ((event.action === 'insert' || apt.status === APPOINTMENT_STATUS.PENDING) && bookedByCounselor && !rescheduledByStudent) {
         if (shouldNotify(eventKey)) {
-          const title = bookedByCounselor ? 'Session Invitation 📋' : 'Consultation Scheduled 📋';
-          const description = bookedByCounselor
-            ? `${counselor} scheduled a session for ${dateStr}${timeStr}. Please confirm your attendance.`
-            : `${counselor} scheduled a session with you for ${dateStr}${timeStr}.`;
+          const title = 'Session Invitation 📋';
+          const description = `${counselor} scheduled a session for ${dateStr}${timeStr}. Please confirm your attendance.`;
           toast({
             title,
             description,
@@ -329,9 +330,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const dateStr = apt.date || 'the requested date';
       const eventKey = `counselor-apt-${apt.id}-${apt.status}-${apt.date}-${apt.time}`;
       const bookedByCounselor = isBookedByCounselor(apt);
+      const rescheduledByStudent = isRescheduledByStudent(apt);
 
       if (apt.status === APPOINTMENT_STATUS.PENDING) {
-        if (!bookedByCounselor && shouldNotify(eventKey)) {
+        if (rescheduledByStudent && shouldNotify(eventKey)) {
+          const title = 'Reschedule Requested 📅';
+          const description = `${studentName} requested to reschedule session to ${dateStr}${timeStr}. Please review and confirm.`;
+          toast({
+            title,
+            description,
+          });
+          showBrowserNotification(title, description);
+        } else if (!bookedByCounselor && shouldNotify(eventKey)) {
           const title = 'New Booking Request 📅';
           const description = `${studentName} requested a ${apt.type} session for ${dateStr}${timeStr}.`;
           toast({
@@ -342,10 +352,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       } else if (apt.status === APPOINTMENT_STATUS.CONFIRMED) {
         if (shouldNotify(eventKey)) {
-          const title = bookedByCounselor ? 'Session Confirmed by Student 🎉' : 'Session Confirmed 📅';
-          const description = bookedByCounselor
-            ? `${studentName} confirmed the consultation scheduled for ${dateStr}${timeStr}.`
-            : `Session with ${studentName} for ${dateStr}${timeStr} is confirmed.`;
+          const title = rescheduledByStudent
+            ? 'Reschedule Confirmed 📅'
+            : (bookedByCounselor ? 'Session Confirmed by Student 🎉' : 'Session Confirmed 📅');
+          const description = rescheduledByStudent
+            ? `Rescheduled session with ${studentName} for ${dateStr}${timeStr} is confirmed.`
+            : (bookedByCounselor
+              ? `${studentName} confirmed the consultation scheduled for ${dateStr}${timeStr}.`
+              : `Session with ${studentName} for ${dateStr}${timeStr} is confirmed.`);
           toast({
             title,
             description,

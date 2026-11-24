@@ -28,6 +28,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { storageService } from '@/lib/storage-service';
 import { STORAGE_KEYS, APPOINTMENT_STATUS } from '@/lib/constants';
+import { STUDENT_RESCHEDULE_TAG } from '@/lib/appointment-utils';
 import { useToast } from '@/hooks/use-toast';
 
 export const TIME_SLOTS = [
@@ -251,14 +252,25 @@ export default function RescheduleModal({
 
       // Build updated reason
       let updatedReason = appointment.reason || '';
-      const notePrefix = userRole === 'student' ? '[Student Rescheduled]' : '[Counselor Rescheduled]';
-      if (reason.trim()) {
-        updatedReason = updatedReason 
-          ? `${updatedReason}\n${notePrefix} (${format(new Date(), 'MMM dd')}: ${newDate} at ${newTime}): ${reason.trim()}`
-          : `${notePrefix} (${format(new Date(), 'MMM dd')}: ${newDate} at ${newTime}): ${reason.trim()}`;
+      // If student reschedules, clear any prior [BOOKED_BY_COUNSELOR] tag
+      if (userRole === 'student') {
+        updatedReason = updatedReason.replace(/\[BOOKED_BY_COUNSELOR\]/g, '').trim();
       }
 
-      // Status: Counselor directly confirms reschedule; Student puts in Pending for confirmation (or updates schedule)
+      const notePrefix = userRole === 'student' ? '[Student Rescheduled]' : '[Counselor Rescheduled]';
+      const formattedNote = reason.trim() 
+        ? `${notePrefix} (${format(new Date(), 'MMM dd')}: ${newDate} at ${newTime}): ${reason.trim()}`
+        : `${notePrefix} (${format(new Date(), 'MMM dd')}: ${newDate} at ${newTime})`;
+
+      updatedReason = updatedReason 
+        ? `${updatedReason}\n${formattedNote}`
+        : formattedNote;
+
+      if (userRole === 'student') {
+        updatedReason = `${updatedReason} ${STUDENT_RESCHEDULE_TAG}`.trim();
+      }
+
+      // Status: Counselor directly confirms reschedule; Student puts in Pending for counselor confirmation
       const nextStatus = userRole === 'counselor' 
         ? APPOINTMENT_STATUS.CONFIRMED 
         : APPOINTMENT_STATUS.PENDING;
@@ -282,10 +294,17 @@ export default function RescheduleModal({
         ...(result || {})
       };
 
-      toast({
-        title: "Session Rescheduled Successfully!",
-        description: `Session has been moved to ${newDate} at ${newTime} (${nextStatus.toUpperCase()}).`,
-      });
+      if (userRole === 'student') {
+        toast({
+          title: "Reschedule Request Sent!",
+          description: `Your request to move session to ${newDate} at ${newTime} was sent to your counselor for review and confirmation.`,
+        });
+      } else {
+        toast({
+          title: "Session Rescheduled Successfully!",
+          description: `Session has been moved to ${newDate} at ${newTime} (${nextStatus.toUpperCase()}).`,
+        });
+      }
 
       onSuccess(updatedApp);
       onClose();

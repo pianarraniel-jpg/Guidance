@@ -164,9 +164,23 @@ export function downloadIcsFile(info: CalendarEventInfo, filename = 'guidance-se
 }
 
 export const COUNSELOR_BOOKING_TAG = '[BOOKED_BY_COUNSELOR]';
+export const STUDENT_RESCHEDULE_TAG = '[RESCHEDULED_BY_STUDENT]';
+
+export function isRescheduledByStudent(apt: any): boolean {
+  if (!apt) return false;
+  if (apt.rescheduledBy === 'student' || apt.rescheduled_by === 'student') return true;
+  if (typeof apt.reason === 'string') {
+    if (apt.reason.includes(STUDENT_RESCHEDULE_TAG) || apt.reason.includes('[Student Rescheduled]')) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export function isBookedByCounselor(apt: any): boolean {
   if (!apt) return false;
+  // If student requested a reschedule, it is awaiting counselor approval, not student confirmation
+  if (isRescheduledByStudent(apt)) return false;
   if (apt.bookedBy === 'counselor' || apt.booked_by === 'counselor') return true;
   if (typeof apt.reason === 'string' && apt.reason.includes(COUNSELOR_BOOKING_TAG)) return true;
   return false;
@@ -176,6 +190,7 @@ export function cleanAppointmentReason(reason?: string): string {
   if (!reason) return '';
   return reason
     .replace(/\[BOOKED_BY_COUNSELOR\]/g, '')
+    .replace(/\[RESCHEDULED_BY_STUDENT\]/g, '')
     .replace(/\[Missed:[^\]]*\]/g, '')
     .trim();
 }

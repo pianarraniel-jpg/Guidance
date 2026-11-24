@@ -85,6 +85,7 @@ import {
   getGoogleCalendarUrl,
   downloadIcsFile,
   isBookedByCounselor,
+  isRescheduledByStudent,
   COUNSELOR_BOOKING_TAG,
   cleanAppointmentReason,
 } from '@/lib/appointment-utils';
@@ -849,6 +850,13 @@ export default function CounselorAppointmentsPage() {
         if (app && isAppointmentPassed(app.date, app.time)) {
           return <Badge className="bg-red-50 text-red-700 border-none font-black text-[9px] uppercase">Missed / Expired</Badge>;
         }
+        if (app && isRescheduledByStudent(app)) {
+          return (
+            <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] uppercase inline-flex items-center gap-1 shadow-xs">
+              <CalendarClock className="h-3 w-3 text-amber-700" /> Reschedule Requested
+            </Badge>
+          );
+        }
         if (isBookedByCounselor(app)) {
           return (
             <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] uppercase inline-flex items-center gap-1 shadow-xs">
@@ -1040,7 +1048,20 @@ export default function CounselorAppointmentsPage() {
                     <div className="flex items-center justify-end gap-2">
                       {/* Prominent inline quick-actions */}
                       {app.status === APPOINTMENT_STATUS.PENDING && (
-                        isBookedByCounselor(app) ? (
+                        isRescheduledByStudent(app) ? (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleUpdateStatus(
+                                app.id,
+                                APPOINTMENT_STATUS.CONFIRMED,
+                              )
+                            }
+                            className="h-7 text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 shadow-sm"
+                          >
+                            <Check className="h-3 w-3 mr-1" /> Confirm Reschedule
+                          </Button>
+                        ) : isBookedByCounselor(app) ? (
                           <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 flex items-center gap-1">
                             <Clock className="h-3 w-3 text-amber-600" /> Awaiting Student
                           </span>
@@ -1100,7 +1121,7 @@ export default function CounselorAppointmentsPage() {
                               }
                               className="flex items-center gap-2 p-3 rounded-xl cursor-pointer font-bold text-xs hover:bg-emerald-50 hover:text-emerald-700"
                             >
-                              <Check className="h-4 w-4" /> Accept Session
+                              <Check className="h-4 w-4" /> {isRescheduledByStudent(app) ? 'Confirm Reschedule' : 'Accept Session'}
                             </DropdownMenuItem>
                           )}
                           {app.status === APPOINTMENT_STATUS.CONFIRMED && (
@@ -1287,7 +1308,15 @@ export default function CounselorAppointmentsPage() {
                 "{cleanAppointmentReason(selectedApp?.reason) || "No specific reason provided."}"
               </p>
             </div>
-            {selectedApp?.status === "pending" && isBookedByCounselor(selectedApp) && (
+            {selectedApp?.status === "pending" && isRescheduledByStudent(selectedApp) && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-2.5">
+                <CalendarClock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 leading-relaxed font-medium">
+                  <span className="font-black">Reschedule Requested by Student:</span> <span className="font-bold underline">{selectedApp.studentName}</span> requested to reschedule this session to <span className="font-bold underline">{selectedApp.date} at {selectedApp.time}</span>. Click below to confirm or adjust the schedule.
+                </div>
+              </div>
+            )}
+            {selectedApp?.status === "pending" && isBookedByCounselor(selectedApp) && !isRescheduledByStudent(selectedApp) && (
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-2.5">
                 <Clock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-900 leading-relaxed font-medium">
@@ -1354,7 +1383,7 @@ export default function CounselorAppointmentsPage() {
                   }}
                   className="flex-1 h-12 bg-primary hover:bg-primary/90 rounded-xl font-black gap-2"
                 >
-                  <Check className="h-4 w-4" /> Accept Session
+                  <Check className="h-4 w-4" /> {isRescheduledByStudent(selectedApp) ? 'Confirm Reschedule' : 'Accept Session'}
                 </Button>
               )}
               {selectedApp?.status === "confirmed" && (

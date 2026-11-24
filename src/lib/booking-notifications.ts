@@ -1,4 +1,4 @@
-import { isBookedByCounselor } from './appointment-utils';
+import { isBookedByCounselor, isRescheduledByStudent } from './appointment-utils';
 
 export interface BookingNotificationPayload {
   id: string;
@@ -54,20 +54,31 @@ export function buildCounselorBookingBellPayload(
   let title = 'Session Update';
   let description = `Session with ${student} for ${dateStr}${timeStr} has been updated.`;
   const bookedByCounselor = isBookedByCounselor(appointment);
+  const rescheduledByStudent = isRescheduledByStudent(appointment);
 
   if (status === 'confirmed') {
-    title = bookedByCounselor ? 'Session Confirmed by Student' : 'Session Confirmed';
-    description = bookedByCounselor
-      ? `${student} confirmed the session scheduled for ${dateStr}${timeStr}.`
-      : `Session with ${student} on ${dateStr}${timeStr} is confirmed.`;
+    title = rescheduledByStudent
+      ? 'Reschedule Confirmed'
+      : (bookedByCounselor ? 'Session Confirmed by Student' : 'Session Confirmed');
+    description = rescheduledByStudent
+      ? `Rescheduled session with ${student} on ${dateStr}${timeStr} is confirmed.`
+      : (bookedByCounselor
+        ? `${student} confirmed the session scheduled for ${dateStr}${timeStr}.`
+        : `Session with ${student} on ${dateStr}${timeStr} is confirmed.`);
   } else if (status === 'cancelled') {
     title = 'Session Cancelled';
     description = `${student} cancelled the session for ${dateStr}${timeStr}.`;
   } else if (status === 'pending') {
-    title = bookedByCounselor ? 'Session Invitation Sent' : 'New Booking Request';
-    description = bookedByCounselor
-      ? `Invitation sent to ${student} for ${dateStr}${timeStr} (Awaiting student confirmation).`
-      : `${student} requested a session for ${dateStr}${timeStr}.`;
+    if (rescheduledByStudent) {
+      title = 'Reschedule Requested 📅';
+      description = `${student} requested to reschedule session to ${dateStr}${timeStr}. Please review and confirm.`;
+    } else if (bookedByCounselor) {
+      title = 'Session Invitation Sent';
+      description = `Invitation sent to ${student} for ${dateStr}${timeStr} (Awaiting student confirmation).`;
+    } else {
+      title = 'New Booking Request';
+      description = `${student} requested a session for ${dateStr}${timeStr}.`;
+    }
   } else if (status === 'completed') {
     title = 'Session Completed';
     description = `Session with ${student} on ${dateStr}${timeStr} was completed.`;
@@ -99,6 +110,7 @@ export function buildStudentAppointmentBellPayload(
   const isCancelled = appointment.status === 'cancelled';
   const isPending = appointment.status === 'pending';
   const bookedByCounselor = isBookedByCounselor(appointment);
+  const rescheduledByStudent = isRescheduledByStudent(appointment);
   const timeStr = appointment.time ? ` at ${appointment.time}` : '';
   const dateStr = appointment.date || 'your scheduled date';
 
@@ -106,16 +118,24 @@ export function buildStudentAppointmentBellPayload(
   let description = `Your session with ${counselor} for ${dateStr}${timeStr} has been updated.`;
 
   if (isConfirmed) {
-    title = 'Session Confirmed';
-    description = `Your session with ${counselor} on ${dateStr}${timeStr} is confirmed.`;
+    title = rescheduledByStudent ? 'Reschedule Approved 🎉' : 'Session Confirmed';
+    description = rescheduledByStudent
+      ? `${counselor} confirmed your rescheduled session for ${dateStr}${timeStr}.`
+      : `Your session with ${counselor} on ${dateStr}${timeStr} is confirmed.`;
   } else if (isCancelled) {
     title = 'Session Cancelled';
     description = `Your session with ${counselor} on ${dateStr}${timeStr} has been cancelled.`;
   } else if (isPending) {
-    title = bookedByCounselor ? 'Session Confirmation Required' : 'Consultation Scheduled';
-    description = bookedByCounselor
-      ? `${counselor} scheduled a session for ${dateStr}${timeStr}. Please confirm your attendance.`
-      : `A session with ${counselor} is scheduled for ${dateStr}${timeStr}.`;
+    if (rescheduledByStudent) {
+      title = 'Reschedule Pending Counselor';
+      description = `Your request to reschedule with ${counselor} for ${dateStr}${timeStr} is awaiting counselor review.`;
+    } else if (bookedByCounselor) {
+      title = 'Session Confirmation Required';
+      description = `${counselor} scheduled a session for ${dateStr}${timeStr}. Please confirm your attendance.`;
+    } else {
+      title = 'Consultation Scheduled';
+      description = `A session with ${counselor} is scheduled for ${dateStr}${timeStr}.`;
+    }
   }
 
   const ts = timestampOverride || (appointment.createdAt ? new Date(appointment.createdAt).getTime() : Date.now());
