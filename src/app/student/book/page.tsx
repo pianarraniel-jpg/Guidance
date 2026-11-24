@@ -60,7 +60,8 @@ import {
   Sunrise,
   Sun,
   GraduationCap,
-  Lock
+  Lock,
+  CalendarClock
 } from 'lucide-react';
 import { format, isBefore, isWeekend, startOfDay, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -163,6 +164,13 @@ export default function BookAppointment() {
 
   const isAcademicComplete = isAcademicClassificationComplete(user);
   const [isClassificationModalOpen, setIsClassificationModalOpen] = useState(false);
+
+  // An active consultation that has not yet been marked completed or cancelled
+  const activeIncompleteAppointment = useMemo(() => {
+    return studentAppointments.find(
+      a => a.status !== APPOINTMENT_STATUS.COMPLETED && a.status !== APPOINTMENT_STATUS.CANCELLED
+    );
+  }, [studentAppointments]);
 
   const loadCounselors = useCallback(async () => {
     const all = await storageService.getAll<any>(STORAGE_KEYS.USERS);
@@ -335,6 +343,19 @@ export default function BookAppointment() {
 
   const handleDateSelect = (d: Date | undefined) => {
     if (!d) {
+      setSelectedDate(undefined);
+      setSelectedTime('');
+      return;
+    }
+
+    // Incomplete appointment check: Student cannot book if prior appointment is not yet completed
+    if (activeIncompleteAppointment) {
+      setConflictingAppointments([activeIncompleteAppointment]);
+      setConflictModalTitle('Booking Disabled: Active Consultation Incomplete');
+      setConflictModalDescription(
+        `You have an active consultation scheduled on ${activeIncompleteAppointment.date} at ${activeIncompleteAppointment.time} that has not yet been marked as completed. Booking is disabled until your current session is completed or done.`
+      );
+      setIsConflictModalOpen(true);
       setSelectedDate(undefined);
       setSelectedTime('');
       return;
@@ -518,6 +539,30 @@ export default function BookAppointment() {
       }
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+      // 0. Verify student does not have an incomplete / uncompleted active appointment
+      const { data: activeApps } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('student_id', user?.id)
+        .neq('status', APPOINTMENT_STATUS.CANCELLED)
+        .neq('status', APPOINTMENT_STATUS.COMPLETED);
+
+      if (activeApps && activeApps.length > 0) {
+        const activeApp = activeApps[0];
+        toast({
+          variant: 'destructive',
+          title: 'Booking Disabled: Session Incomplete',
+          description: `You have an active appointment on ${activeApp.date} at ${activeApp.time} that has not yet been marked as completed. You cannot book another session until your prior consultation is completed or done.`,
+        });
+        setConflictingAppointments(activeApps);
+        setConflictModalTitle('Booking Disabled: Active Consultation Incomplete');
+        setConflictModalDescription(
+          `You have an active appointment scheduled on ${activeApp.date} at ${activeApp.time} that has not yet been marked as completed. Booking is disabled until your current session is marked as completed by your counselor.`
+        );
+        setIsConflictModalOpen(true);
+        return;
+      }
 
       // 1. Check max 3 confirmed / active appointments per day in database
       const { data: studentDayApps } = await supabase
@@ -712,7 +757,7 @@ export default function BookAppointment() {
         <div className="min-h-screen bg-slate-50/50 p-4 sm:p-8">
           <div className="w-full max-w-7xl mx-auto">
             <header className="mb-8">
-              {currentStep < STEPS.CONFIRM && (
+              {!activeIncompleteAppointment && currentStep < STEPS.CONFIRM && (
                 <Button variant="ghost" onClick={back} className="mb-4 -ml-2 text-slate-500 hover:text-primary font-bold">
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
@@ -728,7 +773,7 @@ export default function BookAppointment() {
                 </div>
               </div>
 
-              {isAcademicComplete && currentStep < STEPS.CONFIRM && (
+              {isAcademicComplete && !activeIncompleteAppointment && currentStep < STEPS.CONFIRM && (
                 <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
                   {stepLabels.slice(0, 4).map((label, i) => (
                     <React.Fragment key={label}>
@@ -817,6 +862,90 @@ export default function BookAppointment() {
                       className="w-full sm:w-auto h-12 px-8 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
                     >
                       Set Academic Classification
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full sm:w-auto h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-700"
+                    >
+                      <Link href="/student/dashboard">Return to Dashboard</Link>
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            ) : activeIncompleteAppointment ? (
+              <div className="max-w-2xl mx-auto py-8">
+                <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden text-center p-8 sm:p-12">
+                  <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 text-amber-700 mb-6 shadow-inner">
+                    <CalendarClock className="h-8 w-8 text-amber-600" />
+                  </div>
+
+                  <Badge className="bg-amber-100 text-amber-800 border-none font-bold text-[11px] uppercase tracking-wider mb-3 px-3 py-1">
+                    Booking Inactive • Session In Progress
+                  </Badge>
+
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-3">
+                    Active Consultation Incomplete
+                  </h2>
+
+                  <p className="text-sm text-slate-600 max-w-lg mx-auto leading-relaxed mb-6 font-medium">
+                    You currently have an active appointment scheduled that has not yet been marked as completed. To ensure quality guidance and continuous care, students cannot book a new consultation until their previous session is completed or done.
+                  </p>
+
+                  {/* Active Appointment Preview Card */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 mb-8 text-left max-w-lg mx-auto space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Active Session
+                        </span>
+                        <Badge className={cn(
+                          "text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow-none",
+                          activeIncompleteAppointment.status === 'confirmed'
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border-amber-200"
+                        )}>
+                          {activeIncompleteAppointment.status === 'confirmed' ? 'Confirmed' : 'Pending Review'}
+                        </Badge>
+                      </div>
+                      <span className="text-xs font-bold text-slate-900">
+                        {activeIncompleteAppointment.type}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Counselor</p>
+                        <p className="font-bold text-slate-800 mt-0.5 truncate">
+                          {activeIncompleteAppointment.counselor_name || activeIncompleteAppointment.counselorName || 'Guidance Counselor'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Schedule</p>
+                        <p className="font-bold text-slate-800 mt-0.5">
+                          {activeIncompleteAppointment.date} at {activeIncompleteAppointment.time}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
+                      <span>Modality:</span>
+                      <span className="font-bold text-slate-700">
+                        {activeIncompleteAppointment.location?.toLowerCase().includes('online') || activeIncompleteAppointment.location?.toLowerCase().includes('meet')
+                          ? 'Online (Google Meet)'
+                          : (activeIncompleteAppointment.location || 'Guidance Office — Room 302')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Button
+                      asChild
+                      className="w-full sm:w-auto h-12 px-6 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 gap-2"
+                    >
+                      <Link href="/student/appointments">
+                        <CalendarDays className="h-4 w-4" /> View My Appointment
+                      </Link>
                     </Button>
                     <Button
                       asChild

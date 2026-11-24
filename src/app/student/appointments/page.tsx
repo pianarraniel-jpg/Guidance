@@ -181,6 +181,10 @@ export default function StudentAppointments() {
     { label: 'Pending', value: appointments.filter(a => a.status === APPOINTMENT_STATUS.PENDING && !isAppointmentPassed(a.date, a.time)).length, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
+  const hasIncompleteAppointment = appointments.some(
+    a => a.status !== APPOINTMENT_STATUS.COMPLETED && a.status !== APPOINTMENT_STATUS.CANCELLED
+  );
+
   const getStatusBadge = (status: string, app?: any) => {
     switch (status) {
       case APPOINTMENT_STATUS.CONFIRMED:
@@ -379,13 +383,32 @@ export default function StudentAppointments() {
                 <CalendarIcon className="h-4 w-4 text-slate-600" />
                 <span className="sr-only">Show Calendar</span>
               </Button>
-              <Button asChild className="rounded-xl font-bold bg-primary hover:bg-primary/90 text-white h-11 px-4 sm:px-6 shadow-sm flex-1 sm:flex-initial text-xs sm:text-sm">
-                <Link href="/student/book">
-                  <Plus className="h-4 w-4 mr-1.5" /> Book New Session
-                </Link>
-              </Button>
+              {hasIncompleteAppointment ? (
+                <Button
+                  disabled
+                  title="You have an active consultation in progress. Booking a new consultation will be unlocked once your current session is marked as completed."
+                  className="rounded-xl font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed h-11 px-4 sm:px-6 shadow-none flex-1 sm:flex-initial text-xs sm:text-sm gap-1.5"
+                >
+                  <Clock className="h-4 w-4" /> Session in Progress
+                </Button>
+              ) : (
+                <Button asChild className="rounded-xl font-bold bg-primary hover:bg-primary/90 text-white h-11 px-4 sm:px-6 shadow-sm flex-1 sm:flex-initial text-xs sm:text-sm">
+                  <Link href="/student/book">
+                    <Plus className="h-4 w-4 mr-1.5" /> Book New Session
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
+
+          {hasIncompleteAppointment && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-3 text-xs text-amber-900 shadow-xs">
+              <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="font-medium">
+                You have an active consultation in progress. Booking a new session will automatically be enabled once your counselor marks your current appointment as <strong>completed</strong>.
+              </span>
+            </div>
+          )}
 
           <div className="w-full">
               <Card className="border border-slate-200/80 shadow-xs bg-white rounded-2xl overflow-hidden">
@@ -418,7 +441,7 @@ export default function StudentAppointments() {
                       <p className="text-sm font-bold text-slate-300">
                         {activeTab === 'upcoming' ? 'No upcoming sessions.' : 'No records found.'}
                       </p>
-                      {activeTab === 'upcoming' && (
+                      {activeTab === 'upcoming' && !hasIncompleteAppointment && (
                         <Button asChild size="sm" className="mt-1 font-bold rounded-xl">
                           <Link href="/student/book">Book a Session</Link>
                         </Button>
