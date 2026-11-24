@@ -64,6 +64,9 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
     : '';
 
   const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || 'guidance@uspf.edu.ph';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const appointmentsUrl = appUrl ? new URL('/student/appointments', appUrl).href : '';
+  const appointmentsHref = appointmentsUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -127,6 +130,7 @@ export async function sendConfirmationEmailViaNodemailer(data: ConfirmationEmail
         </tr>
         ` : ''}
       </table>
+      ${appointmentsHref ? `<p><a href="${appointmentsHref}" style="color: #047857; font-weight: 700;">View appointment in Guidance Sync</a></p>` : ''}
     </div>
     <div class="footer">
       USPF Guidance & Counseling Center
@@ -146,6 +150,7 @@ Guidance Counselor: ${data.counselorName}
 Session Type: ${data.type}
 Location / Mode: ${data.location}
 ${formattedRef ? `Reference ID: ${formattedRef}` : ''}
+${appointmentsUrl ? `\nView appointment in Guidance Sync: ${appointmentsUrl}` : ''}
   `.trim();
 
   const mailOptions = {
